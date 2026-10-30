@@ -1,0 +1,68 @@
+@import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  --theme-accent: #10b981;
+  --theme-accent-hover: #059669;
+  --theme-accent-20: rgba(16, 185, 129, 0.2);
+  --theme-accent-10: rgba(16, 185, 129, 0.1);
+  --theme-bg-base: #06130f;
+  --theme-bg-surface: #0c221c;
+  --theme-bg-navbar: #102e26;
+  --theme-border: #17473a;
+  --theme-text: #ecfdf5;
+  --theme-text-muted: #6ee7b7;
+}
+
+@layer base {
+  body {
+    font-family: 'Cairo', 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  }
+  
+  /* Custom scrollbar matching Chrome */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: rgba(148, 163, 184, 0.3);
+    border-radius: 4px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(148, 163, 184, 0.5);
+  }
+}
+
+/* Chrome tab curves and micro-animations */
+.chrome-tab-shape {
+  clip-path: polygon(8px 0%, calc(100% - 8px) 0%, 100% 100%, 0% 100%);
+}
+
+.theme-bg-base {
+  background-color: var(--theme-bg-base);
+}
+.theme-bg-surface {
+  background-color: var(--theme-bg-surface);
+}
+.theme-bg-navbar {
+  background-color: var(--theme-bg-navbar);
+}
+.theme-border {
+  border-color: var(--theme-border);
+}
+.theme-text {
+  color: var(--theme-text);
+}
+.theme-accent-text {
+  color: var(--theme-accent);
+}
+.theme-accent-bg {
+  background-color: var(--theme-accent);
+}
+.theme-accent-border {
+  border-color: var(--theme-accent);
+}
+
