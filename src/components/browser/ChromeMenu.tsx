@@ -19,6 +19,7 @@ interface ChromeMenuProps {
   currentTheme: string;
   onToggleTheme: () => void;
   onClose: () => void;
+  onOpenDownloadModal?: () => void;
 }
 
 export const ChromeMenu: React.FC<ChromeMenuProps> = ({
@@ -39,6 +40,7 @@ export const ChromeMenu: React.FC<ChromeMenuProps> = ({
   currentTheme,
   onToggleTheme,
   onClose,
+  onOpenDownloadModal,
 }) => {
   const handleAction = (callback: () => void) => {
     callback();
@@ -141,6 +143,22 @@ export const ChromeMenu: React.FC<ChromeMenuProps> = ({
           </span>
           <span className="text-[10px] text-slate-500 font-mono">Ctrl+J</span>
         </button>
+
+        {onOpenDownloadModal && (
+          <button
+            type="button"
+            onClick={() => handleAction(onOpenDownloadModal)}
+            className="w-full flex items-center justify-between px-3 py-2 rounded-lg bg-emerald-950/40 hover:bg-emerald-900/50 text-emerald-300 border border-emerald-500/30 transition-colors text-right"
+          >
+            <span className="flex items-center gap-2.5">
+              <Download className="w-4 h-4 text-emerald-400" />
+              <span className="font-bold">تنزيل التطبيق (.exe / .apk)</span>
+            </span>
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-mono">
+              جديد
+            </span>
+          </button>
+        )}
 
         <button
           type="button"

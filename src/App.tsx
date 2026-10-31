@@ -17,6 +17,7 @@ import { YouTubeView } from './components/views/YouTubeView';
 import { SecurityVaultView } from './components/views/SecurityVaultView';
 import { VaultLockScreen } from './components/browser/VaultLockScreen';
 import { LibiAssistant } from './components/browser/LibiAssistant';
+import { DownloadModal } from './components/browser/DownloadModal';
 
 import { Tab, Bookmark, HistoryItem, DownloadItem, BrowserSettings, ShieldSettings, NetworkRequest, BrowserPageType, VaultState, OnionCircuit } from './types/browser';
 import { DEFAULT_SETTINGS, DEFAULT_SHIELD_SETTINGS, DEFAULT_BOOKMARKS, SEARCH_ENGINES } from './data/initialData';
@@ -177,6 +178,7 @@ export default function App() {
 
   const [showDevTools, setShowDevTools] = useState(false);
   const [showClearDataModal, setShowClearDataModal] = useState(false);
+  const [showDownloadModal, setShowDownloadModal] = useState(false);
   const [showLibi, setShowLibi] = useState(false);
   const [libiContextQuery, setLibiContextQuery] = useState<string | undefined>(undefined);
   const [networkRequests, setNetworkRequests] = useState<NetworkRequest[]>([
@@ -396,7 +398,15 @@ export default function App() {
     // Internal pages & YouTube Privacy mode & Security Fortress
     if (trimmed.startsWith('chrome://')) {
       if (trimmed === 'chrome://newtab') pageType = 'newtab';
-      else if (trimmed.startsWith('chrome://search')) pageType = 'search';
+      else if (trimmed.startsWith('chrome://search')) {
+        let q = '';
+        try {
+          const u = new URL(trimmed.replace('chrome://search', 'https://search.internal'));
+          q = u.searchParams.get('q') || '';
+        } catch {}
+        targetUrl = `https://www.google.com/search?q=${encodeURIComponent(q || '')}`;
+        pageType = 'webpage';
+      }
       else if (trimmed === 'chrome://history') pageType = 'history';
       else if (trimmed === 'chrome://bookmarks') pageType = 'bookmarks';
       else if (trimmed === 'chrome://settings') pageType = 'settings';
@@ -408,17 +418,11 @@ export default function App() {
       targetUrl = trimmed.startsWith('http') ? trimmed : `https://${trimmed}`;
       pageType = 'youtube';
     } else if (trimmed.includes('google.com/search') || trimmed.includes('google.com/?q=')) {
-      // Intercept Google search requests to avoid Cloud Run datacenter recaptcha block
-      let q = '';
-      try {
-        const u = new URL(trimmed.startsWith('http') ? trimmed : `https://${trimmed}`);
-        q = u.searchParams.get('q') || '';
-      } catch {}
-      targetUrl = `chrome://search?q=${encodeURIComponent(q || trimmed)}`;
-      pageType = 'search';
+      targetUrl = trimmed.startsWith('http') ? trimmed : `https://${trimmed}`;
+      pageType = 'webpage';
     } else if (trimmed === 'google.com' || trimmed === 'https://google.com' || trimmed === 'https://www.google.com' || trimmed === 'www.google.com') {
-      targetUrl = 'chrome://search?q=';
-      pageType = 'search';
+      targetUrl = 'https://www.google.com';
+      pageType = 'webpage';
     } else if (
       trimmed.startsWith('http://') ||
       trimmed.startsWith('https://') ||
@@ -428,9 +432,9 @@ export default function App() {
       targetUrl = trimmed.startsWith('http') ? trimmed : `https://${trimmed}`;
       pageType = 'webpage';
     } else {
-      // General web search query -> Google Search Results View (all websites, zero recaptcha)
-      targetUrl = `chrome://search?q=${encodeURIComponent(trimmed)}`;
-      pageType = 'search';
+      // General web search query -> DIRECT Google Search with Aegis privacy protection!
+      targetUrl = `https://www.google.com/search?q=${encodeURIComponent(trimmed)}`;
+      pageType = 'webpage';
     }
 
     const newHistory = [...activeTab.history.slice(0, activeTab.historyIndex + 1), targetUrl];
@@ -438,10 +442,10 @@ export default function App() {
 
     handleUpdateTab(activeTab.id, {
       url: targetUrl,
-      displayUrl: pageType === 'newtab' ? '' : pageType === 'search' ? trimmed : targetUrl,
+      displayUrl: pageType === 'newtab' ? '' : targetUrl,
       title: pageType === 'newtab'
         ? 'علامة تبويب جديدة'
-        : pageType === 'search'
+        : targetUrl.includes('google.com/search')
         ? `${trimmed} - بحث Google`
         : targetUrl,
       pageType,
@@ -686,6 +690,7 @@ export default function App() {
         uiDensity={settings.uiDensity || 'standard'}
         onToggleLibi={() => setShowLibi(!showLibi)}
         isLibiOpen={showLibi}
+        onOpenDownloadModal={() => setShowDownloadModal(true)}
       />
 
       {/* 3. Bookmarks Bar (Quick Access Folders & Links) */}
@@ -839,6 +844,12 @@ export default function App() {
           onClose={() => setShowClearDataModal(false)}
         />
       )}
+
+      {/* Download App Modal (.EXE & .APK) */}
+      <DownloadModal
+        isOpen={showDownloadModal}
+        onClose={() => setShowDownloadModal(false)}
+      />
 
       {/* 7. Master Cryptographic Vault Lock Screen */}
       {vaultState.isLocked && (

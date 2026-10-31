@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { 
   ArrowLeft, ArrowRight, RotateCw, X, Home, Lock, Shield, 
   ShieldCheck, ShieldAlert, Star, BookOpen, Puzzle, MoreVertical, 
-  EyeOff, Search, Globe, ChevronDown, Ban
+  EyeOff, Search, Globe, ChevronDown, Ban, Download
 } from 'lucide-react';
 import { Tab, ShieldSettings } from '../../types/browser';
 import { SEARCH_ENGINES } from '../../data/initialData';
@@ -46,6 +46,7 @@ interface ChromeNavbarProps {
   uiDensity?: 'comfortable' | 'standard' | 'compact';
   onToggleLibi?: () => void;
   isLibiOpen?: boolean;
+  onOpenDownloadModal?: () => void;
 }
 
 export const ChromeNavbar: React.FC<ChromeNavbarProps> = ({
@@ -84,6 +85,7 @@ export const ChromeNavbar: React.FC<ChromeNavbarProps> = ({
   uiDensity = 'standard',
   onToggleLibi,
   isLibiOpen = false,
+  onOpenDownloadModal,
 }) => {
   const [inputVal, setInputVal] = useState(currentTab.displayUrl || currentTab.url);
   const [isFocused, setIsFocused] = useState(false);
@@ -432,6 +434,19 @@ export const ChromeNavbar: React.FC<ChromeNavbarProps> = ({
           </div>
         )}
 
+        {/* Direct Download App Button */}
+        {onOpenDownloadModal && (
+          <button
+            type="button"
+            onClick={onOpenDownloadModal}
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-950/60 hover:bg-emerald-900/80 border border-emerald-500/40 text-emerald-300 text-xs font-bold transition-all shadow-sm active:scale-95"
+            title="تنزيل تطبيق Aegis لويندوز وأندرويد (.exe / .apk)"
+          >
+            <Download className="w-3.5 h-3.5 text-emerald-400" />
+            <span className="hidden md:inline">تنزيل التطبيق</span>
+          </button>
+        )}
+
         {/* 3-Dots Chrome Menu (Kebab Menu) */}
         <div className="relative" ref={menuRef}>
           <button
@@ -462,6 +477,7 @@ export const ChromeNavbar: React.FC<ChromeNavbarProps> = ({
               currentTheme={theme}
               onToggleTheme={onToggleTheme}
               onClose={() => setShowMenu(false)}
+              onOpenDownloadModal={onOpenDownloadModal}
             />
           )}
         </div>
