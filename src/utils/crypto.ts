@@ -52,7 +52,15 @@ export async function encryptData(data: string, secretKeyStr: string): Promise<s
   combined.set(iv, salt.length);
   combined.set(new Uint8Array(ciphertext), salt.length + iv.length);
 
-  return btoa(String.fromCharCode(...combined));
+  // Safe chunked base64 conversion to prevent RangeError: Maximum call stack size exceeded
+  let binary = '';
+  const chunkSize = 8192;
+  for (let i = 0; i < combined.length; i += chunkSize) {
+    const chunk = combined.subarray(i, i + chunkSize);
+    binary += String.fromCharCode.apply(null, chunk as unknown as number[]);
+  }
+
+  return btoa(binary);
 }
 
 // Decrypt Base64 envelope back to plaintext

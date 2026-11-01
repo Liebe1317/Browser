@@ -82,11 +82,17 @@ export const WebPageView: React.FC<WebPageViewProps> = ({
       }
 
       if (event.data.type === 'AEGIS_NAVIGATE') {
-        onNavigate(event.data.url);
+        const raw = String(event.data.url || '').trim();
+        if (raw.startsWith('http://') || raw.startsWith('https://') || raw.startsWith('chrome://')) {
+          onNavigate(raw);
+        }
       }
 
       if (event.data.type === 'AEGIS_OPEN_READER') {
-        onOpenReader(event.data.url);
+        const raw = String(event.data.url || '').trim();
+        if (raw.startsWith('http://') || raw.startsWith('https://')) {
+          onOpenReader(raw);
+        }
       }
     };
 

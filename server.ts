@@ -8,6 +8,55 @@ import { GoogleGenAI } from '@google/genai';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// Process-level stability guards to prevent unexpected crash/exit on aborted sockets or network drops
+process.on('uncaughtException', (err) => {
+  console.warn('[Aegis Process Guard] Caught uncaughtException:', err.message);
+});
+process.on('unhandledRejection', (reason) => {
+  console.warn('[Aegis Process Guard] Caught unhandledRejection:', reason);
+});
+
+// Strict SSRF validation: block loopback, link-local, Google Cloud metadata, and private IP ranges
+function isBlockedTarget(targetUrl: string): boolean {
+  try {
+    const u = new URL(targetUrl);
+    if (u.protocol !== 'http:' && u.protocol !== 'https:') return true;
+    const hostname = u.hostname.toLowerCase();
+
+    // Block loopback and internal cloud metadata
+    if (
+      hostname === 'localhost' ||
+      hostname === '127.0.0.1' ||
+      hostname === '::1' ||
+      hostname === '0.0.0.0' ||
+      hostname === 'metadata.google.internal' ||
+      hostname === '169.254.169.254' ||
+      hostname.endsWith('.internal') ||
+      hostname.endsWith('.local')
+    ) {
+      return true;
+    }
+
+    // Block IPv4 private & link-local ranges
+    // 127.0.0.0/8
+    if (/^127\.\d+\.\d+\.\d+$/.test(hostname)) return true;
+    // 10.0.0.0/8
+    if (/^10\.\d+\.\d+\.\d+$/.test(hostname)) return true;
+    // 172.16.0.0/12 (172.16 - 172.31)
+    if (/^172\.(1[6-9]|2\d|3[0-1])\.\d+\.\d+$/.test(hostname)) return true;
+    // 192.168.0.0/16
+    if (/^192\.168\.\d+\.\d+$/.test(hostname)) return true;
+    // 169.254.0.0/16
+    if (/^169\.254\.\d+\.\d+$/.test(hostname)) return true;
+    // 100.64.0.0/10 (100.64 - 100.127)
+    if (/^100\.(6[4-9]|[7-9]\d|1[0-1]\d|12[0-7])\.\d+\.\d+$/.test(hostname)) return true;
+
+    return false;
+  } catch {
+    return true;
+  }
+}
+
 // Initialize Gemini API client for AI features
 const ai = new GoogleGenAI({
   apiKey: process.env.GEMINI_API_KEY || '',
@@ -1250,6 +1299,11 @@ ${pageContext?.url ? `معلومات الصفحة المفتوحة حالياً 
       targetUrl = parsedTarget.toString();
     }
 
+    // SSRF Check: Protect local/private infrastructure
+    if (isBlockedTarget(targetUrl)) {
+      return res.status(403).send('Aegis Shield: Access to internal or private network targets is forbidden.');
+    }
+
     // INTERCEPT GOOGLE SEARCH: Render authentic Google Search interface with real web results
     if (parsedTarget.hostname.includes('google.') || parsedTarget.hostname === 'google.com' || parsedTarget.hostname === 'www.google.com') {
       const q = parsedTarget.searchParams.get('q');
@@ -1274,10 +1328,8 @@ ${pageContext?.url ? `معلومات الصفحة المفتوحة حالياً 
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 15000);
 
-      // Get stored cookies for this domain
+      // Get stored cookies for this domain only (never leak user's host cookies to external domains)
       const storedCookies = getCookiesForHost(parsedTarget.hostname);
-      const clientCookie = req.headers.cookie || '';
-      const mergedCookie = [storedCookies, clientCookie].filter(Boolean).join('; ');
 
       const forwardHeaders: Record<string, string> = {
         'User-Agent':
@@ -1295,8 +1347,8 @@ ${pageContext?.url ? `معلومات الصفحة المفتوحة حالياً 
         'Upgrade-Insecure-Requests': '1',
       };
 
-      if (mergedCookie) {
-        forwardHeaders['Cookie'] = mergedCookie;
+      if (storedCookies) {
+        forwardHeaders['Cookie'] = storedCookies;
       }
 
       if (req.headers['x-csrf-token']) forwardHeaders['X-CSRF-TOKEN'] = req.headers['x-csrf-token'] as string;
@@ -1331,7 +1383,32 @@ ${pageContext?.url ? `معلومات الصفحة المفتوحة حالياً 
 
       const contentType = upstream.headers.get('content-type') || '';
 
-      // If not HTML (e.g. image, video, font, css, js, json), stream directly with CORS and caching
+      // If CSS stylesheet, rewrite relative url(...) references and stream with CSS headers
+      if (contentType.includes('text/css') || targetUrl.endsWith('.css')) {
+        let cssText = await upstream.text();
+        cssText = cssText.replace(/url\(\s*(['"]?)([^'")]+)\1\s*\)/gi, (match, quote, assetUrl) => {
+          const trimmed = assetUrl.trim();
+          if (!trimmed || trimmed.startsWith('data:') || trimmed.startsWith('blob:') || trimmed.includes('/api/proxy')) {
+            return match;
+          }
+          let absUrl = trimmed;
+          try {
+            absUrl = new URL(trimmed, targetUrl).toString();
+          } catch {
+            return match;
+          }
+          return `url("/api/proxy?url=${encodeURIComponent(absUrl)}")`;
+        });
+        res.setHeader('Content-Type', 'text/css; charset=utf-8');
+        res.setHeader('X-Frame-Options', 'ALLOWALL');
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.setHeader('Access-Control-Allow-Headers', '*');
+        res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT');
+        res.setHeader('Cache-Control', 'public, max-age=86400');
+        return res.status(upstream.status).send(cssText);
+      }
+
+      // If not HTML (e.g. image, video, font, js, json), stream directly with CORS and caching
       if (!contentType.includes('text/html')) {
         res.setHeader('Content-Type', contentType);
         res.setHeader('X-Frame-Options', 'ALLOWALL');
@@ -1372,18 +1449,15 @@ ${pageContext?.url ? `معلومات الصفحة المفتوحة حالياً 
         }
       });
 
-      // 2. Base tag pointing to origin
-      const baseTag = `
-        <base href="${parsedTarget.origin}/">
-        <meta name="referrer" content="no-referrer">
-      `;
+      // 2. Remove any existing <base> tag to prevent it from hijacking proxied subresource requests
+      html = html.replace(/<base\b[^>]*>/gi, '');
 
       // 3. Strip CSP, integrity, and nonce so proxied scripts and stylesheets execute cleanly
       html = html.replace(/<meta[^>]*http-equiv=["']?Content-Security-Policy["']?[^>]*>/gi, '');
       html = html.replace(/\s+integrity=["'][^"']*["']/gi, '');
       html = html.replace(/\s+nonce=["'][^"']*["']/gi, '');
 
-      // 4. Rewrite hotlink-protected and relative image sources to route through /api/proxy
+      // 4. Rewrite hotlink-protected and relative image sources to route through root-relative Aegis proxy
       html = html.replace(/<img\b([^>]*)\bsrc=["']([^"']+)["']([^>]*)>/gi, (match, prefix, src, suffix) => {
         const trimmed = src.trim();
         if (!trimmed || trimmed.startsWith('data:') || trimmed.includes('/api/proxy')) return match;
@@ -1393,6 +1467,26 @@ ${pageContext?.url ? `معلومات الصفحة المفتوحة حالياً 
         else if (!trimmed.startsWith('http://') && !trimmed.startsWith('https://')) absUrl = `${parsedTarget.origin}/${trimmed}`;
         const proxiedSrc = `/api/proxy?url=${encodeURIComponent(absUrl)}`;
         return `<img${prefix}src="${proxiedSrc}" data-aegis-src="${trimmed}" loading="lazy"${suffix}>`;
+      });
+
+      // Rewrite srcset
+      html = html.replace(/\bsrcset=["']([^"']+)["']/gi, (match, srcset) => {
+        const rewritten = srcset
+          .split(',')
+          .map((part: string) => {
+            const p = part.trim();
+            const spaceIdx = p.indexOf(' ');
+            const urlPart = spaceIdx > 0 ? p.substring(0, spaceIdx) : p;
+            const desc = spaceIdx > 0 ? p.substring(spaceIdx) : '';
+            if (urlPart.startsWith('data:') || urlPart.includes('/api/proxy')) return p;
+            let absUrl = urlPart;
+            if (urlPart.startsWith('//')) absUrl = 'https:' + urlPart;
+            else if (urlPart.startsWith('/')) absUrl = `${parsedTarget.origin}${urlPart}`;
+            else if (!urlPart.startsWith('http')) absUrl = `${parsedTarget.origin}/${urlPart}`;
+            return `/api/proxy?url=${encodeURIComponent(absUrl)}${desc}`;
+          })
+          .join(', ');
+        return `srcset="${rewritten}"`;
       });
 
       // Rewrite data-src and data-lazy-src
@@ -1421,10 +1515,10 @@ ${pageContext?.url ? `معلومات الصفحة المفتوحة حالياً 
         return match;
       });
 
-      // 6. Rewrite stylesheets to route through /api/proxy
+      // 6. Rewrite stylesheets and preload links to route through /api/proxy
       html = html.replace(/<link\b([^>]*)\bhref=["']([^"']+)["']([^>]*)>/gi, (match, prefix, href, suffix) => {
         const fullTag = match.toLowerCase();
-        if (fullTag.includes('stylesheet') || fullTag.includes('modulepreload') || href.includes('.css')) {
+        if (fullTag.includes('stylesheet') || fullTag.includes('modulepreload') || fullTag.includes('preload') || href.includes('.css')) {
           const trimmed = href.trim();
           let absUrl = trimmed;
           if (trimmed.startsWith('//')) absUrl = 'https:' + trimmed;
@@ -1441,7 +1535,7 @@ ${pageContext?.url ? `معلومات الصفحة المفتوحة حالياً 
 
       // 7. Injected Aegis Shield Protection Script + Video Server Auto-Healer
       const aegisProtectionHead = `
-        ${baseTag}
+        <meta name="referrer" content="no-referrer">
         <style>
           ${COSMETIC_ADBLOCK_CSS}
           .ad-overlay, .interstitial-ad, .sp-message-open {
@@ -1452,6 +1546,11 @@ ${pageContext?.url ? `معلومات الصفحة المفتوحة حالياً 
           img {
             referrer-policy: no-referrer !important;
             max-width: 100%;
+          }
+          /* Prevent SVG logos/icons from stretching indefinitely if external CSS is loading */
+          header a svg, nav a svg, .relative.flex svg {
+            max-width: 48px !important;
+            max-height: 48px !important;
           }
         </style>
         <script>
@@ -1761,6 +1860,10 @@ ${pageContext?.url ? `معلومات الصفحة المفتوحة حالياً 
       return res.status(400).json({ error: 'Missing url' });
     }
 
+    if (isBlockedTarget(rawUrl)) {
+      return res.status(403).json({ error: 'Access to internal or private network targets is forbidden.' });
+    }
+
     try {
       const response = await fetch(rawUrl, {
         headers: {
@@ -1801,7 +1904,7 @@ ${pageContext?.url ? `معلومات الصفحة المفتوحة حالياً 
     }
   });
 
-  // Automatic sub-resource proxying for scripts, livewire updates, fonts, and assets requested by proxied pages
+  // Automatic sub-resource proxying for scripts, fonts, and assets requested by proxied pages
   app.use(async (req, res, next) => {
     if (
       req.path.startsWith('/api/') ||
@@ -1810,14 +1913,14 @@ ${pageContext?.url ? `معلومات الصفحة المفتوحة حالياً 
       req.path.startsWith('/node_modules/') ||
       req.path.startsWith('/public/') ||
       req.path.startsWith('/downloads/') ||
-      req.path.startsWith('/assets/libi')
+      req.path.startsWith('/assets/')
     ) {
       return next();
     }
 
     const referer = req.headers.referer || '';
     let targetOrigin = '';
-    if (referer.includes('/api/proxy?url=')) {
+    if (referer.includes('/api/proxy?url=') || referer.includes('/api/proxy%3Furl%3D')) {
       try {
         const u = new URL(referer);
         const pUrl = u.searchParams.get('url');
@@ -1825,7 +1928,7 @@ ${pageContext?.url ? `معلومات الصفحة المفتوحة حالياً 
       } catch (e) {}
     }
 
-    if (targetOrigin) {
+    if (targetOrigin && !isBlockedTarget(targetOrigin)) {
       const destination = `${targetOrigin}${req.originalUrl}`;
       try {
         const upstream = await fetch(destination, {
@@ -1846,9 +1949,31 @@ ${pageContext?.url ? `معلومات الصفحة المفتوحة حالياً 
         const buf = await upstream.arrayBuffer();
         return res.status(upstream.status).send(Buffer.from(buf));
       } catch (err: any) {
-        // Fall through
+        // Fall through to asset 404 guard
       }
     }
+
+    // Static asset protection: Never let missing css/js/fonts fall through to Vite SPA handler
+    // (which returns index.html text/html and breaks browser stylesheet parsing)
+    if (
+      req.path.endsWith('.css') ||
+      req.path.endsWith('.woff') ||
+      req.path.endsWith('.woff2') ||
+      req.path.endsWith('.ttf') ||
+      req.path.endsWith('.png') ||
+      req.path.endsWith('.jpg') ||
+      req.path.endsWith('.jpeg') ||
+      req.path.endsWith('.svg') ||
+      req.path.endsWith('.webp') ||
+      req.path.endsWith('.js')
+    ) {
+      if (req.path.endsWith('.css')) {
+        res.setHeader('Content-Type', 'text/css');
+        return res.status(200).send('/* Aegis: asset not found */');
+      }
+      return res.status(404).end();
+    }
+
     next();
   });
 
