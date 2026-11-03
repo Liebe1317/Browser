@@ -11,24 +11,6 @@ export type BrowserPageType =
   | 'shields'
   | 'downloads';
 
-export interface OnionNode {
-  name: string;
-  country: string;
-  countryCode: string;
-  ip: string;
-  latency: number;
-  fingerprint: string;
-}
-
-export interface OnionCircuit {
-  isActive: boolean;
-  entryNode: OnionNode;
-  middleNode: OnionNode;
-  exitNode: OnionNode;
-  cipher: string;
-  hops: number;
-}
-
 export interface VaultState {
   isLocked: boolean;
   isSetUp: boolean;

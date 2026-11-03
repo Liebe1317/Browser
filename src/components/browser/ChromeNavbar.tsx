@@ -363,12 +363,12 @@ export const ChromeNavbar: React.FC<ChromeNavbarProps> = ({
           </button>
         )}
 
-        {/* Military Encryption Vault & Onion Circuit Button */}
+        {/* Encryption Vault Button */}
         <button
           type="button"
           onClick={onOpenSecurityVault}
           className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-amber-950/60 hover:bg-amber-900/60 text-amber-300 border border-amber-500/40 text-[11px] font-mono transition-colors shadow-sm"
-          title="مركز التشفير الفولاذي وحصن الأمان (AES-256-GCM / Multi-Hop)"
+          title="مركز التشفير الفولاذي وحصن الأمان (AES-256-GCM)"
         >
           <Lock className="w-3.5 h-3.5 text-amber-400" />
           <span className="hidden md:inline font-bold">AES-256</span>

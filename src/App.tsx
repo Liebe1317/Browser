@@ -19,7 +19,7 @@ import { VaultLockScreen } from './components/browser/VaultLockScreen';
 import { isVaultSetUp, createVault, unlockVault, lockVault, saveVaultData, loadVaultData, destroyVault, UnlockResult } from './utils/vault';
 import { LibiAssistant } from './components/browser/LibiAssistant';
 
-import { Tab, Bookmark, HistoryItem, DownloadItem, BrowserSettings, ShieldSettings, NetworkRequest, BrowserPageType, VaultState, OnionCircuit } from './types/browser';
+import { Tab, Bookmark, HistoryItem, DownloadItem, BrowserSettings, ShieldSettings, NetworkRequest, BrowserPageType, VaultState } from './types/browser';
 import { DEFAULT_SETTINGS, DEFAULT_SHIELD_SETTINGS, DEFAULT_BOOKMARKS, SEARCH_ENGINES } from './data/initialData';
 import { THEME_PRESETS, applyCustomTheme, getSavedTheme } from './utils/theme';
 
@@ -150,36 +150,6 @@ export default function App() {
       webrtcHardened: true,
       lastEncryptedTimestamp: Date.now(),
     };
-  });
-
-  const [onionCircuit, setOnionCircuit] = useState<OnionCircuit>({
-    isActive: true,
-    cipher: 'ChaCha20-Poly1305 / TLS 1.3',
-    hops: 3,
-    entryNode: {
-      name: 'Zurich-Guard-01',
-      country: 'سويسرا',
-      countryCode: '🇨🇭',
-      ip: '185.220.101.42',
-      latency: 18,
-      fingerprint: '3b8f1a...4d92',
-    },
-    middleNode: {
-      name: 'Reykjavik-Relay-03',
-      country: 'آيسلندا',
-      countryCode: '🇮🇸',
-      ip: '194.26.29.11',
-      latency: 34,
-      fingerprint: '9c2e4f...1a77',
-    },
-    exitNode: {
-      name: 'Stockholm-Exit-07',
-      country: 'السويد',
-      countryCode: '🇸🇪',
-      ip: '193.187.91.88',
-      latency: 22,
-      fingerprint: '5e8a0b...88bc',
-    },
   });
 
   const [showDevTools, setShowDevTools] = useState(false);
@@ -315,51 +285,6 @@ export default function App() {
       localStorage.removeItem('aegis_history');
     } catch {}
     setVaultState((prev) => ({ ...prev, isSetUp: true, storageEncrypted: true, lastEncryptedTimestamp: Date.now() }));
-  };
-
-  const handleToggleOnion = () => {
-    setOnionCircuit((prev) => ({ ...prev, isActive: !prev.isActive }));
-  };
-
-  const handleResetCircuit = () => {
-    const countries = [
-      { country: 'سويسرا', code: '🇨🇭', prefix: '185.220.' },
-      { country: 'آيسلندا', code: '🇮🇸', prefix: '194.26.' },
-      { country: 'السويد', code: '🇸🇪', prefix: '193.187.' },
-      { country: 'النرويج', code: '🇳🇴', prefix: '185.100.' },
-      { country: 'فنلندا', code: '🇫🇮', prefix: '195.148.' },
-    ];
-    const rand1 = countries[Math.floor(Math.random() * countries.length)];
-    const rand2 = countries[Math.floor(Math.random() * countries.length)];
-    const rand3 = countries[Math.floor(Math.random() * countries.length)];
-
-    setOnionCircuit((prev) => ({
-      ...prev,
-      entryNode: {
-        name: `Node-Guard-${Math.floor(Math.random() * 89 + 10)}`,
-        country: rand1.country,
-        countryCode: rand1.code,
-        ip: `${rand1.prefix}${Math.floor(Math.random() * 200 + 10)}.${Math.floor(Math.random() * 250)}`,
-        latency: Math.floor(Math.random() * 20 + 15),
-        fingerprint: Math.random().toString(36).substring(2, 8) + '...' + Math.random().toString(36).substring(2, 6),
-      },
-      middleNode: {
-        name: `Node-Relay-${Math.floor(Math.random() * 89 + 10)}`,
-        country: rand2.country,
-        countryCode: rand2.code,
-        ip: `${rand2.prefix}${Math.floor(Math.random() * 200 + 10)}.${Math.floor(Math.random() * 250)}`,
-        latency: Math.floor(Math.random() * 25 + 25),
-        fingerprint: Math.random().toString(36).substring(2, 8) + '...' + Math.random().toString(36).substring(2, 6),
-      },
-      exitNode: {
-        name: `Node-Exit-${Math.floor(Math.random() * 89 + 10)}`,
-        country: rand3.country,
-        countryCode: rand3.code,
-        ip: `${rand3.prefix}${Math.floor(Math.random() * 200 + 10)}.${Math.floor(Math.random() * 250)}`,
-        latency: Math.floor(Math.random() * 20 + 20),
-        fingerprint: Math.random().toString(36).substring(2, 8) + '...' + Math.random().toString(36).substring(2, 6),
-      },
-    }));
   };
 
   const handleEmergencyPurge = () => {
@@ -868,9 +793,6 @@ export default function App() {
         ) : activeTab.pageType === 'security' ? (
           <SecurityVaultView
             vaultState={vaultState}
-            onionCircuit={onionCircuit}
-            onToggleOnion={handleToggleOnion}
-            onResetCircuit={handleResetCircuit}
             onLockVault={handleLockVault}
             onEmergencyPurge={handleEmergencyPurge}
             onCreateVault={handleCreateVault}

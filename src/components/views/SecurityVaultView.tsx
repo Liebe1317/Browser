@@ -1,16 +1,12 @@
 import React, { useState } from 'react';
 import { 
-  Lock, Key, ShieldCheck, ShieldAlert, Cpu, EyeOff, Radio, 
-  RotateCw, RefreshCw, CheckCircle2, AlertTriangle, Flame, 
-  Layers, Globe, Terminal, FileCode, Check, Shield
+  Lock, Key, ShieldCheck, 
+  Cpu, RefreshCw, CheckCircle2, AlertTriangle, Flame, Shield
 } from 'lucide-react';
-import { VaultState, OnionCircuit } from '../../types/browser';
+import { VaultState } from '../../types/browser';
 
 interface SecurityVaultViewProps {
   vaultState: VaultState;
-  onionCircuit: OnionCircuit;
-  onToggleOnion: () => void;
-  onResetCircuit: () => void;
   onLockVault: () => void;
   onEmergencyPurge: () => void;
   onCreateVault: (passphrase: string) => Promise<void>;
@@ -18,9 +14,6 @@ interface SecurityVaultViewProps {
 
 export const SecurityVaultView: React.FC<SecurityVaultViewProps> = ({
   vaultState,
-  onionCircuit,
-  onToggleOnion,
-  onResetCircuit,
   onLockVault,
   onEmergencyPurge,
   onCreateVault,
@@ -264,95 +257,6 @@ export const SecurityVaultView: React.FC<SecurityVaultViewProps> = ({
                 <CheckCircle2 className="w-3 h-3" />
                 <span>نشط</span>
               </span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Section 2: Multi-Hop Onion Circuit */}
-      <div className="p-5 rounded-2xl bg-slate-900/90 border border-slate-800 space-y-5">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-purple-950/60 text-purple-400 border border-purple-800/40 flex items-center justify-center">
-              <Layers className="w-5 h-5" />
-            </div>
-            <div>
-              <h2 className="text-sm font-bold text-white flex items-center gap-2">
-                <span>نفق التوجيه البصلي متعدد القفزات (Multi-Hop Onion Tunnel)</span>
-                <span className="text-[10px] font-mono px-2 py-0.2 rounded bg-purple-950 text-purple-300 border border-purple-800/40">
-                  {onionCircuit.cipher}
-                </span>
-              </h2>
-              <p className="text-[11px] text-slate-400">
-                يمر اتصالك عبر 3 محطات مشفرة في دول مختلفة لعزل موقعك الجغرافي وهويتك تماماً
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={onResetCircuit}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs transition-colors"
-              title="تغيير المسار وتوليد هوية رقمية جديدة"
-            >
-              <RotateCw className="w-3.5 h-3.5 text-slate-400" />
-              <span>هوية ومسار جديد</span>
-            </button>
-
-            <label className="relative inline-flex items-center cursor-pointer">
-              <input
-                type="checkbox"
-                checked={onionCircuit.isActive}
-                onChange={onToggleOnion}
-                className="sr-only peer"
-              />
-              <div className="w-9 h-5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-purple-600"></div>
-            </label>
-          </div>
-        </div>
-
-        {/* 3-Hop Circuit Visual Flow */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
-          {/* Node 1: Entry */}
-          <div className="p-3.5 rounded-xl bg-slate-850/80 border border-slate-700/60 relative">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-[10px] uppercase font-bold text-purple-400">1. عقدة الدخول (Entry Guard)</span>
-              <span className="text-base">{onionCircuit.entryNode.countryCode}</span>
-            </div>
-            <h4 className="text-xs font-bold text-slate-100">{onionCircuit.entryNode.name}</h4>
-            <p className="text-[10px] text-slate-400">{onionCircuit.entryNode.country}</p>
-            <div className="mt-2 pt-2 border-t border-slate-800 flex items-center justify-between text-[10px] font-mono text-slate-500">
-              <span>{onionCircuit.entryNode.ip}</span>
-              <span className="text-emerald-400">{onionCircuit.entryNode.latency}ms</span>
-            </div>
-          </div>
-
-          {/* Node 2: Middle */}
-          <div className="p-3.5 rounded-xl bg-slate-850/80 border border-slate-700/60 relative">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-[10px] uppercase font-bold text-cyan-400">2. عقدة الترحيل (Middle Relay)</span>
-              <span className="text-base">{onionCircuit.middleNode.countryCode}</span>
-            </div>
-            <h4 className="text-xs font-bold text-slate-100">{onionCircuit.middleNode.name}</h4>
-            <p className="text-[10px] text-slate-400">{onionCircuit.middleNode.country}</p>
-            <div className="mt-2 pt-2 border-t border-slate-800 flex items-center justify-between text-[10px] font-mono text-slate-500">
-              <span>{onionCircuit.middleNode.ip}</span>
-              <span className="text-emerald-400">{onionCircuit.middleNode.latency}ms</span>
-            </div>
-          </div>
-
-          {/* Node 3: Exit */}
-          <div className="p-3.5 rounded-xl bg-slate-850/80 border border-slate-700/60 relative">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-[10px] uppercase font-bold text-emerald-400">3. عقدة الخروج (Exit Relay)</span>
-              <span className="text-base">{onionCircuit.exitNode.countryCode}</span>
-            </div>
-            <h4 className="text-xs font-bold text-slate-100">{onionCircuit.exitNode.name}</h4>
-            <p className="text-[10px] text-slate-400">{onionCircuit.exitNode.country}</p>
-            <div className="mt-2 pt-2 border-t border-slate-800 flex items-center justify-between text-[10px] font-mono text-slate-500">
-              <span>{onionCircuit.exitNode.ip}</span>
-              <span className="text-emerald-400">{onionCircuit.exitNode.latency}ms</span>
             </div>
           </div>
         </div>
