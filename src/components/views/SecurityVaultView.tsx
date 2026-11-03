@@ -13,7 +13,7 @@ interface SecurityVaultViewProps {
   onResetCircuit: () => void;
   onLockVault: () => void;
   onEmergencyPurge: () => void;
-  onRotateKey: () => void;
+  onCreateVault: (passphrase: string) => Promise<void>;
 }
 
 export const SecurityVaultView: React.FC<SecurityVaultViewProps> = ({
@@ -23,10 +23,12 @@ export const SecurityVaultView: React.FC<SecurityVaultViewProps> = ({
   onResetCircuit,
   onLockVault,
   onEmergencyPurge,
-  onRotateKey,
+  onCreateVault,
 }) => {
-  const [isRotating, setIsRotating] = useState(false);
-  const [rotateSuccess, setRotateSuccess] = useState(false);
+  const [newPass, setNewPass] = useState('');
+  const [confirmPass, setConfirmPass] = useState('');
+  const [isCreating, setIsCreating] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
   const [testingLeaks, setTestingLeaks] = useState(false);
   const [leakResults, setLeakResults] = useState<{
     webrtc: boolean;
@@ -40,14 +42,27 @@ export const SecurityVaultView: React.FC<SecurityVaultViewProps> = ({
     mitm: true,
   });
 
-  const handleKeyRotate = () => {
-    setIsRotating(true);
-    setTimeout(() => {
-      onRotateKey();
-      setIsRotating(false);
-      setRotateSuccess(true);
-      setTimeout(() => setRotateSuccess(false), 2500);
-    }, 800);
+  const handleCreateVault = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (newPass.length < 8) {
+      setCreateError('كلمة المرور يجب ألا تقل عن 8 أحرف');
+      return;
+    }
+    if (newPass !== confirmPass) {
+      setCreateError('كلمتا المرور غير متطابقتين');
+      return;
+    }
+    setIsCreating(true);
+    setCreateError(null);
+    try {
+      await onCreateVault(newPass);
+      setNewPass('');
+      setConfirmPass('');
+    } catch (err) {
+      setCreateError(err instanceof Error ? err.message : 'تعذّر إنشاء الخزنة');
+    } finally {
+      setIsCreating(false);
+    }
   };
 
   const handleRunLeakTest = () => {
@@ -69,11 +84,11 @@ export const SecurityVaultView: React.FC<SecurityVaultViewProps> = ({
             <h1 className="text-xl font-bold text-white flex items-center gap-2">
               <span>مركز التشفير والأمان الفولاذي (Aegis Cryptographic Fortress)</span>
               <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 font-mono">
-                عصي على الاختراق
+                {vaultState.isSetUp ? 'الخزنة مفعّلة' : 'الخزنة غير مفعّلة'}
               </span>
             </h1>
             <p className="text-xs text-slate-400 mt-0.5">
-              تشفير شامل من النهاية إلى النهاية (AES-256-GCM) مع عزل عتادي ونفق متعدد الطبقات
+              تشفير المفضلات والسجل محلياً بـ AES-256-GCM بكلمة مرور تختارها
             </p>
           </div>
         </div>
@@ -82,7 +97,9 @@ export const SecurityVaultView: React.FC<SecurityVaultViewProps> = ({
           <button
             type="button"
             onClick={onLockVault}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-semibold transition-colors"
+            disabled={!vaultState.isSetUp}
+            title={vaultState.isSetUp ? undefined : 'أنشئ الخزنة أولاً'}
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed text-slate-200 border border-slate-700 text-xs font-semibold transition-colors"
           >
             <Key className="w-3.5 h-3.5 text-amber-400" />
             <span>قفل الخزنة الآن</span>
@@ -110,14 +127,22 @@ export const SecurityVaultView: React.FC<SecurityVaultViewProps> = ({
               <h2 className="text-sm font-bold text-white">تشفير التخزين والذاكرة الحية</h2>
             </div>
             <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-950 text-emerald-400 border border-emerald-800/60">
-              مشفر بنسبة 100%
+              {vaultState.isSetUp ? 'مشفّر' : 'غير مشفّر'}
             </span>
           </div>
 
           <p className="text-xs text-slate-300 leading-relaxed">
-            جميع بيانات التصفح، وسجل المواقع، والإشارات المرجعية، وبيانات الجلسات لا يتم حفظها كنصوص مقروءة،
-            بل يتم تشفيرها محلياً في معالج جهازك عبر خوارزمية <strong>AES-256-GCM</strong> مع اشتقاق مفاتيح 
-            عبر <strong>PBKDF2</strong> بـ 100,000 دورة تشفير.
+            {vaultState.isSetUp ? (
+              <>
+                المفضلات والسجل مخزّنان مشفّرين بخوارزمية <strong>AES-256-GCM</strong> مع اشتقاق المفتاح من كلمة مرورك
+                عبر <strong>PBKDF2</strong> بـ 600,000 دورة. الإعدادات والمظهر غير مشفّرة. إذا نسيت كلمة المرور فلا يمكن استرجاع البيانات.
+              </>
+            ) : (
+              <>
+                المفضلات والسجل محفوظان حالياً كنص عادي داخل المتصفح. أنشئ كلمة مرور للخزنة لتشفيرهما بـ
+                <strong> AES-256-GCM</strong>.
+              </>
+            )}
           </p>
 
           <div className="p-3 rounded-xl bg-slate-950 border border-slate-800/80 space-y-2 font-mono text-[11px]">
@@ -134,29 +159,45 @@ export const SecurityVaultView: React.FC<SecurityVaultViewProps> = ({
               <span className="text-slate-300">96-bit عشوائي لكل عملية كتابة</span>
             </div>
             <div className="flex items-center justify-between text-slate-400">
-              <span>تشفير الذاكرة المؤقتة (RAM):</span>
-              <span className="text-emerald-400">Ephemeral In-Memory Zeroization</span>
+              <span>مفتاح التشفير:</span>
+              <span className="text-emerald-400">في الذاكرة فقط، يُحذف عند القفل</span>
             </div>
           </div>
 
-          <div className="pt-1 flex items-center justify-between">
-            <button
-              type="button"
-              onClick={handleKeyRotate}
-              disabled={isRotating}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-950/60 hover:bg-emerald-900/60 text-emerald-300 border border-emerald-500/30 text-xs font-medium transition-colors"
-            >
-              <RotateCw className={`w-3.5 h-3.5 ${isRotating ? 'animate-spin' : ''}`} />
-              <span>{isRotating ? 'جاري تدوير المفاتيح...' : 'تدوير مفاتيح التشفير (Rotate Key)'}</span>
-            </button>
-
-            {rotateSuccess && (
-              <span className="text-emerald-400 text-xs flex items-center gap-1 animate-fade-in">
-                <Check className="w-3.5 h-3.5" />
-                <span>تم التوليد والتشفير بنجاح!</span>
-              </span>
-            )}
-          </div>
+          {!vaultState.isSetUp && (
+            <form onSubmit={handleCreateVault} className="pt-1 space-y-2">
+              <input
+                type="password"
+                value={newPass}
+                onChange={(e) => { setNewPass(e.target.value); setCreateError(null); }}
+                placeholder="كلمة مرور الخزنة (8 أحرف على الأقل)"
+                autoComplete="new-password"
+                className="w-full h-9 px-3 rounded-lg bg-slate-800 border border-slate-700 focus:border-emerald-500 text-xs text-white outline-none"
+              />
+              <input
+                type="password"
+                value={confirmPass}
+                onChange={(e) => { setConfirmPass(e.target.value); setCreateError(null); }}
+                placeholder="أعد كتابة كلمة المرور"
+                autoComplete="new-password"
+                className="w-full h-9 px-3 rounded-lg bg-slate-800 border border-slate-700 focus:border-emerald-500 text-xs text-white outline-none"
+              />
+              {createError && (
+                <p className="text-[11px] text-rose-400 flex items-center gap-1">
+                  <AlertTriangle className="w-3 h-3" />
+                  <span>{createError}</span>
+                </p>
+              )}
+              <button
+                type="submit"
+                disabled={isCreating}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-950/60 hover:bg-emerald-900/60 disabled:opacity-60 text-emerald-300 border border-emerald-500/30 text-xs font-medium transition-colors"
+              >
+                {isCreating ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Key className="w-3.5 h-3.5" />}
+                <span>{isCreating ? 'جاري إنشاء الخزنة...' : 'إنشاء الخزنة وتشفير بياناتي'}</span>
+              </button>
+            </form>
+          )}
         </div>
 
         {/* Card 2: Anti-Exploit & Leak Prevention */}

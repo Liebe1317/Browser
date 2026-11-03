@@ -31,8 +31,9 @@ export interface OnionCircuit {
 
 export interface VaultState {
   isLocked: boolean;
+  isSetUp: boolean;
   algorithm: 'AES-256-GCM';
-  keyDerivation: 'PBKDF2-SHA256 (100,000 rounds)';
+  keyDerivation: 'PBKDF2-SHA256 (600,000 rounds)';
   storageEncrypted: boolean;
   antiExploitActive: boolean;
   webrtcHardened: boolean;

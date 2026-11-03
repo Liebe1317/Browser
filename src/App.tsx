@@ -16,6 +16,7 @@ import { DownloadsView } from './components/views/DownloadsView';
 import { YouTubeView } from './components/views/YouTubeView';
 import { SecurityVaultView } from './components/views/SecurityVaultView';
 import { VaultLockScreen } from './components/browser/VaultLockScreen';
+import { isVaultSetUp, createVault, unlockVault, lockVault, saveVaultData, loadVaultData, destroyVault, UnlockResult } from './utils/vault';
 import { LibiAssistant } from './components/browser/LibiAssistant';
 
 import { Tab, Bookmark, HistoryItem, DownloadItem, BrowserSettings, ShieldSettings, NetworkRequest, BrowserPageType, VaultState, OnionCircuit } from './types/browser';
@@ -73,6 +74,7 @@ export default function App() {
   const [activeTabId, setActiveTabId] = useState<string>(() => tabs[0]?.id || '');
   const [bookmarks, setBookmarks] = useState<Bookmark[]>(() => {
     try {
+      if (isVaultSetUp()) return DEFAULT_BOOKMARKS;
       const saved = localStorage.getItem('aegis_bookmarks');
       return saved ? JSON.parse(saved) : DEFAULT_BOOKMARKS;
     } catch {
@@ -81,6 +83,7 @@ export default function App() {
   });
   const [history, setHistory] = useState<HistoryItem[]>(() => {
     try {
+      if (isVaultSetUp()) return [];
       const saved = localStorage.getItem('aegis_history');
       return saved ? JSON.parse(saved) : [];
     } catch {
@@ -135,15 +138,19 @@ export default function App() {
     }
   });
 
-  const [vaultState, setVaultState] = useState<VaultState>(() => ({
-    isLocked: false,
-    algorithm: 'AES-256-GCM',
-    keyDerivation: 'PBKDF2-SHA256 (100,000 rounds)',
-    storageEncrypted: true,
-    antiExploitActive: true,
-    webrtcHardened: true,
-    lastEncryptedTimestamp: Date.now(),
-  }));
+  const [vaultState, setVaultState] = useState<VaultState>(() => {
+    const setUp = isVaultSetUp();
+    return {
+      isLocked: setUp, // an existing vault always starts locked
+      isSetUp: setUp,
+      algorithm: 'AES-256-GCM',
+      keyDerivation: 'PBKDF2-SHA256 (600,000 rounds)',
+      storageEncrypted: setUp,
+      antiExploitActive: true,
+      webrtcHardened: true,
+      lastEncryptedTimestamp: Date.now(),
+    };
+  });
 
   const [onionCircuit, setOnionCircuit] = useState<OnionCircuit>({
     isActive: true,
@@ -228,8 +235,11 @@ export default function App() {
   // Persist state
   useEffect(() => {
     try {
-      localStorage.setItem('aegis_bookmarks', JSON.stringify(bookmarks));
-      localStorage.setItem('aegis_history', JSON.stringify(history));
+      // With an active vault, bookmarks/history are stored encrypted (see effect below), never in plain text.
+      if (!vaultState.isSetUp) {
+        localStorage.setItem('aegis_bookmarks', JSON.stringify(bookmarks));
+        localStorage.setItem('aegis_history', JSON.stringify(history));
+      }
       localStorage.setItem('aegis_settings', JSON.stringify(settings));
       localStorage.setItem('aegis_shield_settings', JSON.stringify(shieldSettings));
       localStorage.setItem('aegis_total_ads', String(totalAdsBlocked));
@@ -237,7 +247,13 @@ export default function App() {
     } catch (e) {
       console.warn('Storage error:', e);
     }
-  }, [bookmarks, history, settings, shieldSettings, totalAdsBlocked, totalTrackersBlocked]);
+  }, [bookmarks, history, settings, shieldSettings, totalAdsBlocked, totalTrackersBlocked, vaultState.isSetUp]);
+
+  // Encrypted persistence. Skipped while locked so empty placeholder state can never overwrite stored data.
+  useEffect(() => {
+    if (!vaultState.isSetUp || vaultState.isLocked) return;
+    saveVaultData(JSON.stringify({ bookmarks, history }));
+  }, [bookmarks, history, vaultState.isSetUp, vaultState.isLocked]);
 
   // Sync dark class on HTML root
   useEffect(() => {
@@ -259,12 +275,45 @@ export default function App() {
 
   // Vault & Cryptographic Handlers
   const handleLockVault = () => {
+    if (!vaultState.isSetUp) return; // nothing to unlock with yet
+    lockVault();
+    // Clear decrypted data and open pages from memory while locked
+    setBookmarks(DEFAULT_BOOKMARKS);
+    setHistory([]);
+    setNetworkRequests([]);
+    const freshTab = createDefaultTab(true, 'chrome://newtab');
+    setTabs([freshTab]);
+    setActiveTabId(freshTab.id);
     setVaultState((prev) => ({ ...prev, isLocked: true }));
   };
 
-  const handleUnlockVault = (pin: string) => {
+  const handleUnlockVault = async (passphrase: string): Promise<UnlockResult> => {
+    const result = await unlockVault(passphrase);
+    if (!result.ok) return result;
+    try {
+      const raw = await loadVaultData();
+      if (raw) {
+        const data = JSON.parse(raw) as { bookmarks?: Bookmark[]; history?: HistoryItem[] };
+        setBookmarks(data.bookmarks ?? DEFAULT_BOOKMARKS);
+        setHistory(data.history ?? []);
+      }
+    } catch (e) {
+      // Never continue with defaults: the next save would overwrite the real (unreadable) data.
+      console.warn('Vault data could not be read:', e);
+      lockVault();
+      return { ok: false, reason: 'corrupt' };
+    }
     setVaultState((prev) => ({ ...prev, isLocked: false, lastEncryptedTimestamp: Date.now() }));
-    return true;
+    return result;
+  };
+
+  const handleCreateVault = async (passphrase: string) => {
+    await createVault(passphrase, JSON.stringify({ bookmarks, history }));
+    try {
+      localStorage.removeItem('aegis_bookmarks');
+      localStorage.removeItem('aegis_history');
+    } catch {}
+    setVaultState((prev) => ({ ...prev, isSetUp: true, storageEncrypted: true, lastEncryptedTimestamp: Date.now() }));
   };
 
   const handleToggleOnion = () => {
@@ -323,7 +372,8 @@ export default function App() {
     const freshTab = createDefaultTab(true, 'chrome://newtab');
     setTabs([freshTab]);
     setActiveTabId(freshTab.id);
-    setVaultState((prev) => ({ ...prev, lastEncryptedTimestamp: Date.now() }));
+    destroyVault();
+    setVaultState((prev) => ({ ...prev, isLocked: false, isSetUp: false, storageEncrypted: false, lastEncryptedTimestamp: Date.now() }));
   };
 
   // Tab Operations
@@ -817,9 +867,7 @@ export default function App() {
             onResetCircuit={handleResetCircuit}
             onLockVault={handleLockVault}
             onEmergencyPurge={handleEmergencyPurge}
-            onRotateKey={() => {
-              setVaultState((v) => ({ ...v, lastEncryptedTimestamp: Date.now() }));
-            }}
+            onCreateVault={handleCreateVault}
           />
         ) : null}
       </main>
