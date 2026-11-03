@@ -4,6 +4,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
 import { GoogleGenAI } from '@google/genai';
+import { getOrCreateSession, clearSessionCookies } from './server/sessions.ts';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -73,40 +74,6 @@ async function callGeminiWithTimeout<T>(promise: Promise<T>, timeoutMs = 3500): 
     timer = setTimeout(() => reject(new Error('AI request timed out')), timeoutMs);
   });
   return Promise.race([promise, timeoutPromise]).finally(() => clearTimeout(timer));
-}
-
-// In-memory cookie jar to maintain sessions across proxied requests
-const cookieJar = new Map<string, Map<string, string>>();
-
-function getCookiesForHost(hostname: string): string {
-  const cookies: string[] = [];
-  cookieJar.forEach((hostCookies, domain) => {
-    if (hostname === domain || hostname.endsWith('.' + domain)) {
-      hostCookies.forEach((val, key) => {
-        cookies.push(`${key}=${val}`);
-      });
-    }
-  });
-  return cookies.join('; ');
-}
-
-function storeCookiesFromResponse(hostname: string, setCookieHeader: string | string[] | null) {
-  if (!setCookieHeader) return;
-  const headers = Array.isArray(setCookieHeader) ? setCookieHeader : [setCookieHeader];
-  if (!cookieJar.has(hostname)) {
-    cookieJar.set(hostname, new Map());
-  }
-  const jar = cookieJar.get(hostname)!;
-  headers.forEach((h) => {
-    const parts = h.split(';');
-    const first = parts[0]?.trim();
-    if (first && first.includes('=')) {
-      const eqIdx = first.indexOf('=');
-      const name = first.substring(0, eqIdx).trim();
-      const val = first.substring(eqIdx + 1).trim();
-      jar.set(name, val);
-    }
-  });
 }
 
 // Common ad and tracker domain signatures to strip from proxied pages
@@ -1026,6 +993,13 @@ async function startServer() {
     res.json({ status: 'ok', engine: 'AegisShield/4.2', timestamp: Date.now() });
   });
 
+  // Empties the proxy cookie jar of the caller's own session
+  app.post('/api/session/clear', (req, res) => {
+    if (req.headers['sec-fetch-site'] === 'cross-site') return res.status(403).send('Forbidden');
+    clearSessionCookies(req);
+    res.json({ ok: true });
+  });
+
   // YouTube Live Search & Trending Feed API
   app.get('/api/youtube/search', async (req, res) => {
     const query = (req.query.q as string || '').trim();
@@ -1257,6 +1231,11 @@ ${pageContext?.url ? `معلومات الصفحة المفتوحة حالياً 
 
   // Real Web Proxy API with Ad & Tracker Filtering + Google Search SERP + Image Hotlink Fix + Video Server Auto-Healer
   app.all('/api/proxy', async (req, res) => {
+    // Never act with a user's session on requests started by another site
+    if (req.headers['sec-fetch-site'] === 'cross-site') {
+      return res.status(403).send('Aegis Shield: cross-site requests are not allowed.');
+    }
+    const session = getOrCreateSession(req, res);
     let targetUrl = (req.query.url as string || '').trim();
     if (!targetUrl) {
       return res.status(400).send('Missing target URL');
@@ -1307,8 +1286,8 @@ ${pageContext?.url ? `معلومات الصفحة المفتوحة حالياً 
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 15000);
 
-      // Get stored cookies for this domain only (never leak user's host cookies to external domains)
-      const storedCookies = getCookiesForHost(parsedTarget.hostname);
+      // Cookies come only from THIS session's jar (the app's own aegis_sid cookie is never forwarded upstream)
+      const storedCookies = session.jar.headerFor(parsedTarget);
 
       const forwardHeaders: Record<string, string> = {
         'User-Agent':
@@ -1354,10 +1333,16 @@ ${pageContext?.url ? `معلومات الصفحة المفتوحة حالياً 
       const upstream = await fetch(targetUrl, fetchOptions);
       clearTimeout(timeout);
 
-      // Store cookies
-      const setCookie = upstream.headers.get('set-cookie');
-      if (setCookie) {
-        storeCookiesFromResponse(parsedTarget.hostname, setCookie);
+      // Store cookies. getSetCookie() returns each Set-Cookie separately (get() would merge them
+      // into one comma-joined string and lose all but the first). Attribute them to the final
+      // URL after redirects, since that is the host that actually set them.
+      const setCookies = upstream.headers.getSetCookie();
+      if (setCookies.length > 0) {
+        let cookieOrigin = parsedTarget;
+        try {
+          cookieOrigin = new URL(upstream.url || targetUrl);
+        } catch {}
+        session.jar.setFromResponse(cookieOrigin, setCookies);
       }
 
       const contentType = upstream.headers.get('content-type') || '';

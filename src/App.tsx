@@ -277,6 +277,7 @@ export default function App() {
   const handleLockVault = () => {
     if (!vaultState.isSetUp) return; // nothing to unlock with yet
     lockVault();
+    fetch('/api/session/clear', { method: 'POST' }).catch(() => {}); // log out of proxied sites too
     // Clear decrypted data and open pages from memory while locked
     setBookmarks(DEFAULT_BOOKMARKS);
     setHistory([]);
@@ -372,6 +373,7 @@ export default function App() {
     const freshTab = createDefaultTab(true, 'chrome://newtab');
     setTabs([freshTab]);
     setActiveTabId(freshTab.id);
+    fetch('/api/session/clear', { method: 'POST' }).catch(() => {});
     destroyVault();
     setVaultState((prev) => ({ ...prev, isLocked: false, isSetUp: false, storageEncrypted: false, lastEncryptedTimestamp: Date.now() }));
   };
@@ -660,6 +662,10 @@ export default function App() {
     if (options.history) setHistory([]);
     if (options.cache || options.cookies) {
       setNetworkRequests([]);
+    }
+    // Really clears the logins/cookies the proxy keeps for this session
+    if (options.cookies) {
+      fetch('/api/session/clear', { method: 'POST' }).catch(() => {});
     }
   };
 
