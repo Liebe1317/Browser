@@ -3,6 +3,7 @@
 import https from 'node:https';
 import http from 'node:http';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { spawn, execFileSync } from 'node:child_process';
 import { ok, freePort, makeCert } from './helpers/util.mjs';
 
@@ -40,7 +41,7 @@ await new Promise((r) => upstream.listen(UP, '127.0.0.1', r));
 const server = spawn(process.execPath, ['--import', 'tsx', 'server.ts'], {
   cwd: root,
   stdio: 'ignore',
-  env: { ...process.env, NODE_ENV: 'production', PORT: String(APP), NODE_OPTIONS: `--import ${path.join(root, 'tests/helpers/preload.mjs')}`, NODE_TLS_REJECT_UNAUTHORIZED: '0' },
+  env: { ...process.env, NODE_ENV: 'production', PORT: String(APP), NODE_OPTIONS: `--import ${pathToFileURL(path.join(root, 'tests/helpers/preload.mjs')).href}`, NODE_TLS_REJECT_UNAUTHORIZED: '0' },
 });
 
 const req = (p, { method = 'GET', headers = {} } = {}) =>
