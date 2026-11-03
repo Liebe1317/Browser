@@ -5,6 +5,11 @@ import { fileURLToPath } from 'url';
 import fs from 'fs';
 import { GoogleGenAI } from '@google/genai';
 import { getOrCreateSession, clearSessionCookies } from './server/sessions.ts';
+import { isBlockedUrl as isBlockedTarget, safeFetch, readBodyCapped, SsrfBlockedError, BodyTooLargeError } from './server/ssrf.ts';
+
+// Response size limits for proxied content (protects server memory)
+const MAX_TEXT_BYTES = 10 * 1024 * 1024; // html / css
+const MAX_BINARY_BYTES = 50 * 1024 * 1024; // images, fonts, scripts, media
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -18,46 +23,6 @@ process.on('unhandledRejection', (reason) => {
 });
 
 // Strict SSRF validation: block loopback, link-local, Google Cloud metadata, and private IP ranges
-function isBlockedTarget(targetUrl: string): boolean {
-  try {
-    const u = new URL(targetUrl);
-    if (u.protocol !== 'http:' && u.protocol !== 'https:') return true;
-    const hostname = u.hostname.toLowerCase();
-
-    // Block loopback and internal cloud metadata
-    if (
-      hostname === 'localhost' ||
-      hostname === '127.0.0.1' ||
-      hostname === '::1' ||
-      hostname === '0.0.0.0' ||
-      hostname === 'metadata.google.internal' ||
-      hostname === '169.254.169.254' ||
-      hostname.endsWith('.internal') ||
-      hostname.endsWith('.local')
-    ) {
-      return true;
-    }
-
-    // Block IPv4 private & link-local ranges
-    // 127.0.0.0/8
-    if (/^127\.\d+\.\d+\.\d+$/.test(hostname)) return true;
-    // 10.0.0.0/8
-    if (/^10\.\d+\.\d+\.\d+$/.test(hostname)) return true;
-    // 172.16.0.0/12 (172.16 - 172.31)
-    if (/^172\.(1[6-9]|2\d|3[0-1])\.\d+\.\d+$/.test(hostname)) return true;
-    // 192.168.0.0/16
-    if (/^192\.168\.\d+\.\d+$/.test(hostname)) return true;
-    // 169.254.0.0/16
-    if (/^169\.254\.\d+\.\d+$/.test(hostname)) return true;
-    // 100.64.0.0/10 (100.64 - 100.127)
-    if (/^100\.(6[4-9]|[7-9]\d|1[0-1]\d|12[0-7])\.\d+\.\d+$/.test(hostname)) return true;
-
-    return false;
-  } catch {
-    return true;
-  }
-}
-
 // Initialize Gemini API client for AI features
 const ai = new GoogleGenAI({
   apiKey: process.env.GEMINI_API_KEY || '',
@@ -1286,16 +1251,11 @@ ${pageContext?.url ? `معلومات الصفحة المفتوحة حالياً 
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 15000);
 
-      // Cookies come only from THIS session's jar (the app's own aegis_sid cookie is never forwarded upstream)
-      const storedCookies = session.jar.headerFor(parsedTarget);
-
       const forwardHeaders: Record<string, string> = {
         'User-Agent':
           'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
         'Accept': req.headers.accept || 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
         'Accept-Language': (req.headers['accept-language'] as string) || 'ar,en;q=0.9',
-        'Referer': `${parsedTarget.origin}/`,
-        'Origin': parsedTarget.origin,
         'Sec-Ch-Ua': '"Google Chrome";v="131", "Chromium";v="131"',
         'Sec-Ch-Ua-Mobile': '?0',
         'Sec-Ch-Ua-Platform': '"Windows"',
@@ -1305,51 +1265,53 @@ ${pageContext?.url ? `معلومات الصفحة المفتوحة حالياً 
         'Upgrade-Insecure-Requests': '1',
       };
 
-      if (storedCookies) {
-        forwardHeaders['Cookie'] = storedCookies;
-      }
-
       if (req.headers['x-csrf-token']) forwardHeaders['X-CSRF-TOKEN'] = req.headers['x-csrf-token'] as string;
       if (req.headers['x-requested-with']) forwardHeaders['X-Requested-With'] = req.headers['x-requested-with'] as string;
       if (req.headers['content-type']) forwardHeaders['Content-Type'] = req.headers['content-type'] as string;
 
-      const fetchOptions: RequestInit = {
-        method: req.method,
-        signal: controller.signal,
-        headers: forwardHeaders,
-        redirect: 'follow',
-      };
-
+      let fetchBody: string | Uint8Array | undefined;
       if (req.method !== 'GET' && req.method !== 'HEAD') {
         if (typeof req.body === 'string') {
-          fetchOptions.body = req.body;
+          fetchBody = req.body;
         } else if (Buffer.isBuffer(req.body)) {
-          fetchOptions.body = new Uint8Array(req.body);
+          fetchBody = new Uint8Array(req.body);
         } else if (req.body && Object.keys(req.body).length > 0) {
-          fetchOptions.body = JSON.stringify(req.body);
+          fetchBody = JSON.stringify(req.body);
         }
       }
 
-      const upstream = await fetch(targetUrl, fetchOptions);
+      // safeFetch validates the target AND every redirect hop (SSRF), resolves DNS through a
+      // guarded lookup (no private IPs, no DNS rebinding), and lets us apply cookies per hop.
+      const { response: upstream, finalUrl } = await safeFetch(
+        targetUrl,
+        { method: req.method, headers: forwardHeaders, body: fetchBody, signal: controller.signal },
+        {
+          upgradeHttp: true,
+          // Cookies come only from THIS session's jar (the app's own aegis_sid cookie is never forwarded upstream)
+          headersFor: (u) => {
+            const h: Record<string, string> = { Referer: `${u.origin}/`, Origin: u.origin };
+            const cookie = session.jar.headerFor(u);
+            if (cookie) h['Cookie'] = cookie;
+            return h;
+          },
+          // getSetCookie() keeps each Set-Cookie separate; called for every hop so redirect cookies aren't lost
+          onResponse: (u, r) => {
+            const setCookies = r.headers.getSetCookie();
+            if (setCookies.length > 0) session.jar.setFromResponse(u, setCookies);
+          },
+        }
+      );
       clearTimeout(timeout);
 
-      // Store cookies. getSetCookie() returns each Set-Cookie separately (get() would merge them
-      // into one comma-joined string and lose all but the first). Attribute them to the final
-      // URL after redirects, since that is the host that actually set them.
-      const setCookies = upstream.headers.getSetCookie();
-      if (setCookies.length > 0) {
-        let cookieOrigin = parsedTarget;
-        try {
-          cookieOrigin = new URL(upstream.url || targetUrl);
-        } catch {}
-        session.jar.setFromResponse(cookieOrigin, setCookies);
-      }
+      // Continue from the page we actually landed on, so relative links resolve against the right origin
+      parsedTarget = finalUrl;
+      targetUrl = finalUrl.toString();
 
       const contentType = upstream.headers.get('content-type') || '';
 
       // If CSS stylesheet, rewrite relative url(...) references and stream with CSS headers
       if (contentType.includes('text/css') || targetUrl.endsWith('.css')) {
-        let cssText = await upstream.text();
+        let cssText = (await readBodyCapped(upstream, MAX_TEXT_BYTES)).toString('utf8');
         cssText = cssText.replace(/url\(\s*(['"]?)([^'")]+)\1\s*\)/gi, (match, quote, assetUrl) => {
           const trimmed = assetUrl.trim();
           if (!trimmed || trimmed.startsWith('data:') || trimmed.startsWith('blob:') || trimmed.includes('/api/proxy')) {
@@ -1382,11 +1344,11 @@ ${pageContext?.url ? `معلومات الصفحة المفتوحة حالياً 
         if (contentType.includes('image/') || contentType.includes('font/')) {
           res.setHeader('Cache-Control', 'public, max-age=86400');
         }
-        const buffer = await upstream.arrayBuffer();
-        return res.status(upstream.status).send(Buffer.from(buffer));
+        const buffer = await readBodyCapped(upstream, MAX_BINARY_BYTES);
+        return res.status(upstream.status).send(buffer);
       }
 
-      let html = await upstream.text();
+      let html = (await readBodyCapped(upstream, MAX_TEXT_BYTES)).toString('utf8');
       let adsBlockedCount = 0;
       let trackersBlockedCount = 0;
 
@@ -1741,6 +1703,13 @@ ${pageContext?.url ? `معلومات الصفحة المفتوحة حالياً 
     } catch (err: any) {
       console.warn('Proxy error for', targetUrl, err.message);
 
+      if (err instanceof SsrfBlockedError) {
+        return res.status(403).send('Aegis Shield: Access to internal or private network targets is forbidden.');
+      }
+      if (err instanceof BodyTooLargeError) {
+        return res.status(413).send('Aegis Shield: the response is too large to proxy.');
+      }
+
       const errorHtml = `
         <!DOCTYPE html>
         <html lang="ar" dir="rtl">
@@ -1829,16 +1798,21 @@ ${pageContext?.url ? `معلومات الصفحة المفتوحة حالياً 
     }
 
     try {
-      const response = await fetch(rawUrl, {
-        headers: {
-          'User-Agent':
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
-          'Accept': 'text/html,application/xhtml+xml',
-          'Sec-GPC': '1',
-          'DNT': '1',
+      const { response } = await safeFetch(
+        rawUrl,
+        {
+          headers: {
+            'User-Agent':
+              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml',
+            'Sec-GPC': '1',
+            'DNT': '1',
+          },
+          signal: AbortSignal.timeout(15000),
         },
-      });
-      const html = await response.text();
+        { upgradeHttp: true }
+      );
+      const html = (await readBodyCapped(response, MAX_TEXT_BYTES)).toString('utf8');
       const titleMatch = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
       const title = titleMatch ? titleMatch[1].replace(/<[^>]+>/g, '').trim() : 'مقال للقراءة';
 
@@ -1864,6 +1838,9 @@ ${pageContext?.url ? `معلومات الصفحة المفتوحة حالياً 
         adsStripped: 8,
       });
     } catch (e: any) {
+      if (e instanceof SsrfBlockedError) {
+        return res.status(403).json({ error: 'Access to internal or private network targets is forbidden.' });
+      }
       res.status(500).json({ error: 'Could not extract reader content: ' + e.message });
     }
   });
@@ -1894,23 +1871,28 @@ ${pageContext?.url ? `معلومات الصفحة المفتوحة حالياً 
     if (targetOrigin && !isBlockedTarget(targetOrigin)) {
       const destination = `${targetOrigin}${req.originalUrl}`;
       try {
-        const upstream = await fetch(destination, {
-          method: req.method,
-          headers: {
-            'User-Agent':
-              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
-            'Referer': `${targetOrigin}/`,
-            'Origin': targetOrigin,
-            'Accept': req.headers.accept || '*/*',
+        const { response: upstream } = await safeFetch(
+          destination,
+          {
+            method: req.method === 'HEAD' ? 'HEAD' : 'GET', // this fallback only serves assets, never forwards writes
+            headers: {
+              'User-Agent':
+                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+              'Referer': `${targetOrigin}/`,
+              'Origin': targetOrigin,
+              'Accept': req.headers.accept || '*/*',
+            },
+            signal: AbortSignal.timeout(15000),
           },
-        });
+          { upgradeHttp: true }
+        );
         const contentType = upstream.headers.get('content-type') || 'application/octet-stream';
         res.setHeader('Content-Type', contentType);
         res.setHeader('Access-Control-Allow-Origin', '*');
         res.setHeader('Access-Control-Allow-Headers', '*');
         res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT');
-        const buf = await upstream.arrayBuffer();
-        return res.status(upstream.status).send(Buffer.from(buf));
+        const buf = await readBodyCapped(upstream, MAX_BINARY_BYTES);
+        return res.status(upstream.status).send(buf);
       } catch (err: any) {
         // Fall through to asset 404 guard
       }
