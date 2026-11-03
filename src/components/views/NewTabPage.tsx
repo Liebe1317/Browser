@@ -149,14 +149,14 @@ export const NewTabPage: React.FC<NewTabPageProps> = ({
             </div>
 
             <div className="text-center p-2 rounded-xl bg-slate-900/40 border border-slate-700/30">
-              <span className="text-[11px] text-slate-400 block mb-0.5">بيانات تم توفيرها</span>
+              <span className="text-[11px] text-slate-400 block mb-0.5">بيانات موفّرة (تقدير)</span>
               <span className="text-xl font-bold text-amber-400 font-mono tabular-nums">
                 {bandwidthSavedMB} <span className="text-xs font-normal text-slate-400">MB</span>
               </span>
             </div>
 
             <div className="text-center p-2 rounded-xl bg-slate-900/40 border border-slate-700/30">
-              <span className="text-[11px] text-slate-400 block mb-0.5">زمن تحميل موفر</span>
+              <span className="text-[11px] text-slate-400 block mb-0.5">زمن موفّر (تقدير)</span>
               <span className="text-xl font-bold text-indigo-400 font-mono tabular-nums">
                 {timeSavedSec} <span className="text-xs font-normal text-slate-400">ث</span>
               </span>

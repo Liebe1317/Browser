@@ -3,13 +3,15 @@ import {
   Lock, Key, ShieldCheck, 
   Cpu, RefreshCw, CheckCircle2, AlertTriangle, Flame, Shield
 } from 'lucide-react';
-import { VaultState } from '../../types/browser';
+import { VaultState, ShieldSettings } from '../../types/browser';
 
 interface SecurityVaultViewProps {
   vaultState: VaultState;
   onLockVault: () => void;
   onEmergencyPurge: () => void;
   onCreateVault: (passphrase: string) => Promise<void>;
+  shieldSettings: ShieldSettings;
+  sendDoNotTrack: boolean;
 }
 
 export const SecurityVaultView: React.FC<SecurityVaultViewProps> = ({
@@ -17,23 +19,13 @@ export const SecurityVaultView: React.FC<SecurityVaultViewProps> = ({
   onLockVault,
   onEmergencyPurge,
   onCreateVault,
+  shieldSettings,
+  sendDoNotTrack,
 }) => {
   const [newPass, setNewPass] = useState('');
   const [confirmPass, setConfirmPass] = useState('');
   const [isCreating, setIsCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
-  const [testingLeaks, setTestingLeaks] = useState(false);
-  const [leakResults, setLeakResults] = useState<{
-    webrtc: boolean;
-    dns: boolean;
-    canvas: boolean;
-    mitm: boolean;
-  }>({
-    webrtc: true,
-    dns: true,
-    canvas: true,
-    mitm: true,
-  });
 
   const handleCreateVault = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -58,11 +50,70 @@ export const SecurityVaultView: React.FC<SecurityVaultViewProps> = ({
     }
   };
 
-  const handleRunLeakTest = () => {
-    setTestingLeaks(true);
-    setTimeout(() => {
-      setTestingLeaks(false);
-    }, 1200);
+  type Status = 'on' | 'partial' | 'off';
+  const on = shieldSettings.shieldsEnabled;
+  const rows: Array<{ title: string; note: string; status: Status }> = [
+    {
+      title: 'عزل الصفحات عن المتصفح',
+      note: 'كل صفحة تعمل بأصل معزول ولا تصل لبياناتك أو واجهة التطبيق. فعّال دائماً.',
+      status: 'on',
+    },
+    {
+      title: 'منع الاتصال المباشر بالمواقع الأخرى',
+      note: 'المتصفح نفسه يمنع أي صفحة من الاتصال بغير الوكيل، فلا يتسرب عنوان IP الحقيقي. فعّال دائماً.',
+      status: 'on',
+    },
+    {
+      title: 'ملفات الارتباط لكل موقع على حدة',
+      note: on && shieldSettings.blockThirdPartyCookies
+        ? 'مقسّمة لكل موقع، وملفات الأطراف الثالثة محجوبة تماماً.'
+        : 'مقسّمة لكل موقع، لكن ملفات الأطراف الثالثة مسموحة داخل قسم الموقع.',
+      status: on && shieldSettings.blockThirdPartyCookies ? 'on' : 'partial',
+    },
+    {
+      title: 'حظر الإعلانات والتتبع',
+      note: on && (shieldSettings.blockAggressiveAds || shieldSettings.blockTrackers)
+        ? 'حجب بحسب اسم النطاق من قائمة محدودة ومحدّثة يدوياً، وليس شاملاً.'
+        : 'معطّل من إعدادات الدرع.',
+      status: on && (shieldSettings.blockAggressiveAds || shieldSettings.blockTrackers) ? 'partial' : 'off',
+    },
+    {
+      title: 'إجبار HTTPS',
+      note: shieldSettings.upgradeHttps ? 'تُرفع روابط http إلى https تلقائياً.' : 'معطّل من إعدادات الدرع.',
+      status: shieldSettings.upgradeHttps ? 'on' : 'off',
+    },
+    {
+      title: 'إشارة عدم التعقب (GPC/DNT)',
+      note: sendDoNotTrack ? 'تُرسل مع كل طلب، والموقع غير ملزم باحترامها.' : 'معطّلة من الإعدادات.',
+      status: sendDoNotTrack ? 'partial' : 'off',
+    },
+    {
+      title: 'منع تسريب WebRTC',
+      note: shieldSettings.preventWebRTCLeak
+        ? 'حماية جزئية بالجافاسكربت، ويمكن لسكربت متقدم تجاوزها.'
+        : 'معطّل من إعدادات الدرع.',
+      status: shieldSettings.preventWebRTCLeak ? 'partial' : 'off',
+    },
+    {
+      title: 'تشفير المفضلات والسجل محلياً',
+      note: vaultState.isSetUp ? 'مشفّرة بـ AES-256-GCM بكلمة مرورك.' : 'غير مشفّرة. أنشئ كلمة مرور للخزنة.',
+      status: vaultState.isSetUp ? 'on' : 'off',
+    },
+    {
+      title: 'منع البصمة الرقمية (Canvas/WebGL)',
+      note: 'غير متوفر بعد. لم يُنفَّذ.',
+      status: 'off',
+    },
+    {
+      title: 'تشفير استعلامات DNS (DoH)',
+      note: 'غير متوفر بعد. الخادم يستخدم DNS النظام.',
+      status: 'off',
+    },
+  ];
+  const badge: Record<Status, { label: string; cls: string }> = {
+    on: { label: 'يعمل', cls: 'text-emerald-400 bg-emerald-950/60 border-emerald-800/40' },
+    partial: { label: 'جزئي', cls: 'text-amber-400 bg-amber-950/60 border-amber-800/40' },
+    off: { label: 'غير مفعّل', cls: 'text-slate-400 bg-slate-800/60 border-slate-700/60' },
   };
 
   return (
@@ -193,71 +244,24 @@ export const SecurityVaultView: React.FC<SecurityVaultViewProps> = ({
           )}
         </div>
 
-        {/* Card 2: Anti-Exploit & Leak Prevention */}
+        {/* Card 2: what is actually protected right now */}
         <div className="p-5 rounded-2xl bg-slate-900/90 border border-slate-800 space-y-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2.5">
-              <ShieldCheck className="w-5 h-5 text-cyan-400" />
-              <h2 className="text-sm font-bold text-white">حصن الحماية ضد ثغرات الاختراق</h2>
-            </div>
-            <button
-              type="button"
-              onClick={handleRunLeakTest}
-              className="text-[11px] text-cyan-400 hover:text-cyan-300 flex items-center gap-1 transition-colors"
-            >
-              <RefreshCw className={`w-3 h-3 ${testingLeaks ? 'animate-spin' : ''}`} />
-              <span>فحص الثغرات الحية</span>
-            </button>
+          <div className="flex items-center gap-2.5">
+            <ShieldCheck className="w-5 h-5 text-cyan-400" />
+            <h2 className="text-sm font-bold text-white">حالة الحماية الفعلية</h2>
           </div>
-
           <div className="space-y-2 text-xs">
-            {/* Leak test 1 */}
-            <div className="p-2.5 rounded-xl bg-slate-850/60 border border-slate-800 flex items-center justify-between">
-              <div>
-                <p className="font-semibold text-slate-200">ثغرة تسريب عنوان IP عبر WebRTC</p>
-                <p className="text-[10px] text-slate-400">إلغاء بروتوكولات STUN/TURN لكشف IP الحقيقي</p>
+            {rows.map((r) => (
+              <div key={r.title} className="p-2.5 rounded-xl bg-slate-850/60 border border-slate-800 flex items-center justify-between gap-3">
+                <div>
+                  <p className="font-semibold text-slate-200">{r.title}</p>
+                  <p className="text-[10px] text-slate-400 leading-relaxed">{r.note}</p>
+                </div>
+                <span className={`shrink-0 text-[11px] font-mono px-2 py-0.5 rounded border ${badge[r.status].cls}`}>
+                  {badge[r.status].label}
+                </span>
               </div>
-              <span className="flex items-center gap-1 text-[11px] font-mono text-emerald-400 bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-800/40">
-                <CheckCircle2 className="w-3 h-3" />
-                <span>محصن كلياً</span>
-              </span>
-            </div>
-
-            {/* Leak test 2 */}
-            <div className="p-2.5 rounded-xl bg-slate-850/60 border border-slate-800 flex items-center justify-between">
-              <div>
-                <p className="font-semibold text-slate-200">تسميم البصمة العتادية (Hardware Cloaking)</p>
-                <p className="text-[10px] text-slate-400">تشويش قراءات كرت الشاشة والـ Canvas والـ Audio</p>
-              </div>
-              <span className="flex items-center gap-1 text-[11px] font-mono text-emerald-400 bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-800/40">
-                <CheckCircle2 className="w-3 h-3" />
-                <span>مموه بنجاح</span>
-              </span>
-            </div>
-
-            {/* Leak test 3 */}
-            <div className="p-2.5 rounded-xl bg-slate-850/60 border border-slate-800 flex items-center justify-between">
-              <div>
-                <p className="font-semibold text-slate-200">تشفير استعلامات النطاق (DNS Leak Shield)</p>
-                <p className="text-[10px] text-slate-400">DNS over HTTPS عبر نفق Quad9 الآمن 9.9.9.9</p>
-              </div>
-              <span className="flex items-center gap-1 text-[11px] font-mono text-emerald-400 bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-800/40">
-                <CheckCircle2 className="w-3 h-3" />
-                <span>مشفر 100%</span>
-              </span>
-            </div>
-
-            {/* Leak test 4 */}
-            <div className="p-2.5 rounded-xl bg-slate-850/60 border border-slate-800 flex items-center justify-between">
-              <div>
-                <p className="font-semibold text-slate-200">مقاومة هجمات رجل المنتصف (Anti-MITM)</p>
-                <p className="text-[10px] text-slate-400">التحقق الصارم من شهادات TLS 1.3 مع منع الهبوط إلى HTTP</p>
-              </div>
-              <span className="flex items-center gap-1 text-[11px] font-mono text-emerald-400 bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-800/40">
-                <CheckCircle2 className="w-3 h-3" />
-                <span>نشط</span>
-              </span>
-            </div>
+            ))}
           </div>
         </div>
       </div>

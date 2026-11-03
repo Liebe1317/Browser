@@ -17,6 +17,7 @@ import crypto from 'crypto';
 import type { Request, Response } from 'express';
 import { getDomain } from 'tldts';
 import { CookieJar } from './cookieJar.ts';
+import { DEFAULT_SHIELD_FLAGS, decodeShieldFlags, type ShieldFlags } from '../src/utils/shieldFlags.ts';
 
 export const SESSION_COOKIE = 'aegis_sid';
 const SESSION_TTL_MS = 24 * 60 * 60 * 1000; // idle expiry
@@ -29,6 +30,7 @@ const TOKEN_FORMAT = /^[a-f0-9]{48}$/;
 
 export interface Session {
   jars: Map<string, CookieJar>; // key: site (registrable domain)
+  shield: ShieldFlags; // the user's privacy settings, sent by the app UI when it opens a page
   lastUsed: number;
 }
 
@@ -81,7 +83,7 @@ function createSession(req: Request, res: Response): string {
     if (oldestId) sessions.delete(oldestId);
   }
   const id = crypto.randomBytes(32).toString('hex');
-  sessions.set(id, { jars: new Map(), lastUsed: Date.now() });
+  sessions.set(id, { jars: new Map(), shield: { ...DEFAULT_SHIELD_FLAGS }, lastUsed: Date.now() });
 
   // No Max-Age: a browser-session cookie. Strict: never sent on cross-site requests.
   const attrs = [`${SESSION_COOKIE}=${id}`, 'Path=/', 'HttpOnly', 'SameSite=Strict'];
@@ -129,6 +131,8 @@ export interface ProxyAuth {
   session: Session;
   site: string;
   token: string;
+  shield: ShieldFlags;
+  isPageLoad: boolean; // true = the app UI is opening a page; false = a proxied page loading a sub-resource
 }
 export interface ProxyAuthError {
   error: true;
@@ -155,7 +159,7 @@ export function authorizeProxyRequest(req: Request, res: Response, target: URL):
       return { error: true, status: 403, message: 'Aegis Shield: invalid or expired page token.' };
     }
     session.lastUsed = now;
-    return { session, site: rec.site, token: t };
+    return { session, site: rec.site, token: t, shield: session.shield, isPageLoad: false };
   }
 
   const fetchSite = req.headers['sec-fetch-site'];
@@ -165,8 +169,11 @@ export function authorizeProxyRequest(req: Request, res: Response, target: URL):
   const sid = lookupSessionFromCookie(req) ?? createSession(req, res);
   const session = sessions.get(sid)!;
   session.lastUsed = now;
+  // Only the app UI (cookie path) may change the privacy settings; proxied pages never can.
+  const flags = decodeShieldFlags(req.query.s);
+  if (flags) session.shield = flags;
   const site = siteOf(target.hostname);
-  return { session, site, token: getOrMintToken(sid, site) };
+  return { session, site, token: getOrMintToken(sid, site), shield: session.shield, isPageLoad: true };
 }
 
 /** Adds the page token to every proxied URL inside a text response (HTML/CSS/error pages). */

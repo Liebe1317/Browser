@@ -517,10 +517,10 @@ export const ChromeNavbar: React.FC<ChromeNavbarProps> = ({
               <div className="p-2.5 rounded-lg bg-slate-800/60 border border-slate-700/60 flex items-center justify-between">
                 <div>
                   <p className="font-semibold text-slate-200">Canvas Fingerprint Cloaker</p>
-                  <p className="text-[11px] text-slate-400">تشويش بصمة المعالج والمتصفح العشوائية</p>
+                  <p className="text-[11px] text-slate-400">لم يُنفَّذ بعد</p>
                 </div>
-                <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 font-mono">
-                  مثبت ونشط
+                <span className="text-[10px] px-2 py-0.5 rounded bg-slate-700/50 text-slate-400 font-mono">
+                  غير متوفر بعد
                 </span>
               </div>
             </div>

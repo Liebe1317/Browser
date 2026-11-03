@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { encodeShieldFlags } from '../../utils/shieldFlags';
 import { ShieldCheck, Lock, ExternalLink, BookOpen, AlertTriangle, RefreshCw } from 'lucide-react';
 import { Tab, ShieldSettings } from '../../types/browser';
 
 interface WebPageViewProps {
   tab: Tab;
   shieldSettings: ShieldSettings;
+  sendDoNotTrack: boolean;
   onUpdateTabInfo: (id: string, updates: Partial<Tab>) => void;
   onNavigate: (url: string) => void;
   onOpenReader: (url: string) => void;
@@ -14,6 +16,7 @@ interface WebPageViewProps {
 export const WebPageView: React.FC<WebPageViewProps> = ({
   tab,
   shieldSettings,
+  sendDoNotTrack,
   onUpdateTabInfo,
   onNavigate,
   onOpenReader,
@@ -24,7 +27,9 @@ export const WebPageView: React.FC<WebPageViewProps> = ({
   const [hasLoadError, setHasLoadError] = useState(false);
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
-  const proxyUrl = `/api/proxy?url=${encodeURIComponent(tab.url)}`;
+  // The privacy settings travel with the page load; the proxy applies them (see server/shield.ts).
+  // Changing a setting changes this URL, so the page reloads with the new protection.
+  const proxyUrl = `/api/proxy?url=${encodeURIComponent(tab.url)}&s=${encodeShieldFlags(shieldSettings, sendDoNotTrack)}`;
 
   // Simulate smooth page loading bar like Chrome
   useEffect(() => {

@@ -43,9 +43,9 @@ export const SecurityModal: React.FC<SecurityModalProps> = ({
             <div className="flex items-start gap-2.5">
               <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
               <div>
-                <p className="font-semibold text-slate-200">الشهادة صالحة (TLS 1.3)</p>
+                <p className="font-semibold text-slate-200">اتصال الخادم بالموقع مشفّر</p>
                 <p className="text-slate-400 mt-0.5 text-[11px] leading-relaxed">
-                  تم التحقق من هوية الموقع عبر تشفير 256-bit AES متقدم. لا يمكن لأي طرف ثالث التلصص على بياناتك أو تغييرها.
+                  يتصل الخادم بالموقع عبر HTTPS ويتحقق من شهادته. المتصفح لا يرى شهادة الموقع بنفسه، فالتحقق يتم على الخادم.
                 </p>
               </div>
             </div>
@@ -53,9 +53,9 @@ export const SecurityModal: React.FC<SecurityModalProps> = ({
             <div className="flex items-start gap-2.5 pt-2 border-t border-slate-700/50">
               <ShieldCheck className="w-4 h-4 text-cyan-400 shrink-0 mt-0.5" />
               <div>
-                <p className="font-semibold text-slate-200">عزل ملفات الارتباط (Cookie Sandboxing)</p>
+                <p className="font-semibold text-slate-200">ملفات الارتباط لكل موقع على حدة</p>
                 <p className="text-slate-400 mt-0.5 text-[11px] leading-relaxed">
-                  يمنع المتصفح تخزين أي كوكيز تابعة لأطراف ثالثة (Third-party Cookies) ويمنع مشاركتها مع شبكات الإعلانات.
+                  تُحفظ في قسم مستقل لكل موقع، فلا يستخدم موقع ملفات موقع آخر. حجب ملفات الأطراف الثالثة يتبع إعداد الدرع.
                 </p>
               </div>
             </div>

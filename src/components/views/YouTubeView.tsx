@@ -190,7 +190,6 @@ export const YouTubeView: React.FC<YouTubeViewProps> = ({
   useEffect(() => {
     if (initialVideoId) {
       setCurrentVideoId(initialVideoId);
-      onAddBlockedCount(3, 8, 'youtube-nocookie.com');
     }
   }, [initialVideoId]);
 
@@ -213,7 +212,6 @@ export const YouTubeView: React.FC<YouTubeViewProps> = ({
           verified: true,
         });
       }
-      onAddBlockedCount(4, 12, 'youtube-nocookie.com');
     }
   }, [currentVideoId, videos, relatedVideos]);
 
@@ -233,7 +231,6 @@ export const YouTubeView: React.FC<YouTubeViewProps> = ({
 
     if (extractedId) {
       setCurrentVideoId(extractedId);
-      onAddBlockedCount(5, 10, 'youtube-nocookie.com');
       return;
     }
 
@@ -244,7 +241,6 @@ export const YouTubeView: React.FC<YouTubeViewProps> = ({
     setCurrentVideoId(video.id);
     setActiveVideo(video);
     window.scrollTo({ top: 0, behavior: 'smooth' });
-    onAddBlockedCount(3, 9, 'youtube-nocookie.com');
   };
 
   const handleLike = () => {

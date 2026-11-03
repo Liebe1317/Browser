@@ -84,23 +84,18 @@ export default function App() {
   const [history, setHistory] = useState<HistoryItem[]>(() => {
     try {
       if (isVaultSetUp()) return [];
+      const savedSettings = localStorage.getItem('aegis_settings');
+      if (savedSettings && JSON.parse(savedSettings).clearHistoryOnExit) {
+        localStorage.removeItem('aegis_history'); // user asked for history to be erased between sessions
+        return [];
+      }
       const saved = localStorage.getItem('aegis_history');
       return saved ? JSON.parse(saved) : [];
     } catch {
       return [];
     }
   });
-  const [downloads, setDownloads] = useState<DownloadItem[]>([
-    {
-      id: 'dl-1',
-      filename: 'Aegis_Security_Whitepaper.pdf',
-      size: '2.4 MB',
-      progress: 100,
-      status: 'completed',
-      sourceUrl: 'https://aegis-security.internal/docs',
-      date: Date.now() - 3600000,
-    },
-  ]);
+  const [downloads, setDownloads] = useState<DownloadItem[]>([]);
 
   const [settings, setSettings] = useState<BrowserSettings>(() => {
     try {
@@ -123,18 +118,18 @@ export default function App() {
   const [totalAdsBlocked, setTotalAdsBlocked] = useState<number>(() => {
     try {
       const saved = localStorage.getItem('aegis_total_ads');
-      return saved ? Number(saved) : 184;
+      return saved ? Number(saved) : 0;
     } catch {
-      return 184;
+      return 0;
     }
   });
 
   const [totalTrackersBlocked, setTotalTrackersBlocked] = useState<number>(() => {
     try {
       const saved = localStorage.getItem('aegis_total_trackers');
-      return saved ? Number(saved) : 92;
+      return saved ? Number(saved) : 0;
     } catch {
-      return 92;
+      return 0;
     }
   });
 
@@ -146,8 +141,6 @@ export default function App() {
       algorithm: 'AES-256-GCM',
       keyDerivation: 'PBKDF2-SHA256 (600,000 rounds)',
       storageEncrypted: setUp,
-      antiExploitActive: true,
-      webrtcHardened: true,
       lastEncryptedTimestamp: Date.now(),
     };
   });
@@ -156,51 +149,7 @@ export default function App() {
   const [showClearDataModal, setShowClearDataModal] = useState(false);
   const [showLibi, setShowLibi] = useState(false);
   const [libiContextQuery, setLibiContextQuery] = useState<string | undefined>(undefined);
-  const [networkRequests, setNetworkRequests] = useState<NetworkRequest[]>([
-    {
-      id: 'req-1',
-      url: 'https://google-analytics.com/analytics.js',
-      domain: 'google-analytics.com',
-      type: 'script',
-      status: 'blocked',
-      reason: 'tracker',
-      timestamp: Date.now() - 2000,
-      size: '48 KB',
-      duration: 12,
-    },
-    {
-      id: 'req-2',
-      url: 'https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js',
-      domain: 'googlesyndication.com',
-      type: 'script',
-      status: 'blocked',
-      reason: 'ad',
-      timestamp: Date.now() - 1500,
-      size: '124 KB',
-      duration: 15,
-    },
-    {
-      id: 'req-3',
-      url: 'https://connect.facebook.net/en_US/fbevents.js',
-      domain: 'connect.facebook.net',
-      type: 'script',
-      status: 'blocked',
-      reason: 'tracker',
-      timestamp: Date.now() - 1100,
-      size: '62 KB',
-      duration: 9,
-    },
-    {
-      id: 'req-4',
-      url: 'https://fonts.googleapis.com/css2',
-      domain: 'fonts.googleapis.com',
-      type: 'stylesheet',
-      status: 'allowed',
-      timestamp: Date.now() - 800,
-      size: '14 KB',
-      duration: 35,
-    },
-  ]);
+  const [networkRequests, setNetworkRequests] = useState<NetworkRequest[]>([]);
 
   // Persist state
   useEffect(() => {
@@ -266,7 +215,7 @@ export default function App() {
       if (raw) {
         const data = JSON.parse(raw) as { bookmarks?: Bookmark[]; history?: HistoryItem[] };
         setBookmarks(data.bookmarks ?? DEFAULT_BOOKMARKS);
-        setHistory(data.history ?? []);
+        setHistory(settings.clearHistoryOnExit ? [] : data.history ?? []);
       }
     } catch (e) {
       // Never continue with defaults: the next save would overwrite the real (unreadable) data.
@@ -740,6 +689,7 @@ export default function App() {
           <WebPageView
             tab={activeTab}
             shieldSettings={shieldSettings}
+            sendDoNotTrack={settings.doNotTrack}
             onUpdateTabInfo={handleUpdateTab}
             onNavigate={handleNavigate}
             onOpenReader={handleOpenReader}
@@ -796,6 +746,8 @@ export default function App() {
             onLockVault={handleLockVault}
             onEmergencyPurge={handleEmergencyPurge}
             onCreateVault={handleCreateVault}
+            shieldSettings={shieldSettings}
+            sendDoNotTrack={settings.doNotTrack}
           />
         ) : null}
       </main>

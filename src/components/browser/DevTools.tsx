@@ -194,13 +194,10 @@ export const DevTools: React.FC<DevToolsProps> = ({
           <div className="space-y-1.5 font-mono text-[11px]">
             <div className="text-emerald-400 flex items-center gap-1.5">
               <CheckCircle2 className="w-3.5 h-3.5" />
-              <span>[AegisShield] Core engine initialized with aggressive adblock heuristics.</span>
+              <span>[AegisShield] الدرع يحجب الإعلانات والتتبع بحسب اسم النطاق، وكل الطلبات تمر عبر الوكيل.</span>
             </div>
             <div className="text-cyan-400">
-              [PrivacyGuard] Global Privacy Control (Sec-GPC: 1) and Do Not Track (DNT: 1) injected into upstream requests.
-            </div>
-            <div className="text-purple-400">
-              [FingerprintShield] Canvas readback intercepted. Generated entropy noise applied to prevent device fingerprinting.
+              [PrivacyGuard] إشارتا Sec-GPC وDNT تُرسلان إلى المواقع إذا كان الإعداد مفعّلاً.
             </div>
             {networkRequests
               .filter((r) => r.status === 'blocked')
@@ -216,24 +213,24 @@ export const DevTools: React.FC<DevToolsProps> = ({
           <div className="p-3 bg-slate-900/80 rounded-lg border border-slate-800 space-y-2 text-xs">
             <div className="flex items-center gap-2 text-emerald-400 font-bold">
               <Lock className="w-4 h-4" />
-              <span>اتصال مشفر بدرجة عسكرية (Grade A+)</span>
+              <span>الاتصال بين الخادم والموقع</span>
             </div>
             <div className="grid grid-cols-2 gap-4 text-slate-400 text-[11px] pt-2 border-t border-slate-800">
               <div>
-                <span className="block text-slate-500">بروتوكول التشفير:</span>
-                <span className="text-slate-200">TLS 1.3 / ChaCha20-Poly1305</span>
+                <span className="block text-slate-500">التشفير:</span>
+                <span className="text-slate-200">HTTPS، والتحقق من الشهادة يتم على الخادم</span>
               </div>
               <div>
-                <span className="block text-slate-500">مفتاح التشفير:</span>
-                <span className="text-slate-200">256-bit AES Elliptic Curve</span>
+                <span className="block text-slate-500">الاتصال المباشر من الصفحات:</span>
+                <span className="text-slate-200">ممنوع، كل شيء عبر الوكيل</span>
               </div>
               <div>
-                <span className="block text-slate-500">سياسة HSTS:</span>
-                <span className="text-emerald-400">مفعلة إجبارياً</span>
+                <span className="block text-slate-500">عزل الصفحات:</span>
+                <span className="text-emerald-400">أصل معزول (Sandbox)</span>
               </div>
               <div>
                 <span className="block text-slate-500">تسريب WebRTC:</span>
-                <span className="text-emerald-400">محمي (عنوان IP الحقيقي محجوب)</span>
+                <span className="text-amber-400">حماية جزئية، ويمكن تجاوزها</span>
               </div>
             </div>
           </div>
@@ -243,11 +240,11 @@ export const DevTools: React.FC<DevToolsProps> = ({
           <div className="p-3 bg-slate-900/80 rounded-lg border border-slate-800 text-xs space-y-2">
             <h4 className="font-bold text-slate-200">عزل ملفات تعريف الارتباط (Cookie Jar)</h4>
             <p className="text-[11px] text-slate-400 leading-relaxed">
-              يقوم متصفح Aegis بإنشاء حاوية معزولة (Ephemeral Container) لكل نطاق. 
-              لا يمكن لأي نطاق الوصول لبيانات نطاق آخر، ويتم حجب جميع ملفات تعريف ارتباط التتبع عبر المواقع (Cross-Site Tracking Cookies).
+              ملفات الارتباط تُحفظ على الخادم داخل جلستك، في قسم مستقل لكل موقع. لا يستطيع موقع استخدام ملفات موقع آخر.
+              عند تفعيل حجب ملفات الطرف الثالث لا تُرسَل ولا تُخزَّن ملفات الأطراف الخارجية.
             </p>
             <div className="p-2 rounded bg-slate-950 font-mono text-[10px] text-emerald-400">
-              Status: 0 cross-site tracking cookies leaked. Cookie sandbox active.
+              تُمسح عند قفل الخزنة أو مسح البيانات أو التدمير الذاتي.
             </div>
           </div>
         )}

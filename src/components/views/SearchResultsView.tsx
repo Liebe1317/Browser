@@ -91,7 +91,8 @@ export const SearchResultsView: React.FC<SearchResultsViewProps> = ({
           ]);
         }
         setTrackersBlocked(data.trackers_blocked || 6);
-        onAddBlockedCount(2, data.trackers_blocked || 6, `${searchEngine}.com`);
+        // Only count what the server actually reported (no invented numbers)
+        if (data.trackers_blocked) onAddBlockedCount(0, data.trackers_blocked, `${searchEngine}.com`);
         setIsLoading(false);
       })
       .catch((err) => {

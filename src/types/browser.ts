@@ -17,8 +17,6 @@ export interface VaultState {
   algorithm: 'AES-256-GCM';
   keyDerivation: 'PBKDF2-SHA256 (600,000 rounds)';
   storageEncrypted: boolean;
-  antiExploitActive: boolean;
-  webrtcHardened: boolean;
   lastEncryptedTimestamp: number;
 }
 

@@ -645,7 +645,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 <div>
                   <h4 className="font-bold text-slate-200">إرسال إشارة عدم التعقب (Do Not Track) و (Sec-GPC)</h4>
                   <p className="text-[11px] text-slate-400 mt-0.5">
-                    إلزام المواقع باحترام رغبتك بعدم بيع أو مشاركة بيانات تصفحك مع أطراف إعلانية خارجية.
+                    تُرسَل مع كل طلب. المواقع غير ملزمة قانونياً أو تقنياً باحترامها.
                   </p>
                 </div>
                 <input
@@ -660,14 +660,15 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 <div>
                   <h4 className="font-bold text-slate-200">تشفير استعلامات DNS (DNS over HTTPS)</h4>
                   <p className="text-[11px] text-slate-400 mt-0.5">
-                    توجيه استفسارات أسماء النطاقات عبر قناة مشفرة لمنع مزود خدمة الإنترنت من التلصص.
+                    غير متوفر بعد. الخادم يستخدم DNS النظام حالياً، فمزود الإنترنت يرى أسماء النطاقات.
                   </p>
                 </div>
                 <input
                   type="checkbox"
-                  checked={settings.dnsOverHttps}
-                  onChange={(e) => updateSetting('dnsOverHttps', e.target.checked)}
-                  className="w-4 h-4 accent-emerald-500 rounded cursor-pointer"
+                  checked={false}
+                  disabled
+                  title="غير متوفر بعد"
+                  className="w-4 h-4 rounded opacity-40 cursor-not-allowed"
                 />
               </div>
 
@@ -675,7 +676,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 <div>
                   <h4 className="font-bold text-slate-200">محو سجل التصفح تلقائياً عند إغلاق المتصفح</h4>
                   <p className="text-[11px] text-slate-400 mt-0.5">
-                    تدمير السجل والذاكرة المؤقتة بمجرد إنهاء جلسة العمل لضمان سرية مطلقة.
+                    يُمسح السجل عند بدء الجلسة التالية (أو عند فك قفل الخزنة).
                   </p>
                 </div>
                 <input

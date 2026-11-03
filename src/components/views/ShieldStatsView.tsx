@@ -76,7 +76,7 @@ export const ShieldStatsView: React.FC<ShieldStatsViewProps> = ({
         </div>
 
         <div className="p-4 rounded-xl bg-slate-850 border border-slate-800">
-          <span className="text-xs text-slate-400 block mb-1">حجم البيانات الموفر</span>
+          <span className="text-xs text-slate-400 block mb-1">حجم البيانات الموفر (تقدير)</span>
           <span className="text-2xl sm:text-3xl font-bold text-amber-400 font-mono tabular-nums">
             {bandwidthSavedMB} <span className="text-sm font-normal text-slate-400">MB</span>
           </span>
@@ -84,7 +84,7 @@ export const ShieldStatsView: React.FC<ShieldStatsViewProps> = ({
         </div>
 
         <div className="p-4 rounded-xl bg-slate-850 border border-slate-800">
-          <span className="text-xs text-slate-400 block mb-1">زمن التصفح الموفر</span>
+          <span className="text-xs text-slate-400 block mb-1">زمن التصفح الموفر (تقدير)</span>
           <span className="text-2xl sm:text-3xl font-bold text-indigo-400 font-mono tabular-nums">
             {timeSavedSec} <span className="text-sm font-normal text-slate-400">ثانية</span>
           </span>
@@ -143,17 +143,18 @@ export const ShieldStatsView: React.FC<ShieldStatsViewProps> = ({
                 <EyeOff className="w-4 h-4" />
               </div>
               <div>
-                <h3 className="text-xs font-bold text-slate-200">منع التعقب ومطاردة البصمة (Anti-Tracking & Fingerprinting)</h3>
+                <h3 className="text-xs font-bold text-slate-200">منع البصمة الرقمية (غير متوفر بعد)</h3>
                 <p className="text-[11px] text-slate-400 mt-0.5 leading-relaxed">
-                  يمنع المواقع من التعرف على جهازك وبصمة شاشتك أو معالجك (Canvas/WebGL/Audio Probes).
+                  لم يُنفَّذ بعد. المواقع ما زالت تستطيع قراءة بصمة Canvas/WebGL/Audio.
                 </p>
               </div>
             </div>
             <input
               type="checkbox"
-              checked={shieldSettings.fingerprintProtection}
-              onChange={() => toggle('fingerprintProtection')}
-              className="w-4 h-4 accent-emerald-500 rounded cursor-pointer"
+              checked={false}
+              disabled
+              title="غير متوفر بعد"
+              className="w-4 h-4 rounded opacity-40 cursor-not-allowed"
             />
           </div>
 

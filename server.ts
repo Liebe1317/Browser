@@ -4,7 +4,8 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
 import { GoogleGenAI } from '@google/genai';
-import { authorizeProxyRequest, jarFor, addTokenToProxyUrls, clearSessionCookies } from './server/sessions.ts';
+import { authorizeProxyRequest, jarFor, addTokenToProxyUrls, clearSessionCookies, siteOf } from './server/sessions.ts';
+import { AD_DOMAINS, TRACKER_DOMAINS, hostMatches, buildProxyCsp, WEBRTC_BLOCK_SCRIPT } from './server/shield.ts';
 import { isBlockedUrl as isBlockedTarget, safeFetch, readBodyCapped, SsrfBlockedError, BodyTooLargeError } from './server/ssrf.ts';
 
 // Response size limits for proxied content (protects server memory)
@@ -15,7 +16,12 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // Process-level stability guards to prevent unexpected crash/exit on aborted sockets or network drops
-process.on('uncaughtException', (err) => {
+process.on('uncaughtException', (err: NodeJS.ErrnoException) => {
+  // A server that cannot bind its port must stop, not keep running half-alive (and hide the error)
+  if (err.code === 'EADDRINUSE' || err.code === 'EACCES') {
+    console.error('[Aegis Process Guard] Fatal:', err.message);
+    process.exit(1);
+  }
   console.warn('[Aegis Process Guard] Caught uncaughtException:', err.message);
 });
 process.on('unhandledRejection', (reason) => {
@@ -40,45 +46,6 @@ async function callGeminiWithTimeout<T>(promise: Promise<T>, timeoutMs = 3500): 
   });
   return Promise.race([promise, timeoutPromise]).finally(() => clearTimeout(timer));
 }
-
-// Common ad and tracker domain signatures to strip from proxied pages
-const TRACKER_DOMAINS = [
-  'google-analytics.com',
-  'googletagmanager.com',
-  'doubleclick.net',
-  'googleadservices.com',
-  'googlesyndication.com',
-  'pagead2.googlesyndication.com',
-  'adservice.google.com',
-  'connect.facebook.net',
-  'pixel.facebook.com',
-  'amazon-adsystem.com',
-  'criteo.com',
-  'criteo.net',
-  'taboola.com',
-  'outbrain.com',
-  'hotjar.com',
-  'clarity.ms',
-  'scorecardresearch.com',
-  'adroll.com',
-  'appnexus.com',
-  'pubmatic.com',
-  'rubiconproject.com',
-  'openx.net',
-  'media.net',
-  'moatads.com',
-  'adsafeprotected.com',
-  'adnxs.com',
-  'popads.net',
-  'popcash.net',
-  'propellerads.com',
-  'adsterra.com',
-  'monetag.com',
-  'clickadu.com',
-  'yllix.com',
-  'exoclick.com',
-  'trafficjunky.com',
-];
 
 // Cosmetic CSS rules to suppress banner ads without breaking video players, server switchers, or layout
 const COSMETIC_ADBLOCK_CSS = `
@@ -683,7 +650,7 @@ function generateGoogleSearchHtml(query: string, results: Array<{ title: string;
             <span>▼</span>
           </div>
           <div class="faq-answer">
-            متصفح Aegis Privacy Browser يوفر درعاً مدمجاً لحجب النوافذ المنبثقة والإعلانات المضللة وتشفير الاتصال تلقائياً عبر بروتوكول ChaCha20 وTLS 1.3.
+            متصفح Aegis Privacy Browser يوفر درعاً مدمجاً لحجب النوافذ المنبثقة والإعلانات المضللة وترقية الاتصال إلى HTTPS تلقائياً.
           </div>
         </div>
         <div class="faq-item">
@@ -948,6 +915,35 @@ function generateGoogleHomeHtml(): string {
 async function startServer() {
   const app = express();
   const PORT = resolvePort();
+
+  // Security headers for the app itself (/api/proxy sets its own, stricter policy per response).
+  const APP_CSP = [
+    "default-src 'self'",
+    "script-src 'self'",
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data: blob: https:",
+    "media-src 'self' data: blob: https:",
+    "font-src 'self' data:",
+    "connect-src 'self'",
+    "frame-src 'self' https://www.youtube-nocookie.com https://www.youtube.com",
+    "object-src 'none'",
+    "base-uri 'self'",
+    "form-action 'self'",
+    "frame-ancestors 'none'",
+  ].join('; ');
+  app.use((req, res, next) => {
+    if (req.path === '/api/proxy') return next();
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Referrer-Policy', 'no-referrer');
+    res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
+    res.setHeader(
+      'Permissions-Policy',
+      'camera=(), microphone=(), geolocation=(), payment=(), usb=(), serial=(), browsing-topics=()'
+    );
+    // Dev mode needs inline/eval/websocket for Vite HMR, so only clickjacking protection applies there.
+    res.setHeader('Content-Security-Policy', process.env.NODE_ENV === 'production' ? APP_CSP : "frame-ancestors 'none'");
+    next();
+  });
 
   app.use(express.json({ limit: '10mb' }));
   app.use(express.urlencoded({ extended: true, limit: '10mb' }));
@@ -1236,11 +1232,6 @@ ${pageContext?.url ? `معلومات الصفحة المفتوحة حالياً 
       return res.status(400).send('Invalid target URL');
     }
 
-    if (parsedTarget.protocol === 'http:') {
-      parsedTarget.protocol = 'https:';
-      targetUrl = parsedTarget.toString();
-    }
-
     // SSRF Check: Protect local/private infrastructure
     if (isBlockedTarget(targetUrl)) {
       return res.status(403).send('Aegis Shield: Access to internal or private network targets is forbidden.');
@@ -1252,13 +1243,17 @@ ${pageContext?.url ? `معلومات الصفحة المفتوحة حالياً 
       return res.status(auth.status).send(auth.message);
     }
     const jar = jarFor(auth.session, auth.site);
+    const shield = auth.shield;
+
+    // HTTPS-only mode: upgrade plain http:// targets (the user can turn this off in the shield settings)
+    if (shield.upgradeHttps && parsedTarget.protocol === 'http:') {
+      parsedTarget.protocol = 'https:';
+      targetUrl = parsedTarget.toString();
+    }
 
     // The proxied document must never run with the app's origin: force an opaque origin on EVERY
     // proxy response (also protects direct navigation and nested frames, which inherit the sandbox).
-    res.setHeader(
-      'Content-Security-Policy',
-      'sandbox allow-scripts allow-forms allow-popups allow-modals allow-presentation allow-downloads'
-    );
+    res.setHeader('Content-Security-Policy', buildProxyCsp(shield));
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Referrer-Policy', 'no-referrer');
 
@@ -1266,8 +1261,25 @@ ${pageContext?.url ? `معلومات الصفحة المفتوحة حالياً 
     const originalSend = res.send.bind(res);
     res.send = ((body?: any) => originalSend(typeof body === 'string' ? addTokenToProxyUrls(body, auth.token) : body)) as typeof res.send;
 
+    // Request-level blocking: every script, pixel, XHR and iframe goes through this proxy, so blocking by
+    // hostname here also catches requests created at runtime (not only tags present in the HTML).
+    // A page the user opens on purpose (page load) is never blocked.
+    if (!auth.isPageLoad && shield.shieldsEnabled) {
+      const blockedKind =
+        shield.blockTrackers && hostMatches(TRACKER_DOMAINS, parsedTarget.hostname)
+          ? 'tracker'
+          : shield.blockAggressiveAds && hostMatches(AD_DOMAINS, parsedTarget.hostname)
+          ? 'ad'
+          : null;
+      if (blockedKind) {
+        res.setHeader('X-Aegis-Blocked', blockedKind);
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        return res.status(204).end();
+      }
+    }
+
     // INTERCEPT GOOGLE SEARCH: Render authentic Google Search interface with real web results
-    if (parsedTarget.hostname.includes('google.') || parsedTarget.hostname === 'google.com' || parsedTarget.hostname === 'www.google.com') {
+    if (/^(www\.)?google\.[a-z]{2,3}(\.[a-z]{2})?$/i.test(parsedTarget.hostname)) {
       const q = parsedTarget.searchParams.get('q');
       if (parsedTarget.pathname === '/search' || (parsedTarget.pathname === '/' && q)) {
         const queryStr = q || '';
@@ -1304,6 +1316,10 @@ ${pageContext?.url ? `معلومات الصفحة المفتوحة حالياً 
         'Upgrade-Insecure-Requests': '1',
       };
 
+      if (shield.doNotTrack) {
+        forwardHeaders['Sec-GPC'] = '1';
+        forwardHeaders['DNT'] = '1';
+      }
       if (req.headers['x-csrf-token']) forwardHeaders['X-CSRF-TOKEN'] = req.headers['x-csrf-token'] as string;
       if (req.headers['x-requested-with']) forwardHeaders['X-Requested-With'] = req.headers['x-requested-with'] as string;
       if (req.headers['content-type']) forwardHeaders['Content-Type'] = req.headers['content-type'] as string;
@@ -1319,24 +1335,27 @@ ${pageContext?.url ? `معلومات الصفحة المفتوحة حالياً 
         }
       }
 
+      // "Block third-party cookies": no cookie is sent or stored for hosts outside the page's own site
+      const blocksCookies = (u: URL) => shield.shieldsEnabled && shield.blockThirdPartyCookies && siteOf(u.hostname) !== auth.site;
+
       // safeFetch validates the target AND every redirect hop (SSRF), resolves DNS through a
       // guarded lookup (no private IPs, no DNS rebinding), and lets us apply cookies per hop.
       const { response: upstream, finalUrl } = await safeFetch(
         targetUrl,
         { method: req.method, headers: forwardHeaders, body: fetchBody, signal: controller.signal },
         {
-          upgradeHttp: true,
+          upgradeHttp: shield.upgradeHttps,
           // Cookies come only from this session's jar for THIS page's site (the aegis_sid cookie is never forwarded upstream)
           headersFor: (u) => {
             const h: Record<string, string> = { Referer: `${u.origin}/`, Origin: u.origin };
-            const cookie = jar.headerFor(u);
+            const cookie = blocksCookies(u) ? '' : jar.headerFor(u);
             if (cookie) h['Cookie'] = cookie;
             return h;
           },
           // getSetCookie() keeps each Set-Cookie separate; called for every hop so redirect cookies aren't lost
           onResponse: (u, r) => {
             const setCookies = r.headers.getSetCookie();
-            if (setCookies.length > 0) jar.setFromResponse(u, setCookies);
+            if (setCookies.length > 0 && !blocksCookies(u)) jar.setFromResponse(u, setCookies);
           },
         }
       );
@@ -1391,10 +1410,13 @@ ${pageContext?.url ? `معلومات الصفحة المفتوحة حالياً 
       let adsBlockedCount = 0;
       let trackersBlockedCount = 0;
 
-      // 1. Strip script tags referencing known ad/tracker networks
-      TRACKER_DOMAINS.forEach((domain) => {
+      // 1. Strip script/iframe tags referencing known ad/tracker networks (the request-level block above is the main defence)
+      const activeBlockList = shield.shieldsEnabled
+        ? [...(shield.blockTrackers ? TRACKER_DOMAINS : []), ...(shield.blockAggressiveAds ? AD_DOMAINS : [])]
+        : [];
+      activeBlockList.forEach((domain) => {
         const scriptRegex = new RegExp(
-          `<script[^>]*src=["'][^"']*${domain.replace('.', '\\.')}[^"']*["'][^>]*>([\\s\\S]*?)<\\/script>`,
+          `<script[^>]*src=["'][^"']*${domain.replace(/\./g, '\\.')}[^"']*["'][^>]*>([\\s\\S]*?)<\\/script>`,
           'gi'
         );
         const matches = html.match(scriptRegex);
@@ -1404,7 +1426,7 @@ ${pageContext?.url ? `معلومات الصفحة المفتوحة حالياً 
         }
 
         const iframeRegex = new RegExp(
-          `<iframe[^>]*src=["'][^"']*${domain.replace('.', '\\.')}[^"']*["'][^>]*>([\\s\\S]*?)<\\/iframe>`,
+          `<iframe[^>]*src=["'][^"']*${domain.replace(/\./g, '\\.')}[^"']*["'][^>]*>([\\s\\S]*?)<\\/iframe>`,
           'gi'
         );
         const iframeMatches = html.match(iframeRegex);
@@ -1465,44 +1487,64 @@ ${pageContext?.url ? `معلومات الصفحة المفتوحة حالياً 
         return `${attr}="/api/proxy?url=${encodeURIComponent(absUrl)}"`;
       });
 
-      // 5. Rewrite same-domain scripts to route through /api/proxy
+      // Resolve a (possibly relative) URL against the page and point it at this proxy. Returns null for
+      // URLs that must be left alone (data:, javascript:, already proxied, ...).
+      const toProxyUrl = (raw: string): string | null => {
+        const trimmed = raw.trim();
+        if (!trimmed || /^(data:|blob:|javascript:|about:|#|mailto:|tel:)/i.test(trimmed) || trimmed.includes('/api/proxy')) return null;
+        try {
+          return `/api/proxy?url=${encodeURIComponent(new URL(trimmed, parsedTarget.href).href)}`;
+        } catch {
+          return null;
+        }
+      };
+
+      // 5. Route <script src> through the proxy, including third-party scripts: the browser may only talk
+      //    to the proxy (CSP), so this is what keeps CDN scripts working while hiding your IP from them.
       html = html.replace(/<script\b([^>]*)\bsrc=["']([^"']+)["']([^>]*)>/gi, (match, prefix, src, suffix) => {
-        const trimmed = src.trim();
-        let absUrl = trimmed;
-        if (trimmed.startsWith('//')) absUrl = 'https:' + trimmed;
-        else if (trimmed.startsWith('/')) absUrl = `${parsedTarget.origin}${trimmed}`;
-        else if (!trimmed.startsWith('http://') && !trimmed.startsWith('https://')) absUrl = `${parsedTarget.origin}/${trimmed}`;
-
-        if (absUrl.startsWith(parsedTarget.origin) || trimmed.startsWith('/') || !trimmed.startsWith('http')) {
-          const proxiedSrc = `/api/proxy?url=${encodeURIComponent(absUrl)}`;
-          return `<script${prefix}src="${proxiedSrc}" crossorigin="anonymous"${suffix}>`;
-        }
-        return match;
+        const proxied = toProxyUrl(src);
+        return proxied ? `<script${prefix}src="${proxied}" crossorigin="anonymous"${suffix}>` : match;
       });
 
-      // 6. Rewrite stylesheets and preload links to route through /api/proxy
+      // 6. <link>: stylesheets/preloads/icons go through the proxy; connection hints (preconnect, dns-prefetch,
+      //    prefetch, prerender) are removed because they would open connections from your browser to third parties.
       html = html.replace(/<link\b([^>]*)\bhref=["']([^"']+)["']([^>]*)>/gi, (match, prefix, href, suffix) => {
-        const fullTag = match.toLowerCase();
-        if (fullTag.includes('stylesheet') || fullTag.includes('modulepreload') || fullTag.includes('preload') || href.includes('.css')) {
-          const trimmed = href.trim();
-          let absUrl = trimmed;
-          if (trimmed.startsWith('//')) absUrl = 'https:' + trimmed;
-          else if (trimmed.startsWith('/')) absUrl = `${parsedTarget.origin}${trimmed}`;
-          else if (!trimmed.startsWith('http://') && !trimmed.startsWith('https://')) absUrl = `${parsedTarget.origin}/${trimmed}`;
-
-          if (absUrl.startsWith(parsedTarget.origin) || trimmed.startsWith('/') || !trimmed.startsWith('http')) {
-            const proxiedHref = `/api/proxy?url=${encodeURIComponent(absUrl)}`;
-            return `<link${prefix}href="${proxiedHref}"${suffix}>`;
-          }
+        const relMatch = /\brel\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/i.exec(match);
+        const rel = (relMatch?.[1] ?? relMatch?.[2] ?? relMatch?.[3] ?? '').toLowerCase();
+        if (/\b(preconnect|dns-prefetch|prefetch|prerender)\b/.test(rel)) return '';
+        if (/\b(stylesheet|preload|modulepreload|icon)\b/.test(rel) || /\.css(\?|$)/i.test(href)) {
+          const proxied = toProxyUrl(href);
+          if (proxied) return `<link${prefix}href="${proxied}"${suffix}>`;
         }
         return match;
       });
+
+      // 6b. Frames and media
+      html = html.replace(/<iframe\b([^>]*)\bsrc=["']([^"']+)["']([^>]*)>/gi, (match, prefix, src, suffix) => {
+        const proxied = toProxyUrl(src);
+        return proxied ? `<iframe${prefix}src="${proxied}"${suffix}>` : match;
+      });
+      html = html.replace(/<(video|audio|source|track|embed)\b([^>]*)\bsrc=["']([^"']+)["']([^>]*)>/gi, (match, tag, prefix, src, suffix) => {
+        const proxied = toProxyUrl(src);
+        return proxied ? `<${tag}${prefix}src="${proxied}"${suffix}>` : match;
+      });
+      html = html.replace(/\bposter=["']([^"']+)["']/gi, (match, src) => {
+        const proxied = toProxyUrl(src);
+        return proxied ? `poster="${proxied}"` : match;
+      });
+      // <meta http-equiv="refresh" content="0;url=..."> would navigate straight to the target, around the proxy
+      html = html.replace(/<meta\b[^>]*http-equiv=["']?refresh["']?[^>]*>/gi, (match) =>
+        match.replace(/(url\s*=\s*)(["']?)([^"'>;]+)\2/i, (m0, pre, q, u) => {
+          const proxied = toProxyUrl(u);
+          return proxied ? `${pre}${q}${proxied}${q}` : m0;
+        })
+      );
 
       // 7. Injected Aegis Shield Protection Script + Video Server Auto-Healer
       const aegisProtectionHead = `
         <meta name="referrer" content="no-referrer">
         <style>
-          ${COSMETIC_ADBLOCK_CSS}
+          ${shield.shieldsEnabled && shield.blockAggressiveAds ? COSMETIC_ADBLOCK_CSS : ''}
           .ad-overlay, .interstitial-ad, .sp-message-open {
             display: none !important;
             visibility: hidden !important;
@@ -1521,12 +1563,12 @@ ${pageContext?.url ? `معلومات الصفحة المفتوحة حالياً 
         <script>
           (function() {
             try {
-              // 1. Strict Pop-up & Pop-under Interceptor
+              ${shield.blockPopups ? `// 1. Strict Pop-up & Pop-under Interceptor (the CSP sandbox also forbids popups)
               window.open = function(url) {
                 console.warn('[Aegis Shield] Blocked pop-up window:', url);
                 window.parent.postMessage({ type: 'AEGIS_POPUP_BLOCKED', url: url || 'about:blank' }, '*');
                 return null;
-              };
+              };` : ''}
 
               // 2. Intercept fetch & XMLHttpRequest to route relative/same-origin calls through /api/proxy
               const origFetch = window.fetch;
@@ -1750,9 +1792,9 @@ ${pageContext?.url ? `معلومات الصفحة المفتوحة حالياً 
 </script>`;
 
       if (html.includes('<head>')) {
-        html = html.replace('<head>', `<head>${storageShim}${aegisProtectionHead}`);
+        html = html.replace('<head>', `<head>${storageShim}${shield.preventWebRTCLeak ? WEBRTC_BLOCK_SCRIPT : ''}${aegisProtectionHead}`);
       } else {
-        html = storageShim + aegisProtectionHead + html;
+        html = storageShim + (shield.preventWebRTCLeak ? WEBRTC_BLOCK_SCRIPT : '') + aegisProtectionHead + html;
       }
 
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
@@ -1960,8 +2002,11 @@ ${pageContext?.url ? `معلومات الصفحة المفتوحة حالياً 
     });
   }
 
-  app.listen(Number(PORT), '0.0.0.0', () => {
-    console.log(`Aegis Privacy Browser running on http://0.0.0.0:${PORT}`);
+  // Local-only by default: this server is a proxy, so it must not be reachable from the network unless
+  // you deliberately host it (Cloud Run sets K_SERVICE; otherwise set HOST=0.0.0.0).
+  const HOST = process.env.HOST || (process.env.K_SERVICE ? '0.0.0.0' : '127.0.0.1');
+  app.listen(Number(PORT), HOST, () => {
+    console.log(`Aegis Privacy Browser running on http://${HOST}:${PORT}`);
   });
 }
 

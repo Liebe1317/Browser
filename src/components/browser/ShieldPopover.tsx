@@ -191,13 +191,14 @@ export const ShieldPopover: React.FC<ShieldPopoverProps> = ({
             <div className="flex items-center justify-between py-1">
               <span className="flex items-center gap-2 text-slate-300">
                 <EyeOff className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
-                <span>منع التعقب والبصمة الرقمية</span>
+                <span>منع البصمة الرقمية (غير متوفر بعد)</span>
               </span>
               <input
                 type="checkbox"
-                checked={shieldSettings.fingerprintProtection}
-                onChange={() => toggleSetting('fingerprintProtection')}
-                className="w-3.5 h-3.5 accent-emerald-500 rounded cursor-pointer"
+                checked={false}
+                disabled
+                title="غير متوفر بعد"
+                className="w-3.5 h-3.5 rounded opacity-40 cursor-not-allowed"
               />
             </div>
 
