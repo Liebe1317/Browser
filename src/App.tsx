@@ -17,7 +17,6 @@ import { YouTubeView } from './components/views/YouTubeView';
 import { SecurityVaultView } from './components/views/SecurityVaultView';
 import { VaultLockScreen } from './components/browser/VaultLockScreen';
 import { LibiAssistant } from './components/browser/LibiAssistant';
-import { DownloadModal } from './components/browser/DownloadModal';
 
 import { Tab, Bookmark, HistoryItem, DownloadItem, BrowserSettings, ShieldSettings, NetworkRequest, BrowserPageType, VaultState, OnionCircuit } from './types/browser';
 import { DEFAULT_SETTINGS, DEFAULT_SHIELD_SETTINGS, DEFAULT_BOOKMARKS, SEARCH_ENGINES } from './data/initialData';
@@ -178,7 +177,6 @@ export default function App() {
 
   const [showDevTools, setShowDevTools] = useState(false);
   const [showClearDataModal, setShowClearDataModal] = useState(false);
-  const [showDownloadModal, setShowDownloadModal] = useState(false);
   const [showLibi, setShowLibi] = useState(false);
   const [libiContextQuery, setLibiContextQuery] = useState<string | undefined>(undefined);
   const [networkRequests, setNetworkRequests] = useState<NetworkRequest[]>([
@@ -690,7 +688,6 @@ export default function App() {
         uiDensity={settings.uiDensity || 'standard'}
         onToggleLibi={() => setShowLibi(!showLibi)}
         isLibiOpen={showLibi}
-        onOpenDownloadModal={() => setShowDownloadModal(true)}
       />
 
       {/* 3. Bookmarks Bar (Quick Access Folders & Links) */}
@@ -844,12 +841,6 @@ export default function App() {
           onClose={() => setShowClearDataModal(false)}
         />
       )}
-
-      {/* Download App Modal (.EXE & .APK) */}
-      <DownloadModal
-        isOpen={showDownloadModal}
-        onClose={() => setShowDownloadModal(false)}
-      />
 
       {/* 7. Master Cryptographic Vault Lock Screen */}
       {vaultState.isLocked && (

@@ -1026,27 +1026,6 @@ async function startServer() {
     res.json({ status: 'ok', engine: 'AegisShield/4.2', timestamp: Date.now() });
   });
 
-  // Direct download endpoints for Windows .EXE and Android .APK
-  app.get('/downloads/Aegis-Browser-Setup.exe', (req, res) => {
-    const filePath = path.join(__dirname, 'public/downloads/Aegis-Browser-Setup.exe');
-    if (fs.existsSync(filePath)) {
-      res.setHeader('Content-Disposition', 'attachment; filename="Aegis-Browser-Setup.exe"');
-      res.setHeader('Content-Type', 'application/vnd.microsoft.portable-executable');
-      return res.sendFile(filePath);
-    }
-    res.status(404).send('Executable package not found');
-  });
-
-  app.get('/downloads/Aegis-Browser.apk', (req, res) => {
-    const filePath = path.join(__dirname, 'public/downloads/Aegis-Browser.apk');
-    if (fs.existsSync(filePath)) {
-      res.setHeader('Content-Disposition', 'attachment; filename="Aegis-Browser.apk"');
-      res.setHeader('Content-Type', 'application/vnd.android.package-archive');
-      return res.sendFile(filePath);
-    }
-    res.status(404).send('APK package not found');
-  });
-
   // YouTube Live Search & Trending Feed API
   app.get('/api/youtube/search', async (req, res) => {
     const query = (req.query.q as string || '').trim();
@@ -1912,7 +1891,6 @@ ${pageContext?.url ? `معلومات الصفحة المفتوحة حالياً 
       req.path.startsWith('/src/') ||
       req.path.startsWith('/node_modules/') ||
       req.path.startsWith('/public/') ||
-      req.path.startsWith('/downloads/') ||
       req.path.startsWith('/assets/')
     ) {
       return next();
