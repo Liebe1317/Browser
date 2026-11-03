@@ -4,7 +4,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
 import { GoogleGenAI } from '@google/genai';
-import { getOrCreateSession, clearSessionCookies } from './server/sessions.ts';
+import { authorizeProxyRequest, jarFor, addTokenToProxyUrls, clearSessionCookies } from './server/sessions.ts';
 import { isBlockedUrl as isBlockedTarget, safeFetch, readBodyCapped, SsrfBlockedError, BodyTooLargeError } from './server/ssrf.ts';
 
 // Response size limits for proxied content (protects server memory)
@@ -953,6 +953,17 @@ async function startServer() {
   app.use(express.urlencoded({ extended: true, limit: '10mb' }));
   app.use(express.raw({ type: '*/*', limit: '10mb' }));
 
+  // Proxied pages run in an opaque origin and are therefore "cross-site". They may only talk to
+  // /api/proxy (with a page token). Every other API is for the app UI itself.
+  app.use('/api', (req, res, next) => {
+    if (req.path === '/proxy') return next();
+    const fetchSite = req.headers['sec-fetch-site'];
+    if (fetchSite === 'cross-site' || fetchSite === 'same-site') {
+      return res.status(403).json({ error: 'Cross-site requests are not allowed.' });
+    }
+    next();
+  });
+
   // Health check endpoint
   app.get('/api/health', (req, res) => {
     res.json({ status: 'ok', engine: 'AegisShield/4.2', timestamp: Date.now() });
@@ -1195,12 +1206,20 @@ ${pageContext?.url ? `معلومات الصفحة المفتوحة حالياً 
   });
 
   // Real Web Proxy API with Ad & Tracker Filtering + Google Search SERP + Image Hotlink Fix + Video Server Auto-Healer
+  // Proxied pages are cross-origin to the app, so their fetch/XHR calls need a preflight answer.
+  // No credentials are ever involved (access is by page token), so a wildcard origin is safe here.
+  app.options('/api/proxy', (req, res) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, HEAD, OPTIONS');
+    res.setHeader(
+      'Access-Control-Allow-Headers',
+      (req.headers['access-control-request-headers'] as string) || 'Content-Type, X-Requested-With, X-CSRF-TOKEN'
+    );
+    res.setHeader('Access-Control-Max-Age', '600');
+    res.status(204).end();
+  });
+
   app.all('/api/proxy', async (req, res) => {
-    // Never act with a user's session on requests started by another site
-    if (req.headers['sec-fetch-site'] === 'cross-site') {
-      return res.status(403).send('Aegis Shield: cross-site requests are not allowed.');
-    }
-    const session = getOrCreateSession(req, res);
     let targetUrl = (req.query.url as string || '').trim();
     if (!targetUrl) {
       return res.status(400).send('Missing target URL');
@@ -1226,6 +1245,26 @@ ${pageContext?.url ? `معلومات الصفحة المفتوحة حالياً 
     if (isBlockedTarget(targetUrl)) {
       return res.status(403).send('Aegis Shield: Access to internal or private network targets is forbidden.');
     }
+
+    // Who is calling, and which per-site cookie partition applies? (see server/sessions.ts)
+    const auth = authorizeProxyRequest(req, res, parsedTarget);
+    if ('error' in auth) {
+      return res.status(auth.status).send(auth.message);
+    }
+    const jar = jarFor(auth.session, auth.site);
+
+    // The proxied document must never run with the app's origin: force an opaque origin on EVERY
+    // proxy response (also protects direct navigation and nested frames, which inherit the sandbox).
+    res.setHeader(
+      'Content-Security-Policy',
+      'sandbox allow-scripts allow-forms allow-popups allow-modals allow-presentation allow-downloads'
+    );
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Referrer-Policy', 'no-referrer');
+
+    // Every text response (rewritten HTML/CSS, generated pages, errors) gets the page token on its proxy URLs
+    const originalSend = res.send.bind(res);
+    res.send = ((body?: any) => originalSend(typeof body === 'string' ? addTokenToProxyUrls(body, auth.token) : body)) as typeof res.send;
 
     // INTERCEPT GOOGLE SEARCH: Render authentic Google Search interface with real web results
     if (parsedTarget.hostname.includes('google.') || parsedTarget.hostname === 'google.com' || parsedTarget.hostname === 'www.google.com') {
@@ -1287,17 +1326,17 @@ ${pageContext?.url ? `معلومات الصفحة المفتوحة حالياً 
         { method: req.method, headers: forwardHeaders, body: fetchBody, signal: controller.signal },
         {
           upgradeHttp: true,
-          // Cookies come only from THIS session's jar (the app's own aegis_sid cookie is never forwarded upstream)
+          // Cookies come only from this session's jar for THIS page's site (the aegis_sid cookie is never forwarded upstream)
           headersFor: (u) => {
             const h: Record<string, string> = { Referer: `${u.origin}/`, Origin: u.origin };
-            const cookie = session.jar.headerFor(u);
+            const cookie = jar.headerFor(u);
             if (cookie) h['Cookie'] = cookie;
             return h;
           },
           // getSetCookie() keeps each Set-Cookie separate; called for every hop so redirect cookies aren't lost
           onResponse: (u, r) => {
             const setCookies = r.headers.getSetCookie();
-            if (setCookies.length > 0) session.jar.setFromResponse(u, setCookies);
+            if (setCookies.length > 0) jar.setFromResponse(u, setCookies);
           },
         }
       );
@@ -1685,10 +1724,35 @@ ${pageContext?.url ? `معلومات الصفحة المفتوحة حالياً 
         </script>
       `;
 
+      // Proxied pages run in an opaque origin, where localStorage/sessionStorage/document.cookie throw.
+      // Provide in-memory stand-ins (per page load) so ordinary sites keep working.
+      const storageShim = `<script>
+(function () {
+  function mem() {
+    var d = {};
+    return {
+      getItem: function (k) { k = String(k); return Object.prototype.hasOwnProperty.call(d, k) ? d[k] : null; },
+      setItem: function (k, v) { d[String(k)] = String(v); },
+      removeItem: function (k) { delete d[String(k)]; },
+      clear: function () { d = {}; },
+      key: function (i) { var ks = Object.keys(d); return i < ks.length ? ks[i] : null; },
+      get length() { return Object.keys(d).length; }
+    };
+  }
+  ['localStorage', 'sessionStorage'].forEach(function (name) {
+    try { void window[name]; return; } catch (e) {}
+    try { Object.defineProperty(window, name, { configurable: true, enumerable: true, value: mem() }); } catch (e) {}
+  });
+  try { void document.cookie; } catch (e) {
+    try { Object.defineProperty(document, 'cookie', { configurable: true, get: function () { return ''; }, set: function () {} }); } catch (e2) {}
+  }
+})();
+</script>`;
+
       if (html.includes('<head>')) {
-        html = html.replace('<head>', `<head>${aegisProtectionHead}`);
+        html = html.replace('<head>', `<head>${storageShim}${aegisProtectionHead}`);
       } else {
-        html = aegisProtectionHead + html;
+        html = storageShim + aegisProtectionHead + html;
       }
 
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
@@ -1856,46 +1920,6 @@ ${pageContext?.url ? `معلومات الصفحة المفتوحة حالياً 
       req.path.startsWith('/assets/')
     ) {
       return next();
-    }
-
-    const referer = req.headers.referer || '';
-    let targetOrigin = '';
-    if (referer.includes('/api/proxy?url=') || referer.includes('/api/proxy%3Furl%3D')) {
-      try {
-        const u = new URL(referer);
-        const pUrl = u.searchParams.get('url');
-        if (pUrl) targetOrigin = new URL(pUrl).origin;
-      } catch (e) {}
-    }
-
-    if (targetOrigin && !isBlockedTarget(targetOrigin)) {
-      const destination = `${targetOrigin}${req.originalUrl}`;
-      try {
-        const { response: upstream } = await safeFetch(
-          destination,
-          {
-            method: req.method === 'HEAD' ? 'HEAD' : 'GET', // this fallback only serves assets, never forwards writes
-            headers: {
-              'User-Agent':
-                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
-              'Referer': `${targetOrigin}/`,
-              'Origin': targetOrigin,
-              'Accept': req.headers.accept || '*/*',
-            },
-            signal: AbortSignal.timeout(15000),
-          },
-          { upgradeHttp: true }
-        );
-        const contentType = upstream.headers.get('content-type') || 'application/octet-stream';
-        res.setHeader('Content-Type', contentType);
-        res.setHeader('Access-Control-Allow-Origin', '*');
-        res.setHeader('Access-Control-Allow-Headers', '*');
-        res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT');
-        const buf = await readBodyCapped(upstream, MAX_BINARY_BYTES);
-        return res.status(upstream.status).send(buf);
-      } catch (err: any) {
-        // Fall through to asset 404 guard
-      }
     }
 
     // Static asset protection: Never let missing css/js/fonts fall through to Vite SPA handler

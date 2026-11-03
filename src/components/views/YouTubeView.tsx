@@ -321,6 +321,7 @@ export const YouTubeView: React.FC<YouTubeViewProps> = ({
         <iframe
           src="/api/proxy?url=https://m.youtube.com"
           title="Direct YouTube"
+          sandbox="allow-scripts allow-forms allow-popups allow-presentation"
           className="w-full flex-1 border-none bg-black"
           allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen"
           allowFullScreen

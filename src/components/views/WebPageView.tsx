@@ -49,17 +49,21 @@ export const WebPageView: React.FC<WebPageViewProps> = ({
   // Listen to postMessage from the injected Aegis proxy script
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
+      // Only trust messages that really come from THIS tab's page frame (never from other windows/frames)
+      if (!iframeRef.current || event.source !== iframeRef.current.contentWindow) return;
       if (!event.data || typeof event.data !== 'object') return;
 
       if (event.data.type === 'AEGIS_PAGE_LOADED') {
         setLoadProgress(100);
         setIsIframeLoading(false);
 
-        const adsBlocked = event.data.adsBlocked || 0;
-        const trackersBlocked = event.data.trackersBlocked || 0;
+        // Page-supplied values are untrusted: clamp numbers, cap text length
+        const clampCount = (v: unknown) => (Number.isFinite(Number(v)) ? Math.max(0, Math.min(1000, Number(v))) : 0);
+        const adsBlocked = clampCount(event.data.adsBlocked);
+        const trackersBlocked = clampCount(event.data.trackersBlocked);
 
         onUpdateTabInfo(tab.id, {
-          title: event.data.title || tab.title,
+          title: typeof event.data.title === 'string' && event.data.title ? event.data.title.slice(0, 200) : tab.title,
           adsBlocked: tab.adsBlocked + adsBlocked,
           trackersBlocked: tab.trackersBlocked + trackersBlocked,
           isLoading: false,
@@ -140,7 +144,7 @@ export const WebPageView: React.FC<WebPageViewProps> = ({
           className="w-full h-full border-none bg-white"
           allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen"
           allowFullScreen
-          sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals allow-presentation allow-downloads"
+          sandbox="allow-scripts allow-forms allow-popups allow-modals allow-presentation allow-downloads"
         />
       </div>
 
