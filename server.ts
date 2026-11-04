@@ -1768,7 +1768,23 @@ ${safePageContext}`;
                   window.parent.postMessage({ type: 'AEGIS_NAVIGATE', url: fullUrl }, '*');
                 }
               }, false);
-              // 6. Notify parent browser
+              // 6. Expose a read-only, bounded page-text snapshot only when the Aegis UI asks.
+              // The parent decides whether this local text may be sent to the configured AI provider.
+              window.addEventListener('message', function(event) {
+                if (event.source !== window.parent || !event.data || event.data.type !== 'AEGIS_EXTRACT_PAGE_TEXT') return;
+                try {
+                  var copy = document.body ? document.body.cloneNode(true) : document.documentElement.cloneNode(true);
+                  if (copy && copy.querySelectorAll) {
+                    copy.querySelectorAll('script,style,noscript,template,iframe,form,input,textarea,select,button,svg,canvas,[contenteditable="true"],[aria-hidden="true"]').forEach(function(node) { node.remove(); });
+                  }
+                  var text = copy ? (copy.innerText || copy.textContent || '') : '';
+                  text = String(text).replace(/\\s+/g, ' ').trim().slice(0, 12000);
+                  window.parent.postMessage({ type: 'AEGIS_PAGE_CONTENT', text: text }, '*');
+                } catch (e) {
+                  window.parent.postMessage({ type: 'AEGIS_PAGE_CONTENT', text: '' }, '*');
+                }
+              });
+              // 7. Notify parent browser
               window.addEventListener('load', function() {
                 window.parent.postMessage({
                   type: 'AEGIS_PAGE_LOADED',
