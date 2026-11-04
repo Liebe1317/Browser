@@ -933,6 +933,19 @@ async function startServer() {
     }
   });
 
+  // Every state-changing application API requires the HttpOnly app session and its CSRF proof.
+  // The proxy is intentionally excluded: opaque-origin site content uses scoped one-time capabilities.
+  app.use((req, res, next) => {
+    if (!req.path.startsWith('/api/') || req.path === '/api/proxy' || req.path === '/api/session/bootstrap') return next();
+    if (['GET', 'HEAD', 'OPTIONS'].includes(req.method.toUpperCase())) return next();
+    const sid = appSessionId(req);
+    const csrf = req.headers['x-aegis-csrf'];
+    if (!sid || !verifyAppCsrf(req, typeof csrf === 'string' ? csrf : undefined)) {
+      return res.status(403).json({ error: 'A valid Aegis session and CSRF token are required.' });
+    }
+    next();
+  });
+
   app.get('/api/aksa/vpn/status', (_req, res) => {
     res.setHeader('Cache-Control', 'no-store');
     res.json(getAksaVpnStatus());
