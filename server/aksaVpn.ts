@@ -3,7 +3,9 @@ import { Agent, ProxyAgent, setGlobalDispatcher, type Dispatcher } from 'undici'
 export interface AksaVpnStatus {
   configured: boolean;
   enabled: boolean;
-  gateway: 'local' | 'not-configured';
+  gateway: 'configured-local' | 'not-configured';
+  /** Current adapter covers server-side browser requests only, not direct renderer connections. */
+  scope: 'server-proxy-only';
 }
 
 function normalizeLocalGateway(value: string | undefined): string | null {
@@ -33,6 +35,9 @@ function normalizeLocalGateway(value: string | undefined): string | null {
  * Aksa routes Aegis' outbound browser traffic through a loopback HTTP CONNECT gateway.
  * That local gateway must itself be backed by the user's trusted VPN/WireGuard service and
  * enforce public-destination restrictions. It is deliberately not an arbitrary remote proxy.
+ * 'configured' validates only the local endpoint syntax; 'enabled' switches the request dispatcher.
+ * Neither state proves that the VPN tunnel is connected. The renderer may still make direct requests
+ * (for example external media/iframes), so this adapter is not a device-wide or full-renderer VPN.
  */
 export function createAksaVpnController(
   proxyUrl: string | undefined,
@@ -49,7 +54,8 @@ export function createAksaVpnController(
       return {
         configured: !!gateway,
         enabled,
-        gateway: gateway ? 'local' : 'not-configured',
+        gateway: gateway ? 'configured-local' : 'not-configured',
+        scope: 'server-proxy-only',
       };
     },
     setEnabled(next: boolean): { ok: boolean; status: AksaVpnStatus; error?: string } {
