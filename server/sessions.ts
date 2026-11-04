@@ -30,6 +30,7 @@ export interface Session {
   /** Key: `${contextId}|${exactHostname}`. */
   jars: Map<string, CookieJar>;
   shield: ShieldFlags;
+  csrfToken: string;
   lastUsed: number;
 }
 
@@ -77,6 +78,33 @@ function lookupSessionFromCookie(req: Request): string | null {
   return sid && SID_FORMAT.test(sid) && sessions.has(sid) ? sid : null;
 }
 
+/** Create or reuse the trusted app session for same-origin UI API calls. */
+export function bootstrapAppSession(req: Request, res: Response): string {
+  const id = lookupSessionFromCookie(req) ?? createSession(req, res);
+  const session = sessions.get(id);
+  if (!session) throw new Error('Unable to create Aegis session');
+  session.lastUsed = Date.now();
+  return session.csrfToken;
+}
+
+/** Return the authenticated app session ID, if this request carries a valid HttpOnly cookie. */
+export function appSessionId(req: Request): string | null {
+  const id = lookupSessionFromCookie(req);
+  if (!id) return null;
+  const session = sessions.get(id);
+  if (session) session.lastUsed = Date.now();
+  return session ? id : null;
+}
+
+/** Constant-time validation for the CSRF token issued by the same-origin bootstrap endpoint. */
+export function verifyAppCsrf(req: Request, supplied: string | undefined): boolean {
+  const id = appSessionId(req);
+  if (!id || typeof supplied !== 'string' || !/^[a-f0-9]{64}$/.test(supplied)) return false;
+  const expected = sessions.get(id)?.csrfToken;
+  if (!expected) return false;
+  return crypto.timingSafeEqual(Buffer.from(expected, 'hex'), Buffer.from(supplied, 'hex'));
+}
+
 function createSession(req: Request, res: Response): string {
   if (sessions.size >= MAX_SESSIONS) {
     let oldestId: string | null = null;
@@ -99,7 +127,7 @@ function createSession(req: Request, res: Response): string {
   }
 
   const id = crypto.randomBytes(32).toString('hex');
-  sessions.set(id, { jars: new Map(), shield: { ...DEFAULT_SHIELD_FLAGS }, lastUsed: Date.now() });
+  sessions.set(id, { jars: new Map(), shield: { ...DEFAULT_SHIELD_FLAGS }, csrfToken: crypto.randomBytes(32).toString('hex'), lastUsed: Date.now() });
 
   const attrs = [`${SESSION_COOKIE}=${id}`, 'Path=/', 'HttpOnly', 'SameSite=Strict'];
   if (isHttps(req)) attrs.push('Secure');
