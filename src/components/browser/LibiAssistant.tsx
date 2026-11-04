@@ -213,15 +213,16 @@ export const LibiAssistant: React.FC<LibiAssistantProps> = ({
               <Shield className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
               <span>ليبي لا يقرأ كلمات المرور أو كوكيز المواقع أو ملفات الجهاز.</span>
             </div>
-            {currentPageContext?.text?.trim() && (
-              <label className="flex items-center gap-1.5 text-[10px] text-emerald-200 shrink-0 cursor-pointer">
+            {currentPageContext?.url && /^https?:\/\//i.test(currentPageContext.url) && (
+              <label className={`flex items-center gap-1.5 text-[10px] shrink-0 ${currentPageContext.text?.trim() ? 'text-emerald-200 cursor-pointer' : 'text-slate-400'}`}>
                 <input
                   type="checkbox"
                   checked={sharePageContext}
+                  disabled={!currentPageContext.text?.trim()}
                   onChange={(e) => setSharePageContext(e.target.checked)}
-                  className="accent-emerald-500"
+                  className="accent-emerald-500 disabled:opacity-40"
                 />
-                <span>السماح بمشاركة نص الصفحة مع Gemini</span>
+                <span>{currentPageContext.text?.trim() ? 'السماح بمشاركة نص الصفحة مع Gemini' : 'نص الصفحة غير متاح بعد — تحقق من إعدادات السكربتات وأعد التحميل'}</span>
               </label>
             )}
             {currentPageContext?.url && !currentPageContext.url.startsWith('chrome://') && (
