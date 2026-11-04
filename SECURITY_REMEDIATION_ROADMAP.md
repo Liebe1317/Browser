@@ -90,3 +90,11 @@ A release is blocked if any of these fail:
 ## Current first patch
 
 Phase 1 starts with an extracted, testable HTML-rendering helper for search result cards. This is intentionally small so the first fix can be independently reviewed and verified before changing session semantics.
+
+## Aksa browser-only VPN integration
+
+- Aksa is an optional browser-server egress adapter, not a consumer VPN provider or a bundled VPN server.
+- The adapter accepts only a loopback HTTP CONNECT gateway configured by `AKSA_VPN_PROXY`. The local gateway must be backed by a trusted Aksa/WireGuard service and enforce public-destination-only egress.
+- When enabled, browser-server outbound fetches use that gateway. There is no automatic direct-network fallback if the gateway disconnects.
+- No gateway or provider credentials are committed. In an installation without the local gateway, the UI reports Aksa as not configured and refuses to enable it.
+- The initial integration still requires a real Aksa gateway binary/service and platform packaging before it can be advertised as a working VPN product. DNS leak behavior and tunnel failover must be tested against that concrete gateway before release.
