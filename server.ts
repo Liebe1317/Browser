@@ -1325,14 +1325,6 @@ ${safePageContext}`;
         clearTimeout(timeout);
         controller.abort();
       });
-      res.once('close', () => {
-      // The timeout remains active through response-body consumption.
-        if (!res.writableEnded) controller.abort();
-      });
-      req.once('aborted', () => {
-      // The timeout remains active through response-body consumption.
-        controller.abort();
-      });
       const forwardHeaders: Record<string, string> = {
         'User-Agent':
           'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
@@ -1550,6 +1542,17 @@ ${safePageContext}`;
           return proxied ? `${pre}${q}${proxied}${q}` : m0;
         })
       );
+      // Serialize URL-derived values as JavaScript string literals. Never interpolate raw URLs
+      // inside executable script: URL query text is attacker-controlled.
+      const jsStringLiteral = (value: string) => JSON.stringify(value)
+        .replace(/</g, '\\u003c')
+        .replace(/>/g, '\\u003e')
+        .replace(/&/g, '\\u0026')
+        .replace(/\\u2028/g, '\\u2028')
+        .replace(/\\u2029/g, '\\u2029');
+      const jsTargetOrigin = jsStringLiteral(parsedTarget.origin);
+      const jsTargetHostname = jsStringLiteral(parsedTarget.hostname);
+
       // 7. Injected Aegis Shield Protection Script + Video Server Auto-Healer
       const aegisProtectionHead = `
         <meta name="referrer" content="no-referrer">
@@ -1586,9 +1589,9 @@ ${safePageContext}`;
                 if (rawUrl) {
                   var absoluteUrl = rawUrl;
                   if (rawUrl.startsWith('/')) {
-                    absoluteUrl = '${parsedTarget.origin}' + rawUrl;
+                    absoluteUrl = ${jsTargetOrigin} + rawUrl;
                   }
-                  if (absoluteUrl.startsWith('${parsedTarget.origin}') && !absoluteUrl.includes('/api/proxy')) {
+                  if (absoluteUrl.startsWith(${jsTargetOrigin}) && !absoluteUrl.includes('/api/proxy')) {
                     var proxied = '/api/proxy?url=' + encodeURIComponent(absoluteUrl);
                     if (typeof resource === 'string') {
                       return origFetch(proxied, init);
@@ -1601,7 +1604,7 @@ ${safePageContext}`;
               };
               // 2b. Route iframe sources through /api/proxy (a relative src would hit this server directly)
               (function() {
-                var ORIGIN = '${parsedTarget.origin}';
+                var ORIGIN = ${jsTargetOrigin};
                 function fixSrc(v) {
                   try {
                     var s = String(v || '');
@@ -1632,7 +1635,7 @@ ${safePageContext}`;
                 if (rawUrl.startsWith('/')) {
                   rawUrl = '${parsedTarget.origin}' + rawUrl;
                 }
-                if (rawUrl.startsWith('${parsedTarget.origin}') && !rawUrl.includes('/api/proxy')) {
+                if (rawUrl.startsWith(${jsTargetOrigin}) && !rawUrl.includes('/api/proxy')) {
                   rawUrl = '/api/proxy?url=' + encodeURIComponent(rawUrl);
                 }
                 return origXHR.call(this, method, rawUrl, ...rest);
@@ -1775,8 +1778,7 @@ ${safePageContext}`;
               window.addEventListener('load', function() {
                 window.parent.postMessage({
                   type: 'AEGIS_PAGE_LOADED',
-                  title: document.title || '${parsedTarget.hostname}',
-                  url: '${parsedTarget.href}',
+                  title: document.title || ${jsTargetHostname},
                   adsBlocked: ${adsBlockedCount},
                   trackersBlocked: ${trackersBlockedCount}
                 }, '*');
