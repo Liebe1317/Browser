@@ -149,9 +149,11 @@ async function setAksaEnabled(next) {
     };
   }
 
+  // Gate all external web requests while the proxy/session transition is being applied.
+  aksaEnabled = true;
+  aksaConnected = false;
   try {
     await applyAksaProxy();
-    aksaEnabled = true;
     aksaConnected = true;
     startAksaMonitor();
     return { ok: true, status: getAksaStatus() };
