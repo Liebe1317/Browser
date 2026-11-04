@@ -3,6 +3,8 @@ import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, statSync, rmSync }
 import os from 'node:os';
 import path from 'node:path';
 import { EventEmitter } from 'node:events';
+import { createRequire } from 'node:module';
+const require = createRequire(import.meta.url);
 import {
   WIREPROXY_VERSION,
   HTTP_PROXY_ADDRESS,
