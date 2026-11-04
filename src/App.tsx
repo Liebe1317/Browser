@@ -773,6 +773,7 @@ export default function App() {
             onRecordRequest={handleRecordRequest}
             onPageText={handlePageText}
             pageScrollCommand={pageScrollCommand}
+            requestPageText={showLibi}
           />
         ) : activeTab.pageType === 'history' ? (
           <HistoryView
