@@ -4,7 +4,7 @@ import { createServer as createViteServer } from 'vite';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
-import { escapeHtml, renderSearchResultCard, jsStringLiteral } from './server/html.ts';
+import { escapeHtml, renderSearchResultCard, jsStringLiteral, safeHttpUrl } from './server/html.ts';
 import { GoogleGenAI } from '@google/genai';
 import { authorizeProxyRequest, jarFor, addTokenToProxyUrls, clearSessionCookies, bootstrapAppSession, appSessionId, verifyAppCsrf, destroyPrivateContext } from './server/sessions.ts';
 import { detectLibiAction, describeLibiAction } from './server/libi.ts';
@@ -94,8 +94,37 @@ function resolvePort(): number {
   return 3000;
 }
 // Live web search function that queries real search indices with 0 quota and 0 bot blocks
+async function readTextResponseCapped(response: Response, maxBytes: number): Promise<string> {
+  const contentLength = Number(response.headers.get('content-length'));
+  if (Number.isFinite(contentLength) && contentLength > maxBytes) {
+    await response.body?.cancel().catch(() => {});
+    throw new Error('Search response exceeded its size limit');
+  }
+  if (!response.body) return '';
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > maxBytes) {
+      await reader.cancel().catch(() => {});
+      throw new Error('Search response exceeded its size limit');
+    }
+    chunks.push(value);
+  }
+  const bytes = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return new TextDecoder().decode(bytes);
+}
+
 async function fetchLiveWebResults(query: string): Promise<Array<{ title: string; url: string; snippet: string }>> {
-  const cleanQ = query.trim();
+  const cleanQ = query.trim().slice(0, 200);
   if (!cleanQ) return [];
   const results: Array<{ title: string; url: string; snippet: string }> = [];
   // Curated instant answers for top Arabic anime and video search terms
@@ -158,13 +187,15 @@ async function fetchLiveWebResults(query: string): Promise<Array<{ title: string
   // Fetch live web results from live web index
   try {
     const res = await fetch(`https://html.duckduckgo.com/html/?q=${encodeURIComponent(cleanQ)}`, {
+      signal: AbortSignal.timeout(8000),
       headers: {
         'User-Agent':
           'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
         'Accept-Language': 'ar,en;q=0.9',
       },
     });
-    const html = await res.text();
+    if (!res.ok) return results;
+    const html = await readTextResponseCapped(res, 1_500_000);
     const blocks = html.split(/class="result results_links/);
     for (let i = 1; i < blocks.length && results.length < 12; i++) {
       const b = blocks[i];
@@ -173,11 +204,13 @@ async function fetchLiveWebResults(query: string): Promise<Array<{ title: string
       const snippetM = b.match(/class="result__snippet"[^>]*>([\s\S]*?)<\/a>/);
       if (titleM && urlM) {
         const title = titleM[1].replace(/<[^>]+>/g, '').trim();
-        const rawUrl = decodeURIComponent(urlM[2]);
+        let rawUrl = '';
+        try { rawUrl = decodeURIComponent(urlM[2]); } catch { continue; }
+        const validUrl = safeHttpUrl(rawUrl);
         const snippet = snippetM ? snippetM[1].replace(/<[^>]+>/g, '').trim() : '';
-        // Exclude duplicate URLs
-        if (!results.some((r) => r.url === rawUrl)) {
-          results.push({ title, url: rawUrl, snippet });
+        // Exclude unsafe links and duplicate URLs before exposing results to the app.
+        if (validUrl && !results.some((r) => r.url === validUrl)) {
+          results.push({ title: title.slice(0, 300), url: validUrl, snippet: snippet.slice(0, 700) });
         }
       }
     }
@@ -1155,6 +1188,26 @@ async function startServer() {
     try {
       // Browser actions are narrow, deterministic proposals. No generated code or model tool call
       // is ever executed. The user must confirm the proposal inside the Libi panel.
+      const searchMatch = message.match(/^(?:ابحث عن|ابحث لي عن|ابحثلي عن|دور لي على|دورلي على|فتش عن|search for)\\s+(.+)$/i);
+      if (searchMatch) {
+        const query = searchMatch[1].trim().slice(0, 200);
+        const results = await fetchLiveWebResults(query);
+        const safeResults = results
+          .map((item) => {
+            const url = safeHttpUrl(item.url);
+            return url ? { title: String(item.title).slice(0, 300), url, snippet: String(item.snippet).slice(0, 700) } : null;
+          })
+          .filter((item): item is { title: string; url: string; snippet: string } => !!item)
+          .slice(0, 6);
+        return res.json({
+          reply: safeResults.length
+            ? `وجدت لك ${safeResults.length} نتائج عن «${query}». اختر أي نتيجة لفتحها داخل Aegis.`
+            : `لم أجد نتائج موثوقة كافية عن «${query}». جرّب صياغة بحث أخرى.`,
+          results: safeResults,
+          suggestions: ['لخّص لي الصفحة الحالية', 'افتح الإعدادات'],
+        });
+      }
+
       const action = detectLibiAction(message);
       if (action) {
         return res.json({
