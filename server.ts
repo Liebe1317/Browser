@@ -187,16 +187,20 @@ async function fetchLiveWebResults(query: string): Promise<Array<{ title: string
   }
   // Fetch live web results from live web index
   try {
-    const res = await fetch(`https://html.duckduckgo.com/html/?q=${encodeURIComponent(cleanQ)}`, {
-      signal: AbortSignal.timeout(8000),
-      headers: {
-        'User-Agent':
-          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
-        'Accept-Language': 'ar,en;q=0.9',
+    const { response: res } = await safeFetch(
+      `https://html.duckduckgo.com/html/?q=${encodeURIComponent(cleanQ)}`,
+      {
+        signal: AbortSignal.timeout(8000),
+        headers: {
+          'User-Agent':
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+          'Accept-Language': 'ar,en;q=0.9',
+        },
       },
-    });
+      { maxRedirects: 3, upgradeHttp: true }
+    );
     if (!res.ok) return results;
-    const html = await readTextResponseCapped(res, 1_500_000);
+    const html = (await readBodyCapped(res, 1_500_000)).toString('utf8');
     const blocks = html.split(/class="result results_links/);
     for (let i = 1; i < blocks.length && results.length < 12; i++) {
       const b = blocks[i];
@@ -1018,20 +1022,26 @@ async function startServer() {
   });
   // YouTube Live Search & Trending Feed API
   app.get('/api/youtube/search', async (req, res) => {
-    const query = (req.query.q as string || '').trim();
+    const query = (req.query.q as string || '').trim().slice(0, 200);
     if (!query) {
       return res.json({ results: [] });
     }
     try {
-      const response = await fetch(`https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`, {
-        headers: {
-          'User-Agent':
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
-          'Accept-Language': 'ar,en;q=0.9',
-          'Sec-Ch-Ua': '"Google Chrome";v="131", "Chromium";v="131"',
+      const { response } = await safeFetch(
+        `https://www.youtube.com/results?search_query=${encodeURIComponent(query.slice(0, 200))}`,
+        {
+          signal: AbortSignal.timeout(10_000),
+          headers: {
+            'User-Agent':
+              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+            'Accept-Language': 'ar,en;q=0.9',
+            'Sec-Ch-Ua': '"Google Chrome";v="131", "Chromium";v="131"',
+          },
         },
-      });
-      const html = await response.text();
+        { maxRedirects: 3, upgradeHttp: true }
+      );
+      if (!response.ok) return res.json({ results: [] });
+      const html = (await readBodyCapped(response, 3_000_000)).toString('utf8');
       const match = html.match(/ytInitialData\s*=\s*({.+?});<\/script>/);
       if (!match) {
         return res.json({ results: [] });
@@ -1067,7 +1077,7 @@ async function startServer() {
     }
   });
   app.get('/api/youtube/feed', async (req, res) => {
-    const category = (req.query.category as string || 'all').trim();
+    const category = (req.query.category as string || 'all').trim().toLowerCase().slice(0, 40);
     const queryMap: Record<string, string> = {
       all: 'trending arabic',
       anime: 'anime episodes recap مترجم',
@@ -1081,14 +1091,20 @@ async function startServer() {
     };
     const searchQuery = queryMap[category] || `${category} trending`;
     try {
-      const response = await fetch(`https://www.youtube.com/results?search_query=${encodeURIComponent(searchQuery)}`, {
-        headers: {
-          'User-Agent':
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
-          'Accept-Language': 'ar,en;q=0.9',
+      const { response } = await safeFetch(
+        `https://www.youtube.com/results?search_query=${encodeURIComponent(searchQuery.slice(0, 200))}`,
+        {
+          signal: AbortSignal.timeout(10_000),
+          headers: {
+            'User-Agent':
+              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+            'Accept-Language': 'ar,en;q=0.9',
+          },
         },
-      });
-      const html = await response.text();
+        { maxRedirects: 3, upgradeHttp: true }
+      );
+      if (!response.ok) return res.json({ results: [] });
+      const html = (await readBodyCapped(response, 3_000_000)).toString('utf8');
       const match = html.match(/ytInitialData\s*=\s*({.+?});<\/script>/);
       if (!match) {
         return res.json({ results: [] });
