@@ -1,36 +1,74 @@
-# Aksa VPN adapter — current state and integration contract
+# Aksa VPN — current integration and required gateway
 
-## What is implemented
+## Implemented in Aegis
 
-Aegis has an optional server-side egress adapter named Aksa. When enabled, requests made through Aegis' server-side proxy use an Undici ProxyAgent routed to a local loopback endpoint. Aksa rejects arbitrary remote proxy URLs. If the local gateway is unavailable, proxied requests fail instead of silently falling back to direct networking.
+Aksa is wired into two outbound paths:
 
-Configuration:
+1. **Aegis server egress.** When enabled, Undici requests made by the browser proxy use a loopback HTTP CONNECT gateway. The server validates the gateway address, checks its tunnel-health endpoint before activation, then rechecks it every five seconds. If the gateway stops reporting an active tunnel, the dispatcher rejects new requests instead of silently switching to direct networking.
+2. **Electron Chromium session.** The desktop main process configures Chromium's default session proxy using the same local gateway. It closes pooled connections on proxy changes, checks health periodically, applies a local black-hole proxy and cancels external requests when the tunnel health is lost. It also disables non-proxied WebRTC UDP, QUIC, and DNS prefetch to reduce known proxy-bypass paths.
 
-- Set AKSA_VPN_PROXY=http://127.0.0.1:<port> in the trusted server process environment.
-- The endpoint must be a local Aksa gateway backed by an active WireGuard/VPN tunnel.
-- Never put the gateway address, VPN private keys, WireGuard configuration, or provider credentials in the React bundle, query strings, browser storage, or Git.
-- Do not expose the local gateway to LAN/WAN interfaces.
+The Electron preload exposes only two narrowly-scoped Aksa methods to the trusted top-level Aegis UI. Calls from website iframes, other web contents, and untrusted origins are rejected by the main process.
 
-## What is not implemented
+## Required gateway contract
 
-This repository does not contain an Aksa VPN server, WireGuard peer credentials, a server list, a WireGuard daemon, or a platform tunnel installer. Therefore a syntactically valid AKSA_VPN_PROXY value is not proof that a VPN tunnel is active. The current status means:
+The repository does **not** include a VPN provider, server list, WireGuard private/public peer configuration, or a platform tunnel daemon. Aksa is therefore an integration layer, not yet a self-contained commercial VPN service.
 
-- configured: the environment variable points to an accepted loopback endpoint.
-- enabled: the server-side request dispatcher has been switched to that endpoint.
-- Neither flag is a live VPN handshake/health check.
+A locally installed Aksa/WireGuard gateway must:
 
-The adapter covers server-side outbound requests initiated by Aegis. Direct requests initiated by the renderer (for example external media, images, and the allowed YouTube iframe) do not automatically traverse this server-side proxy. It is not a device-wide VPN and must not be marketed as full renderer traffic protection.
+- Bind only to loopback, e.g. 127.0.0.1:19090. Never expose it on the LAN/WAN.
+- Implement HTTP CONNECT for outbound HTTP(S) requests.
+- Route the CONNECT tunnel through an active WireGuard tunnel, not the ordinary system default route.
+- Expose `GET /health` returning HTTP 200 and JSON `{"status":"ok","tunnel":"connected"}` **only when the WireGuard interface/handshake and outbound route are actually healthy**.
+- Return any other status/body when disconnected, stale, restarting, or unable to prove the route.
+- Enforce public-destination-only egress at the gateway. Block loopback, private, link-local, multicast, metadata, reserved destinations and unsafe ports after resolving DNS on the tunnel side. Aegis-side SSRF checks do not replace gateway enforcement.
+- Never log browsing URLs, request headers, cookies, payloads, user IPs, or credentials.
 
-## Required gateway security properties before release
+The health response is an explicit integration contract, not evidence that a WireGuard daemon is present in this repository.
 
-1. Bind only to loopback and authenticate the local caller where supported.
-2. Accept HTTP CONNECT only; reject arbitrary HTTP forwarding if not needed.
-3. Resolve destination DNS inside the tunnel and block loopback, private, link-local, multicast, metadata, reserved, and unsafe ports at the gateway itself.
-4. Re-resolve and enforce destination policy at connection time to prevent DNS rebinding / TOCTOU bypasses. The Aegis-side URL filter alone is not sufficient for remote DNS resolution by a proxy.
-5. Do not write browsing URLs, credentials, cookies, or payloads to logs.
-6. Provide a health/handshake endpoint tied to the actual tunnel state; do not equate configured with connected.
-7. Test IPv4/IPv6 routes, DNS leak behavior, reconnects, captive portals, gateway crashes, and fail-closed behavior on Windows, Linux, and macOS.
+## Configuration and launch
 
-## Full browser-only VPN architecture still required
+Set the same environment value for the Aegis server and Electron process:
 
-To cover renderer-originated traffic, the desktop build needs a browser engine network-session/proxy adapter or an app-scoped TUN/WireGuard tunnel. It must cover all direct renderer requests, WebSockets, media, WebRTC/STUN, DNS, downloads, and service workers, with a kill switch and measurable tunnel state. The current web-hosted React renderer cannot guarantee all of those paths.
+```sh
+AKSA_VPN_PROXY=http://127.0.0.1:19090
+```
+
+Start the application server in one terminal:
+
+```sh
+npm run dev
+```
+
+Start the desktop shell in another terminal with the same environment variable:
+
+```sh
+npm run desktop
+```
+
+The desktop app defaults to `http://127.0.0.1:${PORT:-3000}`; use `ELECTRON_START_URL` only when intentionally hosting the trusted Aegis UI elsewhere. Electron 45.2.2 is pinned in the desktop launcher and is not bundled into the web-client dependency graph.
+
+Linux/macOS shell example:
+
+```sh
+export AKSA_VPN_PROXY=http://127.0.0.1:19090
+npm run dev
+# In a second terminal, export the same AKSA_VPN_PROXY and run:
+npm run desktop
+```
+
+PowerShell example:
+
+```powershell
+$env:AKSA_VPN_PROXY = "http://127.0.0.1:19090"
+npm run dev
+# In a second PowerShell window, set the same variable and run:
+npm run desktop
+```
+
+## Important limits and release gates
+
+- In the ordinary browser-hosted React app, Aksa covers only server-side outbound traffic initiated by the Aegis proxy. It cannot force unrelated direct connections from the user's browser.
+- The Electron integration routes Chromium HTTP(S) requests through its session proxy and applies a fail-closed guard. Electron's proxy behavior, IPv4/IPv6/DNS routing, UDP/WebRTC, service workers, downloads, reconnects and every OS version still require real-device leak testing before claiming full protection.
+- This is not a device-wide VPN: traffic from other applications is not covered.
+- A syntactically configured gateway is not enough. The UI only reports connected after the gateway health contract confirms the tunnel.
+- Do not call Aksa a working VPN or release it as such until the real local gateway/daemon, its WireGuard configuration, provider/server endpoints, key provisioning, update mechanism and tunnel leak tests exist.
