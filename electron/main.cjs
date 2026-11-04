@@ -208,7 +208,7 @@ function createWindow() {
   Menu.setApplicationMenu(null);
 
   // One handler owns this event: combine ad blocking and Aksa's fail-closed kill switch.
-  session.defaultSession.webRequest.onBeforeRequest({ urls: ['*://*/*'] }, (details, callback) => {
+  session.defaultSession.webRequest.onBeforeRequest({ urls: ['*://*/*', 'ws://*/*', 'wss://*/*'] }, (details, callback) => {
     if (isBlockedAdOrTracker(details.url)) return callback({ cancel: true });
     if (aksaEnabled && !aksaConnected && !isAppRequest(details.url)) {
       return callback({ cancel: true });
@@ -216,7 +216,7 @@ function createWindow() {
     callback({});
   });
 
-  session.defaultSession.webRequest.onErrorOccurred({ urls: ['*://*/*'] }, (details) => {
+  session.defaultSession.webRequest.onErrorOccurred({ urls: ['*://*/*', 'ws://*/*', 'wss://*/*'] }, (details) => {
     if (aksaEnabled && /ERR_PROXY|ERR_TUNNEL_CONNECTION_FAILED/i.test(details.error || '')) {
       aksaConnected = false;
       void applyAksaFailClosedProxy().catch(() => {});
