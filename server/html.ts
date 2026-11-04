@@ -1,3 +1,13 @@
+/** Serialize untrusted text as a JavaScript string literal safe to embed in an HTML script block. */
+export function jsStringLiteral(value: unknown): string {
+  return JSON.stringify(String(value ?? ''))
+    .replace(/</g, '\\u003c')
+    .replace(/>/g, '\\u003e')
+    .replace(/&/g, '\\u0026')
+    .replace(/\u2028/g, '\\u2028')
+    .replace(/\u2029/g, '\\u2029');
+}
+
 /** Safe rendering helpers for HTML generated from untrusted search/provider data. */
 export function escapeHtml(value: unknown): string {
   return String(value ?? '').replace(/[&<>"']/g, (char) => {
