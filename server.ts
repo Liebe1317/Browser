@@ -7,7 +7,7 @@ import fs from 'fs';
 import { escapeHtml, renderSearchResultCard, jsStringLiteral, safeHttpUrl } from './server/html.ts';
 import { GoogleGenAI } from '@google/genai';
 import { authorizeProxyRequest, jarFor, addTokenToProxyUrls, clearSessionCookies, bootstrapAppSession, appSessionId, verifyAppCsrf, destroyPrivateContext } from './server/sessions.ts';
-import { detectLibiAction, describeLibiAction } from './server/libi.ts';
+import { detectLibiAction, describeLibiAction, parseLibiSearchQuery } from './server/libi.ts';
 import { getAksaVpnStatus, setAksaVpnEnabled } from './server/aksaVpn.ts';
 import { AD_DOMAINS, TRACKER_DOMAINS, hostMatches, buildProxyCsp, WEBRTC_BLOCK_SCRIPT } from './server/shield.ts';
 import { isBlockedUrl as isBlockedTarget, safeFetch, readBodyCapped, SsrfBlockedError, BodyTooLargeError } from './server/ssrf.ts';
@@ -1188,9 +1188,9 @@ async function startServer() {
     try {
       // Browser actions are narrow, deterministic proposals. No generated code or model tool call
       // is ever executed. The user must confirm the proposal inside the Libi panel.
-      const searchMatch = message.match(/^(?:ابحث عن|ابحث لي عن|ابحثلي عن|دور لي على|دورلي على|فتش عن|search for)\s+(.+)$/i);
-      if (searchMatch) {
-        const query = searchMatch[1].trim().slice(0, 200);
+      const searchQuery = parseLibiSearchQuery(message);
+      if (searchQuery) {
+        const query = searchQuery;
         const results = await fetchLiveWebResults(query);
         const safeResults = results
           .map((item) => {
