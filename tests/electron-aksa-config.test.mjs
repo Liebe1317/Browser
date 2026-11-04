@@ -63,6 +63,7 @@ assert.equal(parseWireproxyReadyPayload({}, 1000), false);
 assert.equal(parseWireproxyReadyPayload({ '1.1.1.1': 1005 }, 1000), false);
 assert.equal(isConnectedHealthPayload({ status: 'ok', tunnel: 'connected' }), true);
 assert.equal(isConnectedHealthPayload({ status: 'ok', tunnel: 'disconnected' }), false);
-assert.equal(isConnectedHealthPayload({ '1.1.1.1': 996, '9.9.9.9': 999 }), true);
+const nowSeconds = Math.floor(Date.now() / 1000);
+assert.equal(isConnectedHealthPayload({ '1.1.1.1': nowSeconds - 4, '9.9.9.9': nowSeconds - 1 }), true);
 
 console.log('PASS - Wireproxy config validation and fresh tunnel health parsing');
