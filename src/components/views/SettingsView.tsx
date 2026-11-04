@@ -38,15 +38,16 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
   useEffect(() => {
     let active = true;
+    const desktopBridge = window.aegisDesktop?.vpn;
     Promise.all([
       fetch('/api/aksa/vpn/status', { credentials: 'same-origin' }).then(async (response) => {
         if (!response.ok) throw new Error('تعذر قراءة حالة Aksa من الخادم');
         return response.json();
       }),
-      window.aegisDesktop?.vpn.getStatus().catch(() => null) ?? Promise.resolve(null),
+      desktopBridge?.getStatus().catch(() => null) ?? Promise.resolve(null),
     ]).then(([serverStatus, desktopStatus]) => {
       if (!active) return;
-      const isDesktop = !!window.aegisDesktop?.vpn;
+      const isDesktop = !!desktopBridge;
       const desktopConfigured = !isDesktop || desktopStatus?.configured === true;
       setAksaVpn({
         configured: serverStatus.configured === true && desktopConfigured,
@@ -66,6 +67,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     setAksaError('');
     let serverChanged = false;
     let csrfToken = '';
+    const desktopBridge = window.aegisDesktop?.vpn;
     try {
       csrfToken = await getAegisCsrfToken();
       const postServer = async (next: boolean) => {
@@ -84,8 +86,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         const serverStatus = await postServer(true);
         serverChanged = true;
         let desktopStatus = null;
-        if (window.aegisDesktop?.vpn) {
-          const desktopResult = await window.aegisDesktop.vpn.setEnabled(true);
+        if (desktopBridge) {
+          const desktopResult = await desktopBridge.setEnabled(true);
           if (!desktopResult.ok || !desktopResult.status.connected) {
             throw new Error(desktopResult.error || 'لم يؤكد محرك Chromium اتصال نفق Aksa.');
           }
@@ -94,14 +96,14 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         setAksaVpn({
           configured: true,
           enabled: true,
-          connected: serverStatus.connected === true && (!window.aegisDesktop?.vpn || desktopStatus?.connected === true),
-          scope: window.aegisDesktop?.vpn ? 'electron-session + server-egress' : 'server-egress-only',
-          desktop: !!window.aegisDesktop?.vpn,
+          connected: serverStatus.connected === true && (!desktopBridge || desktopStatus?.connected === true),
+          scope: desktopBridge ? 'electron-session + server-egress' : 'server-egress-only',
+          desktop: !!desktopBridge,
         });
       } else {
         let desktopError = '';
-        if (window.aegisDesktop?.vpn) {
-          const desktopResult = await window.aegisDesktop.vpn.setEnabled(false);
+        if (desktopBridge) {
+          const desktopResult = await desktopBridge.setEnabled(false);
           if (!desktopResult.ok) desktopError = desktopResult.error || 'تعذر إيقاف نفق Chromium.';
         }
         const serverStatus = await postServer(false);
@@ -110,8 +112,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           configured: serverStatus.configured === true,
           enabled: false,
           connected: false,
-          scope: window.aegisDesktop?.vpn ? 'electron-session + server-egress' : 'server-egress-only',
-          desktop: !!window.aegisDesktop?.vpn,
+          scope: desktopBridge ? 'electron-session + server-egress' : 'server-egress-only',
+          desktop: !!desktopBridge,
         });
         if (desktopError) setAksaError(desktopError);
       }
