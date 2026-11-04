@@ -36,3 +36,38 @@ export function isLibiBrowserAction(value: unknown): value is LibiBrowserAction 
     return false;
   }
 }
+
+export interface LibiSearchResult {
+  title: string;
+  url: string;
+  snippet: string;
+}
+
+export function parseLibiSearchResults(value: unknown): LibiSearchResult[] {
+  if (!Array.isArray(value)) return [];
+  const results: LibiSearchResult[] = [];
+  for (const item of value.slice(0, 6)) {
+    if (!item || typeof item !== 'object') continue;
+    const candidate = item as Record<string, unknown>;
+    if (
+      typeof candidate.title !== 'string' ||
+      typeof candidate.url !== 'string' ||
+      typeof candidate.snippet !== 'string'
+    ) continue;
+    try {
+      const url = new URL(candidate.url);
+      if (
+        (url.protocol !== 'http:' && url.protocol !== 'https:') ||
+        !url.hostname ||
+        url.username ||
+        url.password
+      ) continue;
+      results.push({
+        title: candidate.title.slice(0, 300),
+        url: url.toString(),
+        snippet: candidate.snippet.slice(0, 700),
+      });
+    } catch {}
+  }
+  return results;
+}
