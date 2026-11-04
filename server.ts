@@ -18,15 +18,16 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 // Process-level stability guards to prevent unexpected crash/exit on aborted sockets or network drops
 process.on('uncaughtException', (err: NodeJS.ErrnoException) => {
-  // A server that cannot bind its port must stop, not keep running half-alive (and hide the error)
+  // Log only a stable error code; raw messages may contain request URLs or provider metadata.
   if (err.code === 'EADDRINUSE' || err.code === 'EACCES') {
-    console.error('[Aegis Process Guard] Fatal:', err.message);
+    console.error('[Aegis Process Guard] Fatal startup error:', err.code);
     process.exit(1);
   }
-  console.warn('[Aegis Process Guard] Caught uncaughtException:', err.message);
+  console.warn('[Aegis Process Guard] An uncaught exception was contained; details withheld.');
 });
-process.on('unhandledRejection', (reason) => {
-  console.warn('[Aegis Process Guard] Caught unhandledRejection:', reason);
+process.on('unhandledRejection', () => {
+  // Do not serialize raw Error objects, prompts, request details, or provider response metadata.
+  console.warn('[Aegis Process Guard] An unhandled rejection was contained; details withheld.');
 });
 // Strict SSRF validation: block loopback, link-local, Google Cloud metadata, and private IP ranges
 // Initialize Gemini API client for AI features
