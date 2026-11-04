@@ -65,8 +65,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     setAksaBusy(true);
     setAksaError('');
     let serverChanged = false;
+    let csrfToken = '';
     try {
-      const csrfToken = await getAegisCsrfToken();
+      csrfToken = await getAegisCsrfToken();
       const postServer = async (next: boolean) => {
         const response = await fetch('/api/aksa/vpn/toggle', {
           method: 'POST',
