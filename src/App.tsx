@@ -518,8 +518,10 @@ export default function App() {
       case 'toggle_theme':
         setSettings((current) => ({ ...current, theme: current.theme === 'light' ? 'dark' : 'light' }));
         break;
-      case 'toggle_reader': handleToggleReaderMode(); break;
-      case 'bookmark_page': handleToggleBookmark(); break;
+      case 'toggle_reader': handleUpdateTab(activeTab.id, { readerMode: true }); break;
+      case 'bookmark_page':
+        if (!bookmarks.some((bookmark) => bookmark.url === activeTab.url)) handleToggleBookmark();
+        break;
       case 'zoom_in': handleZoomIn(); break;
       case 'zoom_out': handleZoomOut(); break;
       case 'zoom_reset': handleZoomReset(); break;
