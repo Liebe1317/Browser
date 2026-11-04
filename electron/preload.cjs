@@ -8,6 +8,8 @@ if (process.isMainFrame) {
     vpn: Object.freeze({
       getStatus: () => ipcRenderer.invoke('aegis:vpn:get-status'),
       setEnabled: (enabled) => ipcRenderer.invoke('aegis:vpn:set-enabled', enabled === true),
+      install: () => ipcRenderer.invoke('aegis:vpn:install'),
+      chooseConfig: () => ipcRenderer.invoke('aegis:vpn:choose-config'),
     }),
   }));
 }
