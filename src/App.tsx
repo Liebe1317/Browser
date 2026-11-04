@@ -18,6 +18,7 @@ import { SecurityVaultView } from './components/views/SecurityVaultView';
 import { VaultLockScreen } from './components/browser/VaultLockScreen';
 import { isVaultSetUp, createVault, unlockVault, lockVault, saveVaultData, loadVaultData, destroyVault, UnlockResult } from './utils/vault';
 import { LibiAssistant } from './components/browser/LibiAssistant';
+import { LibiBrowserAction } from './types/libi';
 
 import { Tab, Bookmark, HistoryItem, DownloadItem, BrowserSettings, ShieldSettings, NetworkRequest, BrowserPageType, VaultState } from './types/browser';
 import { DEFAULT_SETTINGS, DEFAULT_SHIELD_SETTINGS, DEFAULT_BOOKMARKS, SEARCH_ENGINES } from './data/initialData';
@@ -451,6 +452,26 @@ export default function App() {
     }, 800);
   };
 
+  // Libi can request only allowlisted UI actions; each request is confirmed inside its panel.
+  const handleLibiBrowserAction = (action: LibiBrowserAction) => {
+    switch (action.type) {
+      case 'navigate': handleNavigate(action.url); break;
+      case 'new_tab': handleNewTab(); break;
+      case 'back': handleGoBack(); break;
+      case 'forward': handleGoForward(); break;
+      case 'reload': handleReload(); break;
+      case 'open_settings': handleNavigate('chrome://settings'); break;
+      case 'open_history': handleNavigate('chrome://history'); break;
+      case 'open_bookmarks': handleNavigate('chrome://bookmarks'); break;
+      case 'open_downloads': handleNavigate('chrome://downloads'); break;
+      case 'open_security': handleNavigate('chrome://security'); break;
+      case 'open_shields': handleNavigate('chrome://shields'); break;
+      case 'toggle_theme':
+        setSettings((current) => ({ ...current, theme: current.theme === 'light' ? 'dark' : 'light' }));
+        break;
+    }
+  };
+
   const handleGoHome = () => {
     handleNavigate(settings.homePage || 'chrome://newtab');
   };
@@ -811,6 +832,7 @@ export default function App() {
         }}
         initialQuery={libiContextQuery}
         onNavigate={handleNavigate}
+        onExecuteBrowserAction={handleLibiBrowserAction}
       />
     </div>
   );
