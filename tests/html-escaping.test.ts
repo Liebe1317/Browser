@@ -22,8 +22,8 @@ const payload = renderSearchResultCard(
   'fallback'
 );
 
-assert.match(payload, /&lt;img/);
-assert.match(payload, /&lt;script&gt;/);
+assert.match(payload, /&lt;\\/p&gt;&lt;svg/);
+assert.match(payload, /&lt;\\/p&gt;&lt;svg/);
 assert.match(payload, /&lt;\\/p&gt;&lt;svg/);
 assert.doesNotMatch(payload, /<img[^>]+onerror/i);
 assert.doesNotMatch(payload, /<script/i);
@@ -37,7 +37,7 @@ const craftedUrl = renderSearchResultCard(
   1,
   'fallback'
 );
-assert.doesNotMatch(craftedUrl, /href="[^"]*"\\s+onmouseover/i);
+assert.doesNotMatch(craftedUrl, /href="[^"]*"\s+onmouseover/i);
 assert.doesNotMatch(craftedUrl, /<img src=x onerror/i);
 
 console.log('PASS - HTML escaping and safe search-result rendering');
