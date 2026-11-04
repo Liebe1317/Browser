@@ -144,7 +144,7 @@ try {
   r = await req('/api/aksa/vpn/status', { headers: app });
   const aksaStatus = (() => { try { return JSON.parse(r.body); } catch { return {}; } })();
   ok(r.status === 200 && aksaStatus.configured === false && aksaStatus.enabled === false, 'Aksa is reported unavailable until a local VPN gateway is configured');
-  r = await req('/api/aksa/vpn/toggle', { method: 'POST', headers: { ...appWrite, Cookie: sid1, 'X-Aegis-CSRF': csrf }, body: JSON.stringify({ enabled: true }) });
+  r = await req('/api/aksa/vpn/toggle', { method: 'POST', headers: { ...appWrite, Cookie: sid1, 'X-Aegis-CSRF': csrf, 'Content-Type': 'application/json' }, body: JSON.stringify({ enabled: true }) });
   ok(r.status === 409, 'Aksa cannot be enabled without a configured local gateway');
 
   const before = seen.length;
