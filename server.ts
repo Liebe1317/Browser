@@ -5,7 +5,7 @@ import { fileURLToPath } from 'url';
 import fs from 'fs';
 import { escapeHtml, renderSearchResultCard } from './server/html.ts';
 import { GoogleGenAI } from '@google/genai';
-import { authorizeProxyRequest, jarFor, addTokenToProxyUrls, clearSessionCookies, bootstrapAppSession, appSessionId, verifyAppCsrf } from './server/sessions.ts';
+import { authorizeProxyRequest, jarFor, addTokenToProxyUrls, clearSessionCookies, bootstrapAppSession, appSessionId, verifyAppCsrf, destroyPrivateContext } from './server/sessions.ts';
 import { detectLibiAction, describeLibiAction } from './server/libi.ts';
 import { getAksaVpnStatus, setAksaVpnEnabled } from './server/aksaVpn.ts';
 import { AD_DOMAINS, TRACKER_DOMAINS, hostMatches, buildProxyCsp, WEBRTC_BLOCK_SCRIPT } from './server/shield.ts';
@@ -944,6 +944,14 @@ async function startServer() {
       return res.status(403).json({ error: 'A valid Aegis session and CSRF token are required.' });
     }
     next();
+  });
+
+  app.post('/api/session/context/close', (req, res) => {
+    const contextId = typeof req.body?.contextId === 'string' ? req.body.contextId : '';
+    if (!destroyPrivateContext(req, contextId)) {
+      return res.status(400).json({ error: 'Invalid private browsing context.' });
+    }
+    return res.json({ ok: true });
   });
 
   app.get('/api/aksa/vpn/status', (_req, res) => {
