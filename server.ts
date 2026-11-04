@@ -8,6 +8,7 @@ import { escapeHtml, renderSearchResultCard, jsStringLiteral, safeHttpUrl } from
 import { GoogleGenAI } from '@google/genai';
 import { authorizeProxyRequest, jarFor, addTokenToProxyUrls, clearSessionCookies, bootstrapAppSession, appSessionId, verifyAppCsrf, destroyPrivateContext } from './server/sessions.ts';
 import { detectLibiAction, describeLibiAction, parseLibiSearchQuery } from './server/libi.ts';
+import { PerKeyRateLimiter } from './server/rateLimiter.ts';
 import { getAksaVpnStatus, setAksaVpnEnabled } from './server/aksaVpn.ts';
 import { AD_DOMAINS, TRACKER_DOMAINS, hostMatches, buildProxyCsp, WEBRTC_BLOCK_SCRIPT } from './server/shield.ts';
 import { isBlockedUrl as isBlockedTarget, safeFetch, readBodyCapped, SsrfBlockedError, BodyTooLargeError } from './server/ssrf.ts';
@@ -1147,7 +1148,7 @@ async function startServer() {
     }
   });
   // Libi AI is a server-side integration. Provider credentials never enter the browser bundle.
-  const libiRateWindows = new Map<string, { minuteAt: number; minuteCount: number; hourAt: number; hourCount: number }>();
+  const libiRateLimiter = new PerKeyRateLimiter(8, 35);
   let libiRequestsInFlight = 0;
   app.post('/api/libi/chat', async (req, res) => {
     const sid = appSessionId(req);
@@ -1162,26 +1163,10 @@ async function startServer() {
       return res.status(400).json({ error: 'Message must be between 1 and 4000 characters.' });
     }
 
-    const now = Date.now();
-    let usage = libiRateWindows.get(sid);
-    if (!usage || now - usage.minuteAt >= 60_000) {
-      usage = { minuteAt: now, minuteCount: 0, hourAt: now, hourCount: 0 };
-    }
-    if (now - usage.hourAt >= 60 * 60_000) {
-      usage.hourAt = now;
-      usage.hourCount = 0;
-    }
-    if (usage.minuteCount >= 8 || usage.hourCount >= 35) {
-      libiRateWindows.set(sid, usage);
+    const rateDecision = libiRateLimiter.consume(sid);
+    if (!rateDecision.allowed) {
+      res.setHeader('Retry-After', String(Math.ceil(rateDecision.retryAfterMs / 1000)));
       return res.status(429).json({ error: 'تم الوصول إلى حد استخدام ليبي مؤقتاً. حاول لاحقاً.' });
-    }
-    usage.minuteCount += 1;
-    usage.hourCount += 1;
-    libiRateWindows.set(sid, usage);
-    if (libiRateWindows.size > 5000) {
-      for (const [key, value] of libiRateWindows) {
-        if (now - value.hourAt > 2 * 60 * 60_000) libiRateWindows.delete(key);
-      }
     }
     if (libiRequestsInFlight >= 4) {
       return res.status(503).json({ error: 'ليبي مشغول حالياً. حاول بعد قليل.' });
