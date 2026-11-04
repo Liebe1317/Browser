@@ -140,8 +140,8 @@ try {
   ok(r.status === 204 && r.headers['access-control-allow-origin'] === '*', 'CORS preflight is answered by the proxy');
   ok(seen.length === before, 'the preflight was not forwarded upstream');
 
-  r = await req('/', { headers: app });
-  ok(/frame-ancestors 'none'/.test(r.headers['content-security-policy'] || '') && r.headers['x-content-type-options'] === 'nosniff', 'the app itself has a CSP and security headers');
+  r = await req('/api/health', { headers: app });
+  ok(r.status === 200 && /frame-ancestors 'none'/.test(r.headers['content-security-policy'] || '') && r.headers['x-content-type-options'] === 'nosniff', 'same-origin app API responses carry CSP and security headers');
 
   await req('/api/session/clear', { method: 'POST', headers: { ...appWrite, Cookie: sid1 } });
   r = await req(proxy(A + '/whoami', `t=${tokA}&`), { headers: page });
