@@ -27,6 +27,8 @@ function cleanCommand(value: string): string {
   return value
     .normalize('NFKC')
     .toLocaleLowerCase('ar')
+    .replace(/[أإآ]/g, 'ا')
+    .replace(/ى/g, 'ي')
     .replace(/[\u064B-\u065F\u0670]/g, '')
     .replace(/[ًٌٍَُِّْـ]/g, '')
     .replace(/^\s*ليبي[،,:؛-]?\s*/, '')
