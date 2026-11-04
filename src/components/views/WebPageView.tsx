@@ -13,6 +13,7 @@ interface WebPageViewProps {
   onRecordRequest: (domain: string, status: 'allowed' | 'blocked', reason?: 'ad' | 'tracker') => void;
   onPageText?: (id: string, text: string) => void;
   pageScrollCommand?: { id: number; direction: 'top' | 'bottom' } | null;
+  requestPageText?: boolean;
 }
 
 export const WebPageView: React.FC<WebPageViewProps> = ({
@@ -25,6 +26,7 @@ export const WebPageView: React.FC<WebPageViewProps> = ({
   onRecordRequest,
   onPageText,
   pageScrollCommand,
+  requestPageText = false,
 }) => {
   const [loadProgress, setLoadProgress] = useState(25);
   const [isIframeLoading, setIsIframeLoading] = useState(true);
@@ -120,8 +122,10 @@ export const WebPageView: React.FC<WebPageViewProps> = ({
   }, [tab.id, tab.title, tab.adsBlocked, tab.trackersBlocked, tab.popupsBlocked]);
 
   const handleIframeLoad = () => {
-    // Extracted text stays in React memory until the user explicitly opts to share it with Libi.
-    iframeRef.current?.contentWindow?.postMessage({ type: 'AEGIS_EXTRACT_PAGE_TEXT' }, '*');
+    if (requestPageText) {
+      // Extracted text stays in React memory until the user explicitly opts to share it with Libi.
+      iframeRef.current?.contentWindow?.postMessage({ type: 'AEGIS_EXTRACT_PAGE_TEXT' }, '*');
+    }
     setLoadProgress(100);
     setIsIframeLoading(false);
     onUpdateTabInfo(tab.id, { isLoading: false });
@@ -134,6 +138,12 @@ export const WebPageView: React.FC<WebPageViewProps> = ({
       direction: pageScrollCommand.direction,
     }, '*');
   }, [pageScrollCommand?.id]);
+
+  useEffect(() => {
+    if (requestPageText) {
+      iframeRef.current?.contentWindow?.postMessage({ type: 'AEGIS_EXTRACT_PAGE_TEXT' }, '*');
+    }
+  }, [requestPageText, tab.url]);
 
   const handleIframeError = () => {
     setHasLoadError(true);
