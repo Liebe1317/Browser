@@ -152,7 +152,7 @@ try {
   ok(r.status === 403, 'state-changing app APIs reject requests without a CSRF token');
   r = await req('/api/aksa/vpn/status', { headers: app });
   const aksaStatus = (() => { try { return JSON.parse(r.body); } catch { return {}; } })();
-  ok(r.status === 200 && aksaStatus.configured === false && aksaStatus.enabled === false, 'Aksa is reported unavailable until a local VPN gateway is configured');
+  ok(r.status === 200 && aksaStatus.enabled === false && aksaStatus.connected === false, 'Aksa reports disconnected until the local Wireproxy sidecar confirms a fresh tunnel heartbeat');
   r = await req('/api/aksa/vpn/toggle', { method: 'POST', headers: { ...appWrite, Cookie: sid1, 'X-Aegis-CSRF': csrf, 'Content-Type': 'application/json' }, body: JSON.stringify({ enabled: true }) });
   ok(r.status === 409, 'Aksa cannot be enabled without a configured local gateway');
 
