@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import { BrowserSettings, CustomColorTheme } from '../../types/browser';
 import { SEARCH_ENGINES } from '../../data/initialData';
-import { getAegisCsrfToken } from '../../utils/sessionSecurity';
+import { fetchWithAegisCsrf } from '../../utils/sessionSecurity';
 import { THEME_PRESETS, applyCustomTheme } from '../../utils/theme';
 
 interface SettingsViewProps {
@@ -66,15 +66,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     setAksaBusy(true);
     setAksaError('');
     let serverChanged = false;
-    let csrfToken = '';
     const desktopBridge = window.aegisDesktop?.vpn;
     try {
-      csrfToken = await getAegisCsrfToken();
       const postServer = async (next: boolean) => {
-        const response = await fetch('/api/aksa/vpn/toggle', {
+        const response = await fetchWithAegisCsrf('/api/aksa/vpn/toggle', {
           method: 'POST',
-          credentials: 'same-origin',
-          headers: { 'Content-Type': 'application/json', 'X-Aegis-CSRF': csrfToken },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ enabled: next }),
         });
         const payload = await response.json();
@@ -123,10 +120,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           await desktopBridge?.setEnabled(false);
         } catch {}
         try {
-          await fetch('/api/aksa/vpn/toggle', {
+          await fetchWithAegisCsrf('/api/aksa/vpn/toggle', {
             method: 'POST',
-            credentials: 'same-origin',
-            headers: { 'Content-Type': 'application/json', 'X-Aegis-CSRF': csrfToken },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ enabled: false }),
           });
         } catch {}
