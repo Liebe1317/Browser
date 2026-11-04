@@ -153,6 +153,11 @@ export default function App() {
   const [libiContextQuery, setLibiContextQuery] = useState<string | undefined>(undefined);
   const [networkRequests, setNetworkRequests] = useState<NetworkRequest[]>([]);
   const [reloadNonce, setReloadNonce] = useState(0);
+  const [pageTexts, setPageTexts] = useState<Record<string, string>>({});
+  const [pageScrollCommand, setPageScrollCommand] = useState<{ id: number; direction: 'top' | 'bottom' } | null>(null);
+  const handlePageText = useCallback((id: string, text: string) => {
+    setPageTexts((previous) => ({ ...previous, [id]: text.slice(0, 12000) }));
+  }, []);
 
   // Persist state
   useEffect(() => {
@@ -268,6 +273,11 @@ export default function App() {
 
   const handleCloseTab = (id: string, e?: React.MouseEvent) => {
     e?.stopPropagation();
+    setPageTexts((previous) => {
+      const next = { ...previous };
+      delete next[id];
+      return next;
+    });
     const closingTab = tabs.find((tab) => tab.id === id);
     if (closingTab?.isIncognito) {
       void (async () => {
@@ -304,6 +314,14 @@ export default function App() {
   };
 
   const handleUpdateTab = (id: string, updates: Partial<Tab>) => {
+    const existingTab = tabs.find((tab) => tab.id === id);
+    if (existingTab && typeof updates.url === 'string' && updates.url !== existingTab.url) {
+      setPageTexts((previous) => {
+        const next = { ...previous };
+        delete next[id];
+        return next;
+      });
+    }
     setTabs((prev) =>
       prev.map((t) => (t.id === id ? { ...t, ...updates } : t))
     );
@@ -465,6 +483,11 @@ export default function App() {
   };
 
   const handleReload = () => {
+    setPageTexts((previous) => {
+      const next = { ...previous };
+      delete next[activeTab.id];
+      return next;
+    });
     setReloadNonce((value) => value + 1);
     handleUpdateTab(activeTab.id, { isLoading: true });
   };
@@ -486,8 +509,23 @@ export default function App() {
       case 'toggle_theme':
         setSettings((current) => ({ ...current, theme: current.theme === 'light' ? 'dark' : 'light' }));
         break;
+      case 'toggle_reader': handleToggleReaderMode(); break;
+      case 'bookmark_page': handleToggleBookmark(); break;
+      case 'zoom_in': handleZoomIn(); break;
+      case 'zoom_out': handleZoomOut(); break;
+      case 'zoom_reset': handleZoomReset(); break;
+      case 'scroll_top':
+        setPageScrollCommand((current) => ({ id: (current?.id ?? 0) + 1, direction: 'top' }));
+        break;
+      case 'scroll_bottom':
+        setPageScrollCommand((current) => ({ id: (current?.id ?? 0) + 1, direction: 'bottom' }));
+        break;
     }
   };
+
+  useEffect(() => {
+    setPageScrollCommand(null);
+  }, [activeTabId]);
 
   const handleGoHome = () => {
     handleNavigate(settings.homePage || 'chrome://newtab');
@@ -733,6 +771,8 @@ export default function App() {
             onNavigate={handleNavigate}
             onOpenReader={handleOpenReader}
             onRecordRequest={handleRecordRequest}
+            onPageText={handlePageText}
+            pageScrollCommand={pageScrollCommand}
           />
         ) : activeTab.pageType === 'history' ? (
           <HistoryView
@@ -847,6 +887,7 @@ export default function App() {
         currentPageContext={{
           title: activeTab.title,
           url: activeTab.url,
+          text: pageTexts[activeTab.id] || '',
         }}
         initialQuery={libiContextQuery}
         onNavigate={handleNavigate}
