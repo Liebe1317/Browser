@@ -29,7 +29,8 @@ export const WebPageView: React.FC<WebPageViewProps> = ({
 
   // The privacy settings travel with the page load; the proxy applies them (see server/shield.ts).
   // Changing a setting changes this URL, so the page reloads with the new protection.
-  const proxyUrl = `/api/proxy?url=${encodeURIComponent(tab.url)}&s=${encodeShieldFlags(shieldSettings, sendDoNotTrack)}`;
+  const browsingContext = tab.isIncognito ? `private-${tab.id}` : 'regular';
+  const proxyUrl = `/api/proxy?ctx=${encodeURIComponent(browsingContext)}&url=${encodeURIComponent(tab.url)}&s=${encodeShieldFlags(shieldSettings, sendDoNotTrack)}`;
 
   // Simulate smooth page loading bar like Chrome
   useEffect(() => {
