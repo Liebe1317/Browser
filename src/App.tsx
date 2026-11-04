@@ -888,6 +888,7 @@ export default function App() {
         currentPageContext={{
           title: activeTab.title,
           url: activeTab.url,
+          tabId: activeTab.id,
           text: pageTexts[activeTab.id] || '',
         }}
         initialQuery={libiContextQuery}
