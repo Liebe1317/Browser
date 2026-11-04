@@ -23,6 +23,11 @@ const seen = [];
 const upstream = https.createServer(tls, (req, res) => {
   const host = (req.headers.host || '').split(':')[0];
   seen.push({ host, url: req.url, cookie: req.headers.cookie || '' });
+  if (host === 'evil.example.test' && req.url === '/?mode=private') {
+    res.setHeader('Set-Cookie', 'login=PRIVATE; Path=/; HttpOnly; Secure; SameSite=Lax');
+    res.setHeader('Content-Type', 'text/html');
+    return res.end('<html><head></head><body>private A</body></html>');
+  }
   if (host === 'evil.example.test' && req.url === '/') {
     res.setHeader('Set-Cookie', ['login=A; Path=/; HttpOnly', 'pref=dark; Path=/']);
     res.setHeader('Content-Type', 'text/html');
