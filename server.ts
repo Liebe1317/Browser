@@ -1784,6 +1784,12 @@ ${safePageContext}`;
                   window.parent.postMessage({ type: 'AEGIS_PAGE_CONTENT', text: '' }, '*');
                 }
               });
+              // 6b. Apply only two fixed, harmless scroll commands from the parent browser.
+              window.addEventListener('message', function(event) {
+                if (event.source !== window.parent || !event.data || event.data.type !== 'AEGIS_SCROLL') return;
+                if (event.data.direction === 'top') window.scrollTo({ top: 0, behavior: 'smooth' });
+                if (event.data.direction === 'bottom') window.scrollTo({ top: Math.max(document.documentElement.scrollHeight, document.body ? document.body.scrollHeight : 0), behavior: 'smooth' });
+              });
               // 7. Notify parent browser
               window.addEventListener('load', function() {
                 window.parent.postMessage({
