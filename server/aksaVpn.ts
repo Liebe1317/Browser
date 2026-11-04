@@ -32,8 +32,27 @@ function normalizeLocalGateway(value: string | undefined): string | null {
   }
 }
 
-/** Direct loopback health probe (Node http, not global fetch, to avoid proxy recursion). */
-function probeGateway(gateway: string): Promise<boolean> {
+function normalizeLocalHealthUrl(value: string | undefined): string | null {
+  const candidate = value || 'http://127.0.0.1:19091/readyz';
+  try {
+    const url = new URL(candidate);
+    if (
+      url.protocol !== 'http:' ||
+      !['127.0.0.1', 'localhost', '[::1]'].includes(url.hostname.toLowerCase()) ||
+      !url.port ||
+      Number(url.port) < 1024 ||
+      Number(url.port) > 65535 ||
+      url.pathname !== '/readyz' ||
+      url.username || url.password || url.search || url.hash
+    ) return null;
+    return url.toString();
+  } catch {
+    return null;
+  }
+}
+
+/** Direct loopback Wireproxy readiness probe (Node http, not global fetch, to avoid proxy recursion). */
+function probeGateway(_gateway: string, healthUrl: string): Promise<boolean> {
   return new Promise((resolve) => {
     let settled = false;
     const finish = (value: boolean) => {
@@ -41,7 +60,7 @@ function probeGateway(gateway: string): Promise<boolean> {
       settled = true;
       resolve(value);
     };
-    const request = http.get(new URL('/health', gateway), { timeout: 1800, headers: { Accept: 'application/json' } }, (response) => {
+    const request = http.get(new URL(healthUrl), { timeout: 1800, headers: { Accept: 'application/json' } }, (response) => {
       if (response.statusCode !== 200) {
         response.resume();
         return finish(false);
@@ -60,7 +79,12 @@ function probeGateway(gateway: string): Promise<boolean> {
       response.on('end', () => {
         try {
           const body = JSON.parse(Buffer.concat(chunks).toString('utf8'));
-          finish(body?.status === 'ok' && body?.tunnel === 'connected');
+          if (body?.status === 'ok' && body?.tunnel === 'connected') return finish(true);
+          const stamps = body && typeof body === 'object' && !Array.isArray(body) ? Object.values(body) : [];
+          const nowSeconds = Math.floor(Date.now() / 1000);
+          finish(stamps.length > 0 && stamps.every((stamp) =>
+            Number.isInteger(stamp) && stamp > 0 && stamp <= nowSeconds + 2 && nowSeconds - stamp <= 9
+          ));
         } catch {
           finish(false);
         }
@@ -82,9 +106,11 @@ export function createAksaVpnController(
   proxyUrl: string | undefined,
   setDispatcher: (dispatcher: Dispatcher) => void = setGlobalDispatcher,
   createProxy: (uri: string) => Dispatcher = (uri) => new ProxyAgent({ uri }),
-  healthCheck: (gateway: string) => Promise<boolean> = probeGateway
+  healthCheck: (gateway: string, healthUrl: string) => Promise<boolean> = probeGateway,
+  healthUrlInput: string | undefined = process.env.AKSA_VPN_HEALTH_URL
 ) {
   const gateway = normalizeLocalGateway(proxyUrl);
+  const healthUrl = normalizeLocalHealthUrl(healthUrlInput);
   const directDispatcher = new Agent();
   let proxyDispatcher: Dispatcher | null = null;
   let enabled = false;
@@ -93,10 +119,10 @@ export function createAksaVpnController(
   let checking = false;
 
   const refreshHealth = async (): Promise<boolean> => {
-    if (!enabled || !gateway || checking) return connected;
+    if (!enabled || !gateway || !healthUrl || checking) return connected;
     checking = true;
     try {
-      connected = await healthCheck(gateway);
+      connected = await healthCheck(gateway, healthUrl);
     } catch {
       connected = false;
     } finally {
@@ -134,7 +160,7 @@ export function createAksaVpnController(
         connected = false;
         return { ok: true, status: status() };
       }
-      if (!gateway) {
+      if (!gateway || !healthUrl) {
         return {
           ok: false,
           status: status(),
@@ -143,7 +169,7 @@ export function createAksaVpnController(
       }
       let healthy = false;
       try {
-        healthy = await healthCheck(gateway);
+        healthy = await healthCheck(gateway, healthUrl);
       } catch {
         healthy = false;
       }
@@ -185,7 +211,15 @@ export function createAksaVpnController(
   };
 }
 
-const aksa = createAksaVpnController(process.env.AKSA_VPN_PROXY);
+// The browser's local Wireproxy sidecar owns these fixed loopback ports. The server only
+// accepts the local proxy + /readyz contract, and refuses to enable until the tunnel heartbeat is fresh.
+const aksa = createAksaVpnController(
+  process.env.AKSA_VPN_PROXY || 'http://127.0.0.1:19090',
+  setGlobalDispatcher,
+  (uri) => new ProxyAgent({ uri }),
+  probeGateway,
+  process.env.AKSA_VPN_HEALTH_URL || 'http://127.0.0.1:19091/readyz'
+);
 export const getAksaVpnStatus = () => aksa.status();
 export const setAksaVpnEnabled = (enabled: boolean) => aksa.setEnabled(enabled);
 export const getAksaDispatcher = () => aksa.dispatcher();
