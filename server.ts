@@ -1188,7 +1188,7 @@ async function startServer() {
     try {
       // Browser actions are narrow, deterministic proposals. No generated code or model tool call
       // is ever executed. The user must confirm the proposal inside the Libi panel.
-      const searchMatch = message.match(/^(?:ابحث عن|ابحث لي عن|ابحثلي عن|دور لي على|دورلي على|فتش عن|search for)\\s+(.+)$/i);
+      const searchMatch = message.match(/^(?:ابحث عن|ابحث لي عن|ابحثلي عن|دور لي على|دورلي على|فتش عن|search for)\s+(.+)$/i);
       if (searchMatch) {
         const query = searchMatch[1].trim().slice(0, 200);
         const results = await fetchLiveWebResults(query);
