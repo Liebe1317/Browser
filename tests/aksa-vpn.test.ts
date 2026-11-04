@@ -25,11 +25,12 @@ assert.equal(unhealthyResult.ok, false, 'Aksa refuses an open port without a con
 assert.equal(createdProxy, false, 'no proxy is installed before a successful tunnel health check');
 assert.equal(unhealthy.dispatcher(), undefined, 'unhealthy Aksa cannot silently route directly');
 
+let tunnelHealthy = true;
 const controller = createAksaVpnController(
   'http://127.0.0.1:19090',
   (dispatcher) => assigned.push(dispatcher),
   () => proxy,
-  async () => true
+  async () => tunnelHealthy
 );
 assert.equal(controller.status().configured, true);
 assert.equal((await controller.setEnabled(true)).ok, true);
@@ -37,6 +38,14 @@ assert.equal(controller.status().enabled, true);
 assert.equal(controller.status().connected, true);
 assert.equal(controller.dispatcher(), proxy, 'browser server requests receive the VPN proxy dispatcher');
 assert.equal(assigned.at(-1), proxy, 'server outbound requests are routed through the VPN gateway');
+tunnelHealthy = false;
+assert.equal(await controller.checkNow(), false, 'a later WireGuard disconnect is detected by health monitoring');
+assert.equal(controller.status().connected, false);
+assert.throws(() => controller.dispatcher(), /refusing direct network fallback/, 'server requests fail closed after tunnel loss');
+tunnelHealthy = true;
+assert.equal(await controller.checkNow(), true, 'Aksa recovers only after the gateway confirms the tunnel is connected again');
+assert.equal(controller.status().connected, true);
+assert.equal(controller.dispatcher(), proxy, 'recovered traffic still uses the same VPN proxy dispatcher');
 assert.equal((await controller.setEnabled(false)).ok, true);
 assert.equal(controller.status().enabled, false);
 assert.equal(controller.status().connected, false);
