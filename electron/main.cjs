@@ -12,7 +12,14 @@ let aksaConnected = false;
 let aksaMonitor = null;
 let aksaCheckInFlight = false;
 
-const startUrl = process.env.ELECTRON_START_URL || pathToFileURL(path.join(__dirname, '../dist/index.html')).toString();
+// The browser UI needs the local Express/Vite API; a file:// renderer cannot use same-origin /api.
+const localPort = Number(process.env.PORT || 3000);
+const startUrl = process.env.ELECTRON_START_URL || `http://127.0.0.1:${localPort}`;
+
+// Prevent UDP/QUIC side channels from bypassing the HTTP CONNECT VPN proxy.
+app.commandLine.appendSwitch('force-webrtc-ip-handling-policy', 'disable_non_proxied_udp');
+app.commandLine.appendSwitch('disable-quic');
+app.commandLine.appendSwitch('disable-dns-prefetch');
 let trustedAppOrigin = null;
 try {
   const parsedStart = new URL(startUrl);
