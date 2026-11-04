@@ -1841,12 +1841,24 @@ ${safePageContext}`;
               window.addEventListener('message', function(event) {
                 if (event.source !== window.parent || !event.data || event.data.type !== 'AEGIS_EXTRACT_PAGE_TEXT') return;
                 try {
-                  var copy = document.body ? document.body.cloneNode(true) : document.documentElement.cloneNode(true);
-                  if (copy && copy.querySelectorAll) {
-                    copy.querySelectorAll('script,style,noscript,template,iframe,form,input,textarea,select,button,svg,canvas,[contenteditable="true"],[aria-hidden="true"]').forEach(function(node) { node.remove(); });
+                  var root = document.body || document.documentElement;
+                  var walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+                  var parts = [];
+                  var totalChars = 0;
+                  var visitedNodes = 0;
+                  var skipped = 'script,style,noscript,template,iframe,form,input,textarea,select,button,svg,canvas,[contenteditable="true"],[aria-hidden="true"],[hidden]';
+                  var current;
+                  while ((current = walker.nextNode()) && visitedNodes < 2500 && totalChars < 12000) {
+                    visitedNodes += 1;
+                    var parent = current.parentElement;
+                    if (!parent || parent.closest(skipped) || !parent.getClientRects().length) continue;
+                    var piece = String(current.nodeValue || '').replace(/\\s+/g, ' ').trim();
+                    if (!piece) continue;
+                    piece = piece.slice(0, 12000 - totalChars);
+                    parts.push(piece);
+                    totalChars += piece.length;
                   }
-                  var text = copy ? (copy.innerText || copy.textContent || '') : '';
-                  text = String(text).replace(/\\s+/g, ' ').trim().slice(0, 12000);
+                  var text = parts.join(' ').slice(0, 12000);
                   window.parent.postMessage({ type: 'AEGIS_PAGE_CONTENT', text: text }, '*');
                 } catch (e) {
                   window.parent.postMessage({ type: 'AEGIS_PAGE_CONTENT', text: '' }, '*');
