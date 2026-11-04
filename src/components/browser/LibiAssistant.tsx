@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { LibiBrowserAction, isLibiBrowserAction } from '../../types/libi';
+import { getAegisCsrfToken } from '../../utils/sessionSecurity';
 import { 
   Sparkles, Send, X, Shield, Lock, RefreshCw, MessageSquare, 
   ExternalLink, CheckCircle2, ChevronDown, Minimize2, Maximize2 
@@ -20,6 +22,7 @@ interface LibiAssistantProps {
   };
   initialQuery?: string;
   onNavigate?: (url: string) => void;
+  onExecuteBrowserAction?: (action: LibiBrowserAction) => void;
 }
 
 export const LibiAssistant: React.FC<LibiAssistantProps> = ({
@@ -28,12 +31,13 @@ export const LibiAssistant: React.FC<LibiAssistantProps> = ({
   currentPageContext,
   initialQuery,
   onNavigate,
+  onExecuteBrowserAction,
 }) => {
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       id: 'welcome',
       role: 'model',
-      text: 'مرحباً بك يا صديقي! 🇵🇸 أنا "ليبي"، مساعدك الذكي وحارس خصوصيتك في متصفح Aegis. اسألني عن أي شيء، أو اطلب مني تلخيص أي موقع أو البحث عن أفضل الروابط والأنميات، وكن مطمئناً أن كل محادثاتنا مشفرة ولا يتم تخزين أي شيء منها إطلاقاً!',
+      text: 'مرحباً بك! 🇵🇸 أنا ليبي، مساعدك في متصفح Aegis. أستطيع الإجابة عن أسئلتك ومساعدتك في بعض أوامر المتصفح. لن أنفذ أي أمر تحكّم قبل تأكيدك.',
       timestamp: Date.now(),
     },
   ]);
@@ -45,6 +49,7 @@ export const LibiAssistant: React.FC<LibiAssistantProps> = ({
     'كيف يحميني متصفح Aegis من التتبع؟',
   ]);
   const [isMinimized, setIsMinimized] = useState(false);
+  const [pendingAction, setPendingAction] = useState<LibiBrowserAction | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -74,6 +79,7 @@ export const LibiAssistant: React.FC<LibiAssistantProps> = ({
     };
 
     setMessages((prev) => [...prev, userMessage]);
+    setPendingAction(null);
     if (!customText) setInputText('');
     setIsLoading(true);
 
@@ -84,12 +90,14 @@ export const LibiAssistant: React.FC<LibiAssistantProps> = ({
         text: m.text,
       }));
 
+      const csrfToken = await getAegisCsrfToken();
       const res = await fetch('/api/libi/chat', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json', 'X-Aegis-CSRF': csrfToken },
         body: JSON.stringify({
-          message: textToSend,
-          history: historyPayload,
+          message: textToSend.slice(0, 4000),
+          history: historyPayload.slice(-8),
           pageContext: currentPageContext,
         }),
       });
@@ -106,10 +114,11 @@ export const LibiAssistant: React.FC<LibiAssistantProps> = ({
 
       setMessages((prev) => [...prev, botMessage]);
       if (Array.isArray(data.suggestions) && data.suggestions.length > 0) {
-        setSuggestions(data.suggestions);
+        setSuggestions(data.suggestions.filter((item: unknown) => typeof item === 'string').slice(0, 4));
       }
+      if (isLibiBrowserAction(data.action)) setPendingAction(data.action);
     } catch (err: any) {
-      console.warn('Libi error:', err);
+      setPendingAction(null);
       setMessages((prev) => [
         ...prev,
         {
@@ -156,7 +165,7 @@ export const LibiAssistant: React.FC<LibiAssistantProps> = ({
             </div>
             <p className="text-[11px] text-slate-400 flex items-center gap-1">
               <Lock className="w-3 h-3 text-emerald-400 inline" />
-              <span>خصوصية تامة وبدون أي تتبع</span>
+              <span>قد تُرسل الرسائل إلى Google Gemini عند تفعيل الخدمة؛ لا تُرسل كلمات المرور أو الكوكيز.</span>
             </p>
           </div>
         </div>
@@ -185,7 +194,7 @@ export const LibiAssistant: React.FC<LibiAssistantProps> = ({
           <div className="px-4 py-1.5 bg-emerald-950/40 border-b border-emerald-500/20 flex items-center justify-between text-[11px] text-emerald-300">
             <div className="flex items-center gap-1.5">
               <Shield className="w-3.5 h-3.5 text-emerald-400" />
-              <span>تشفير محلي فوري • لا يتم تسجيل استفساراتك على أي خادم</span>
+              <span>ليبي لا يملك صلاحية قراءة كلمات المرور أو الكوكيز أو ملفات الجهاز.</span>
             </div>
             {currentPageContext?.url && !currentPageContext.url.startsWith('chrome://') && (
               <span className="text-slate-400 text-[10px] truncate max-w-[140px]" title={currentPageContext.title}>
@@ -236,6 +245,30 @@ export const LibiAssistant: React.FC<LibiAssistantProps> = ({
               </div>
             )}
 
+            {pendingAction && (
+              <div className="rounded-2xl border border-indigo-500/40 bg-indigo-950/40 p-3 space-y-2" role="group" aria-label="تأكيد أمر المتصفح">
+                <p className="text-xs text-indigo-100">ليبي يقترح تنفيذ أمر في المتصفح. لن يحدث شيء قبل موافقتك.</p>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onExecuteBrowserAction?.(pendingAction);
+                      setPendingAction(null);
+                    }}
+                    className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold"
+                  >
+                    تأكيد التنفيذ
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPendingAction(null)}
+                    className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs"
+                  >
+                    إلغاء
+                  </button>
+                </div>
+              </div>
+            )}
             <div ref={messagesEndRef} />
           </div>
 
