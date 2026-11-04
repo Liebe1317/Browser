@@ -74,6 +74,8 @@ try {
   ok(r.headers['x-content-type-options'] === 'nosniff' && r.headers['referrer-policy'] === 'no-referrer', 'nosniff and no-referrer are set');
   const tokA = (r.body.match(/\/api\/proxy\?t=([a-f0-9]{48})&url=/) || [])[1];
   ok(!!tokA, 'proxied URLs carry a page token');
+  ok(r.body.includes("var AEGIS_PAGE_TOKEN = '" + tokA + "'"), 'dynamic iframe navigation receives the parent page capability');
+  ok(r.body.includes("new URL(s, PAGE_URL)"), 'dynamic iframe URLs resolve against the upstream document URL');
   ok(!/\/api\/proxy\?url=/.test(r.body), 'no un-tokened proxy URLs remain');
   ok(!/preconnect/.test(r.body), 'preconnect hints are removed');
   ok(new RegExp('<script[^>]*src="/api/proxy\\?t=' + tokA + '&url=[^"]*lib\\.js').test(r.body), 'a third-party <script> is routed through the proxy');

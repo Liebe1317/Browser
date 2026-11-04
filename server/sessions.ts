@@ -158,6 +158,8 @@ export function authorizeProxyRequest(req: Request, res: Response, target: URL):
     if (!rec || !session || rec.expires <= now) {
       return { error: true, status: 403, message: 'Aegis Shield: invalid or expired page token.' };
     }
+    // Sliding expiry keeps active pages alive; idle capabilities still expire after TOKEN_TTL_MS.
+    rec.expires = now + TOKEN_TTL_MS;
     session.lastUsed = now;
     return { session, site: rec.site, token: t, shield: session.shield, isPageLoad: false };
   }
