@@ -36,4 +36,4 @@ jobs:
       - name: Build production bundle
         run: npm run build
       - name: Verify client bundle contains no server AI secrets
-        run: node tests/client-bundle-boundary.test.mjs
+        run: node scripts/check-client-bundle.mjs
