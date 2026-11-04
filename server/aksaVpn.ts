@@ -4,8 +4,8 @@ export interface AksaVpnStatus {
   configured: boolean;
   enabled: boolean;
   gateway: 'configured-local' | 'not-configured';
-  /** Current adapter covers server-side browser requests only, not direct renderer connections. */
-  scope: 'server-proxy-only';
+  /** Current adapter covers outbound requests from the Aegis server only, not direct renderer connections. */
+  scope: 'server-egress-only';
 }
 
 function normalizeLocalGateway(value: string | undefined): string | null {
