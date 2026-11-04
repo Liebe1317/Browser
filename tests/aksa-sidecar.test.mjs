@@ -64,7 +64,7 @@ assert.throws(() => buildWireproxyConfig(wgConfig.replace('198.51.100.2:51820', 
 assert.throws(() => buildWireproxyConfig(wgConfig.replace('DNS = 10.66.0.1, fd00::1', 'DNS = resolver.example')), /DNS/);
 assert.throws(() => buildWireproxyConfig(wgConfig.replace('PrivateKey = ' + privateKey, 'PrivateKey = invalid')), /PrivateKey/);
 assert.throws(() => buildWireproxyConfig(wgConfig.replace('[Peer]', '[PreUp]')), /قسماً غير مسموح/);
-assert.throws(() => buildWireproxyConfig(wgConfig + '[Peer]\nPublicKey = ' + publicKey), /PublicKey/);
+assert.throws(() => buildWireproxyConfig(wgConfig + '[Peer]\nPublicKey = ' + publicKey), /Endpoint/);
 
 assert.equal(parseWireproxyReadyPayload({ '1.1.1.1': 996, '9.9.9.9': 999 }, 1000), true);
 assert.equal(parseWireproxyReadyPayload({ '1.1.1.1': 980 }, 1000), false, 'stale tunnel heartbeats are rejected');
