@@ -142,7 +142,20 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             body: JSON.stringify({ enabled: false }),
           });
         } catch {}
-        setAksaVpn((current) => ({ ...current, enabled: false, connected: false }));
+        // Read both control planes again; never pretend the tunnel is OFF if rollback failed.
+        try {
+          const [serverStatus, desktopStatus] = await Promise.all([
+            fetch('/api/aksa/vpn/status', { credentials: 'same-origin', cache: 'no-store' }).then((response) => response.json()),
+            desktopBridge?.getStatus().catch(() => null) ?? Promise.resolve(null),
+          ]);
+          setAksaVpn({
+            configured: serverStatus.configured === true && (!desktopBridge || desktopStatus?.configured === true),
+            enabled: serverStatus.enabled === true || (!!desktopBridge && desktopStatus?.enabled === true),
+            connected: serverStatus.connected === true && (!desktopBridge || desktopStatus?.connected === true),
+            scope: desktopBridge ? 'electron-session + server-egress' : 'server-egress-only',
+            desktop: !!desktopBridge,
+          });
+        } catch {}
       } else {
         // A disable operation may partially succeed; reflect both layers rather than falsely showing OFF.
         try {
