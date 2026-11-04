@@ -200,11 +200,27 @@ export default function App() {
   // Get active tab
   const activeTab = tabs.find((t) => t.id === activeTabId) || tabs[0] || createDefaultTab();
 
+  // Send destructive cookie-clear requests with the session-bound CSRF proof.
+  const clearServerSessionCookies = () => {
+    void (async () => {
+      try {
+        const csrfToken = await getAegisCsrfToken();
+        await fetch('/api/session/clear', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'X-Aegis-CSRF': csrfToken },
+        });
+      } catch {
+        // Local browsing data is still cleared; the server session expires independently.
+      }
+    })();
+  };
+
   // Vault & Cryptographic Handlers
   const handleLockVault = () => {
     if (!vaultState.isSetUp) return; // nothing to unlock with yet
     lockVault();
-    fetch('/api/session/clear', { method: 'POST' }).catch(() => {}); // log out of proxied sites too
+    clearServerSessionCookies(); // log out of proxied sites too
     // Clear decrypted data and open pages from memory while locked
     setBookmarks(DEFAULT_BOOKMARKS);
     setHistory([]);
@@ -255,7 +271,7 @@ export default function App() {
     const freshTab = createDefaultTab(true, 'chrome://newtab');
     setTabs([freshTab]);
     setActiveTabId(freshTab.id);
-    fetch('/api/session/clear', { method: 'POST' }).catch(() => {});
+    clearServerSessionCookies();
     destroyVault();
     setVaultState((prev) => ({ ...prev, isLocked: false, isSetUp: false, storageEncrypted: false, lastEncryptedTimestamp: Date.now() }));
   };
@@ -616,7 +632,7 @@ export default function App() {
     }
     // Really clears the logins/cookies the proxy keeps for this session
     if (options.cookies) {
-      fetch('/api/session/clear', { method: 'POST' }).catch(() => {});
+      clearServerSessionCookies();
     }
   };
 
