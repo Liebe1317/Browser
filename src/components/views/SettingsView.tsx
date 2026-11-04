@@ -26,7 +26,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const initialTheme = settings.customColors || THEME_PRESETS[0];
   const [customTheme, setCustomTheme] = useState<CustomColorTheme>(initialTheme);
   const [isSavedToast, setIsSavedToast] = useState(false);
-  const [aksaVpn, setAksaVpn] = useState<{ configured: boolean; enabled: boolean }>({ configured: false, enabled: false });
+  const [aksaVpn, setAksaVpn] = useState<{ configured: boolean; enabled: boolean; connected?: boolean; scope?: string }>({ configured: false, enabled: false, connected: false });
   const [aksaBusy, setAksaBusy] = useState(false);
   const [aksaError, setAksaError] = useState('');
 
@@ -45,7 +45,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       })
       .then((status) => {
         if (active && status && typeof status.configured === 'boolean' && typeof status.enabled === 'boolean') {
-          setAksaVpn({ configured: status.configured, enabled: status.enabled });
+          setAksaVpn({ configured: status.configured, enabled: status.enabled, connected: status.connected === true, scope: status.scope });
         }
       })
       .catch(() => {
@@ -67,7 +67,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       });
       const status = await response.json();
       if (!response.ok) throw new Error(typeof status.error === 'string' ? status.error : 'تعذر تغيير حالة Aksa.');
-      setAksaVpn({ configured: status.configured, enabled: status.enabled });
+      setAksaVpn({ configured: status.configured, enabled: status.enabled, connected: status.connected === true, scope: status.scope });
     } catch (error) {
       setAksaError(error instanceof Error ? error.message : 'تعذر تغيير حالة Aksa.');
     } finally {
