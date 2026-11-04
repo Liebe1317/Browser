@@ -7,6 +7,7 @@ import { escapeHtml, renderSearchResultCard } from './server/html.ts';
 import { GoogleGenAI } from '@google/genai';
 import { authorizeProxyRequest, jarFor, addTokenToProxyUrls, clearSessionCookies, bootstrapAppSession, appSessionId, verifyAppCsrf } from './server/sessions.ts';
 import { detectLibiAction, describeLibiAction } from './server/libi.ts';
+import { getAksaVpnStatus, setAksaVpnEnabled } from './server/aksaVpn.ts';
 import { AD_DOMAINS, TRACKER_DOMAINS, hostMatches, buildProxyCsp, WEBRTC_BLOCK_SCRIPT } from './server/shield.ts';
 import { isBlockedUrl as isBlockedTarget, safeFetch, readBodyCapped, SsrfBlockedError, BodyTooLargeError } from './server/ssrf.ts';
 // Response size limits for proxied content (protects server memory)
@@ -930,6 +931,26 @@ async function startServer() {
     } catch {
       return res.status(503).json({ error: 'Session unavailable' });
     }
+  });
+
+  app.get('/api/aksa/vpn/status', (_req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    res.json(getAksaVpnStatus());
+  });
+
+  app.post('/api/aksa/vpn/toggle', (req, res) => {
+    const sid = appSessionId(req);
+    const csrf = req.headers['x-aegis-csrf'];
+    if (!sid || !verifyAppCsrf(req, typeof csrf === 'string' ? csrf : undefined)) {
+      return res.status(403).json({ error: 'A valid Aegis session and CSRF token are required.' });
+    }
+    if (typeof req.body?.enabled !== 'boolean') {
+      return res.status(400).json({ error: 'enabled must be a boolean.' });
+    }
+    const result = setAksaVpnEnabled(req.body.enabled);
+    if (!result.ok) return res.status(409).json({ ...result.status, error: result.error });
+    res.setHeader('Cache-Control', 'no-store');
+    return res.json(result.status);
   });
   // Empties the proxy cookie jar of the caller's own session
   app.post('/api/session/clear', (req, res) => {
