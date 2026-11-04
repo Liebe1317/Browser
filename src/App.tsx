@@ -19,6 +19,7 @@ import { VaultLockScreen } from './components/browser/VaultLockScreen';
 import { isVaultSetUp, createVault, unlockVault, lockVault, saveVaultData, loadVaultData, destroyVault, UnlockResult } from './utils/vault';
 import { LibiAssistant } from './components/browser/LibiAssistant';
 import { LibiBrowserAction } from './types/libi';
+import { getAegisCsrfToken } from './utils/sessionSecurity';
 
 import { Tab, Bookmark, HistoryItem, DownloadItem, BrowserSettings, ShieldSettings, NetworkRequest, BrowserPageType, VaultState } from './types/browser';
 import { DEFAULT_SETTINGS, DEFAULT_SHIELD_SETTINGS, DEFAULT_BOOKMARKS, SEARCH_ENGINES } from './data/initialData';
@@ -266,6 +267,23 @@ export default function App() {
 
   const handleCloseTab = (id: string, e?: React.MouseEvent) => {
     e?.stopPropagation();
+    const closingTab = tabs.find((tab) => tab.id === id);
+    if (closingTab?.isIncognito) {
+      void (async () => {
+        try {
+          const csrfToken = await getAegisCsrfToken();
+          await fetch('/api/session/context/close', {
+            method: 'POST',
+            credentials: 'same-origin',
+            keepalive: true,
+            headers: { 'Content-Type': 'application/json', 'X-Aegis-CSRF': csrfToken },
+            body: JSON.stringify({ contextId: `private-${closingTab.id}` }),
+          });
+        } catch {
+          // The browser tab is closed immediately; the server also expires abandoned sessions.
+        }
+      })();
+    }
     if (tabs.length === 1) {
       // If closing last tab, reset to a fresh new tab
       const freshTab = createDefaultTab(activeTab.isIncognito);
