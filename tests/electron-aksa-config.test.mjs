@@ -34,8 +34,8 @@ assert.equal(getReleaseAsset('linux', 'x64').sha256.length, 64);
 assert.equal(getReleaseAsset('darwin', 'arm64').executable, 'wireproxy');
 assert.equal(getReleaseAsset('win32', 'arm64'), null);
 assert.equal(
-  getAegisUserDataPath('win32', { APPDATA: 'C:\\Users\\test\\AppData\\Roaming' }, 'C:\\Users\\test'),
-  'C:\\Users\\test\\AppData\\Roaming\\AegisBrowser'
+  require('node:path').win32.normalize(getAegisUserDataPath('win32', { APPDATA: 'C:\\Users\\test\\AppData\\Roaming' }, 'C:\\Users\\test')),
+  require('node:path').win32.join('C:\\Users\\test\\AppData\\Roaming', 'AegisBrowser')
 );
 const paths = getAksaPaths('/tmp/aegis-test', 'linux');
 assert.ok(paths.executable.endsWith('/aksa/bin/wireproxy'));
