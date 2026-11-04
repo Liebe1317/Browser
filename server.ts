@@ -5,17 +5,14 @@ import { fileURLToPath } from 'url';
 import fs from 'fs';
 import { escapeHtml, renderSearchResultCard } from './server/html.ts';
 import { GoogleGenAI } from '@google/genai';
-import { authorizeProxyRequest, jarFor, addTokenToProxyUrls, clearSessionCookies, siteOf } from './server/sessions.ts';
+import { authorizeProxyRequest, jarFor, addTokenToProxyUrls, clearSessionCookies } from './server/sessions.ts';
 import { AD_DOMAINS, TRACKER_DOMAINS, hostMatches, buildProxyCsp, WEBRTC_BLOCK_SCRIPT } from './server/shield.ts';
 import { isBlockedUrl as isBlockedTarget, safeFetch, readBodyCapped, SsrfBlockedError, BodyTooLargeError } from './server/ssrf.ts';
-
 // Response size limits for proxied content (protects server memory)
 const MAX_TEXT_BYTES = 10 * 1024 * 1024; // html / css
 const MAX_BINARY_BYTES = 50 * 1024 * 1024; // images, fonts, scripts, media
-
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-
 // Process-level stability guards to prevent unexpected crash/exit on aborted sockets or network drops
 process.on('uncaughtException', (err: NodeJS.ErrnoException) => {
   // A server that cannot bind its port must stop, not keep running half-alive (and hide the error)
@@ -28,7 +25,6 @@ process.on('uncaughtException', (err: NodeJS.ErrnoException) => {
 process.on('unhandledRejection', (reason) => {
   console.warn('[Aegis Process Guard] Caught unhandledRejection:', reason);
 });
-
 // Strict SSRF validation: block loopback, link-local, Google Cloud metadata, and private IP ranges
 // Initialize Gemini API client for AI features
 const ai = new GoogleGenAI({
@@ -39,7 +35,6 @@ const ai = new GoogleGenAI({
     },
   },
 });
-
 async function callGeminiWithTimeout<T>(promise: Promise<T>, timeoutMs = 3500): Promise<T> {
   let timer: NodeJS.Timeout;
   const timeoutPromise = new Promise<never>((_, reject) => {
@@ -47,7 +42,6 @@ async function callGeminiWithTimeout<T>(promise: Promise<T>, timeoutMs = 3500): 
   });
   return Promise.race([promise, timeoutPromise]).finally(() => clearTimeout(timer));
 }
-
 // Cosmetic CSS rules to suppress banner ads without breaking video players, server switchers, or layout
 const COSMETIC_ADBLOCK_CSS = `
   /* Aegis Privacy Shield Ad Suppression */
@@ -68,7 +62,6 @@ const COSMETIC_ADBLOCK_CSS = `
     margin: 0 !important;
     padding: 0 !important;
   }
-
   /* Whitelist and guarantee visibility of video streaming servers, player embeds, and interactive tabs */
   .servers, .server, [class*="server"], [id*="server"], .player, [class*="player"],
   [id*="player"], [data-player-frame], #watch-servers, .watch-servers, [x-data*="watchPlayer"],
@@ -80,7 +73,6 @@ const COSMETIC_ADBLOCK_CSS = `
     pointer-events: auto !important;
   }
 `;
-
 function resolvePort(): number {
   const args = process.argv.slice(2);
   const portIdx = args.indexOf('--port');
@@ -93,22 +85,17 @@ function resolvePort(): number {
     const val = parseInt(args[pIdx + 1], 10);
     if (!isNaN(val) && val > 0) return val;
   }
-
   if (process.env.NODE_ENV === 'production' && process.env.PORT) {
     const val = parseInt(process.env.PORT, 10);
     if (!isNaN(val) && val > 0) return val;
   }
-
   return 3000;
 }
-
 // Live web search function that queries real search indices with 0 quota and 0 bot blocks
 async function fetchLiveWebResults(query: string): Promise<Array<{ title: string; url: string; snippet: string }>> {
   const cleanQ = query.trim();
   if (!cleanQ) return [];
-
   const results: Array<{ title: string; url: string; snippet: string }> = [];
-
   // Curated instant answers for top Arabic anime and video search terms
   const lowerQ = cleanQ.toLowerCase();
   if (lowerQ.includes('okanime') || lowerQ.includes('اوك انمي') || lowerQ.includes('أوك انمي')) {
@@ -166,7 +153,6 @@ async function fetchLiveWebResults(query: string): Promise<Array<{ title: string
       }
     );
   }
-
   // Fetch live web results from live web index
   try {
     const res = await fetch(`https://html.duckduckgo.com/html/?q=${encodeURIComponent(cleanQ)}`, {
@@ -176,21 +162,17 @@ async function fetchLiveWebResults(query: string): Promise<Array<{ title: string
         'Accept-Language': 'ar,en;q=0.9',
       },
     });
-
     const html = await res.text();
     const blocks = html.split(/class="result results_links/);
-
     for (let i = 1; i < blocks.length && results.length < 12; i++) {
       const b = blocks[i];
       const titleM = b.match(/class="result__a"[^>]*>([\s\S]*?)<\/a>/);
       const urlM = b.match(/href="([^"]*uddg=([^"&]+)[^"]*)"/);
       const snippetM = b.match(/class="result__snippet"[^>]*>([\s\S]*?)<\/a>/);
-
       if (titleM && urlM) {
         const title = titleM[1].replace(/<[^>]+>/g, '').trim();
         const rawUrl = decodeURIComponent(urlM[2]);
         const snippet = snippetM ? snippetM[1].replace(/<[^>]+>/g, '').trim() : '';
-
         // Exclude duplicate URLs
         if (!results.some((r) => r.url === rawUrl)) {
           results.push({ title, url: rawUrl, snippet });
@@ -200,15 +182,12 @@ async function fetchLiveWebResults(query: string): Promise<Array<{ title: string
   } catch (err: any) {
     console.warn('Live search scraper error:', err.message);
   }
-
   return results;
 }
-
 // Generate the authentic, official 1:1 Google Search Results SERP HTML
 function generateGoogleSearchHtml(query: string, results: Array<{ title: string; url: string; snippet: string }>): string {
   const safeQuery = escapeHtml(query);
   const resultCount = (results.length * 420000 + 120000).toLocaleString('ar-EG');
-
   const resultItemsHtml = results
     .map((result, idx) =>
       renderSearchResultCard(
@@ -218,7 +197,6 @@ function generateGoogleSearchHtml(query: string, results: Array<{ title: string;
       )
     )
     .join('');
-
   return `
 <!DOCTYPE html>
 <html lang="ar" dir="rtl" class="dark">
@@ -237,7 +215,6 @@ function generateGoogleSearchHtml(query: string, results: Array<{ title: string;
     }
     a { color: #8ab4f8; text-decoration: none; }
     a:hover { text-decoration: underline; }
-
     /* Google Top Search Bar */
     header {
       position: sticky;
@@ -310,7 +287,6 @@ function generateGoogleSearchHtml(query: string, results: Array<{ title: string;
       display: flex;
       align-items: center;
     }
-
     /* Google Navigation Tabs */
     .tabs-bar {
       display: flex;
@@ -339,7 +315,6 @@ function generateGoogleSearchHtml(query: string, results: Array<{ title: string;
       font-weight: 500;
     }
     .tab-item:hover { color: #e8eaed; }
-
     /* Main Results Layout */
     main {
       max-width: 1200px;
@@ -353,7 +328,6 @@ function generateGoogleSearchHtml(query: string, results: Array<{ title: string;
       max-width: 652px;
       padding-right: 120px;
     }
-
     /* Shield Protection Badge */
     .aegis-badge {
       display: inline-flex;
@@ -373,7 +347,6 @@ function generateGoogleSearchHtml(query: string, results: Array<{ title: string;
       color: #9aa0a6;
       margin-bottom: 24px;
     }
-
     /* Search Result Card */
     .g-result-card {
       margin-bottom: 28px;
@@ -434,7 +407,6 @@ function generateGoogleSearchHtml(query: string, results: Array<{ title: string;
       color: #bdc1c6;
       line-height: 1.58;
     }
-
     /* People also ask (FAQ) */
     .faq-box {
       background: #282a2d;
@@ -470,7 +442,6 @@ function generateGoogleSearchHtml(query: string, results: Array<{ title: string;
       font-size: 13px;
     }
     .faq-item.open .faq-answer { display: block; }
-
     /* Related Searches */
     .related-box {
       margin-top: 36px;
@@ -505,7 +476,6 @@ function generateGoogleSearchHtml(query: string, results: Array<{ title: string;
       text-decoration: none;
       color: #fff;
     }
-
     /* Google Pagination */
     .pagination {
       margin: 48px 0 24px 0;
@@ -524,7 +494,6 @@ function generateGoogleSearchHtml(query: string, results: Array<{ title: string;
       color: #fff;
       font-weight: 700;
     }
-
     /* Footer */
     footer {
       background: #171717;
@@ -546,7 +515,6 @@ function generateGoogleSearchHtml(query: string, results: Array<{ title: string;
       display: flex;
       gap: 16px;
     }
-
     @media (max-width: 800px) {
       .tabs-bar, .results-col { padding-right: 0; }
       .related-grid { grid-template-columns: 1fr; }
@@ -562,7 +530,6 @@ function generateGoogleSearchHtml(query: string, results: Array<{ title: string;
           <span style="color:#4285F4">G</span><span style="color:#EA4335">o</span><span style="color:#FBBC05">o</span><span style="color:#4285F4">g</span><span style="color:#34A853">l</span><span style="color:#EA4335">e</span>
         </span>
       </a>
-
       <form class="search-form" action="https://www.google.com/search" method="GET" id="g-search-form">
         <div class="search-input-box">
           <input type="text" name="q" class="search-input" value="${safeQuery}" autocomplete="off" />
@@ -576,7 +543,6 @@ function generateGoogleSearchHtml(query: string, results: Array<{ title: string;
         </div>
       </form>
     </div>
-
     <!-- Navigation Tabs -->
     <div class="tabs-bar">
       <div class="tab-item active">
@@ -604,7 +570,6 @@ function generateGoogleSearchHtml(query: string, results: Array<{ title: string;
       </div>
     </div>
   </header>
-
   <!-- Main Content -->
   <main>
     <div class="results-col">
@@ -612,14 +577,11 @@ function generateGoogleSearchHtml(query: string, results: Array<{ title: string;
         <span>🛡️</span>
         <span>درع Aegis: تم فحص نتائج البحث وحظر 12 أداة تعقب وإعلان تلقائياً</span>
       </div>
-
       <div class="stats-line">
         حوالي ${resultCount} نتيجة (0.22 ثانية)
       </div>
-
       <!-- Results list -->
       ${resultItemsHtml}
-
       <!-- People Also Ask -->
       <div class="faq-box">
         <div class="faq-title">أسئلة طرحها الآخرون</div>
@@ -642,7 +604,6 @@ function generateGoogleSearchHtml(query: string, results: Array<{ title: string;
           </div>
         </div>
       </div>
-
       <!-- Related Searches -->
       <div class="related-box">
         <div class="related-title">عمليات بحث ذات صلة</div>
@@ -665,7 +626,6 @@ function generateGoogleSearchHtml(query: string, results: Array<{ title: string;
           </a>
         </div>
       </div>
-
       <!-- Pagination -->
       <div class="pagination">
         <span class="page-link active">1</span>
@@ -675,7 +635,6 @@ function generateGoogleSearchHtml(query: string, results: Array<{ title: string;
       </div>
     </div>
   </main>
-
   <!-- Footer -->
   <footer>
     <div class="footer-inner">
@@ -688,7 +647,6 @@ function generateGoogleSearchHtml(query: string, results: Array<{ title: string;
       </div>
     </div>
   </footer>
-
   <script>
     // Intercept search form submission to route through the browser
     document.getElementById('g-search-form').addEventListener('submit', function(e) {
@@ -698,7 +656,6 @@ function generateGoogleSearchHtml(query: string, results: Array<{ title: string;
       var target = 'https://www.google.com/search?q=' + encodeURIComponent(q);
       window.parent.postMessage({ type: 'AEGIS_NAVIGATE', url: target }, '*');
     });
-
     // Intercept clicks on links
     document.addEventListener('click', function(e) {
       var a = e.target.closest('a');
@@ -713,7 +670,6 @@ function generateGoogleSearchHtml(query: string, results: Array<{ title: string;
 </html>
   `;
 }
-
 // Generate the authentic Google Homepage HTML
 function generateGoogleHomeHtml(): string {
   return `
@@ -744,7 +700,6 @@ function generateGoogleHomeHtml(): string {
     }
     header a { color: #fff; text-decoration: none; }
     header a:hover { text-decoration: underline; }
-
     main {
       flex: 1;
       display: flex;
@@ -838,14 +793,12 @@ function generateGoogleHomeHtml(): string {
     <a href="https://mail.google.com">Gmail</a>
     <a href="https://images.google.com">صور</a>
   </header>
-
   <main>
     <div class="logo-container">
       <div class="google-logo">
         <span style="color:#4285F4">G</span><span style="color:#EA4335">o</span><span style="color:#FBBC05">o</span><span style="color:#4285F4">g</span><span style="color:#34A853">l</span><span style="color:#EA4335">e</span>
       </div>
     </div>
-
     <form class="search-form" action="https://www.google.com/search" method="GET" id="g-home-form">
       <div class="search-box">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="#9aa0a6" style="margin-left: 10px;">
@@ -858,13 +811,11 @@ function generateGoogleHomeHtml(): string {
         <button type="button" class="g-btn" onclick="document.querySelector('.search-input').value='witanime'; document.getElementById('g-home-form').dispatchEvent(new Event('submit'))">ضربة حظ</button>
       </div>
     </form>
-
     <div class="aegis-shield-tag">
       <span>🛡️</span>
       <span>محمي بواسطة درع Aegis: تصفية الإعلانات والتتبع وحماية البصمة الرقمية</span>
     </div>
   </main>
-
   <footer>
     <div class="footer-inner">
       <div>فلسطين</div>
@@ -876,7 +827,6 @@ function generateGoogleHomeHtml(): string {
       </div>
     </div>
   </footer>
-
   <script>
     document.getElementById('g-home-form').addEventListener('submit', function(e) {
       e.preventDefault();
@@ -890,11 +840,9 @@ function generateGoogleHomeHtml(): string {
 </html>
   `;
 }
-
 async function startServer() {
   const app = express();
   const PORT = resolvePort();
-
   // Security headers for the app itself (/api/proxy sets its own, stricter policy per response).
   const APP_CSP = [
     "default-src 'self'",
@@ -923,11 +871,9 @@ async function startServer() {
     res.setHeader('Content-Security-Policy', process.env.NODE_ENV === 'production' ? APP_CSP : "frame-ancestors 'none'");
     next();
   });
-
   app.use(express.json({ limit: '10mb' }));
   app.use(express.urlencoded({ extended: true, limit: '10mb' }));
   app.use(express.raw({ type: '*/*', limit: '10mb' }));
-
   // Proxied pages run in an opaque origin and are therefore "cross-site". They may only talk to
   // /api/proxy (with a page token). Every other API is for the app UI itself.
   app.use('/api', (req, res, next) => {
@@ -938,26 +884,22 @@ async function startServer() {
     }
     next();
   });
-
   // Health check endpoint
   app.get('/api/health', (req, res) => {
     res.json({ status: 'ok', engine: 'AegisShield/4.2', timestamp: Date.now() });
   });
-
   // Empties the proxy cookie jar of the caller's own session
   app.post('/api/session/clear', (req, res) => {
     if (req.headers['sec-fetch-site'] === 'cross-site') return res.status(403).send('Forbidden');
     clearSessionCookies(req);
     res.json({ ok: true });
   });
-
   // YouTube Live Search & Trending Feed API
   app.get('/api/youtube/search', async (req, res) => {
     const query = (req.query.q as string || '').trim();
     if (!query) {
       return res.json({ results: [] });
     }
-
     try {
       const response = await fetch(`https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`, {
         headers: {
@@ -967,18 +909,15 @@ async function startServer() {
           'Sec-Ch-Ua': '"Google Chrome";v="131", "Chromium";v="131"',
         },
       });
-
       const html = await response.text();
       const match = html.match(/ytInitialData\s*=\s*({.+?});<\/script>/);
       if (!match) {
         return res.json({ results: [] });
       }
-
       const data = JSON.parse(match[1]);
       const contents =
         data.contents?.twoColumnSearchResultsRenderer?.primaryContents?.sectionListRenderer?.contents?.[0]
           ?.itemSectionRenderer?.contents || [];
-
       const results = contents
         .filter((c: any) => c.videoRenderer)
         .map((c: any) => {
@@ -999,14 +938,12 @@ async function startServer() {
           };
         })
         .slice(0, 24);
-
       res.json({ results, count: results.length });
     } catch (err: any) {
       console.warn('YouTube search API error:', err.message);
       res.json({ results: [], error: err.message });
     }
   });
-
   app.get('/api/youtube/feed', async (req, res) => {
     const category = (req.query.category as string || 'all').trim();
     const queryMap: Record<string, string> = {
@@ -1020,9 +957,7 @@ async function startServer() {
       comedy: 'كوميديا ومقالب',
       education: 'شروحات وتعليم',
     };
-
     const searchQuery = queryMap[category] || `${category} trending`;
-
     try {
       const response = await fetch(`https://www.youtube.com/results?search_query=${encodeURIComponent(searchQuery)}`, {
         headers: {
@@ -1031,18 +966,15 @@ async function startServer() {
           'Accept-Language': 'ar,en;q=0.9',
         },
       });
-
       const html = await response.text();
       const match = html.match(/ytInitialData\s*=\s*({.+?});<\/script>/);
       if (!match) {
         return res.json({ results: [] });
       }
-
       const data = JSON.parse(match[1]);
       const contents =
         data.contents?.twoColumnSearchResultsRenderer?.primaryContents?.sectionListRenderer?.contents?.[0]
           ?.itemSectionRenderer?.contents || [];
-
       const results = contents
         .filter((c: any) => c.videoRenderer)
         .map((c: any) => {
@@ -1064,21 +996,18 @@ async function startServer() {
           };
         })
         .slice(0, 24);
-
       res.json({ results, category });
     } catch (err: any) {
       console.warn('YouTube feed API error:', err.message);
       res.json({ results: [] });
     }
   });
-
   // Search API (Live web results)
   app.get('/api/search', async (req, res) => {
     const query = (req.query.q as string || '').trim();
     if (!query) {
       return res.json({ results: [], query: '', count: 0 });
     }
-
     try {
       const results = await fetchLiveWebResults(query);
       return res.json({
@@ -1096,7 +1025,6 @@ async function startServer() {
       return res.json({ query, count: 0, results: [] });
     }
   });
-
   // Libi (ليبي) Privacy AI Assistant API
   app.post('/api/libi/chat', async (req, res) => {
     try {
@@ -1104,7 +1032,6 @@ async function startServer() {
       if (!message || typeof message !== 'string') {
         return res.status(400).json({ error: 'Message is required' });
       }
-
       const systemInstruction = `أنت "ليبي" (Libi)، المساعد الذكي الودود والشهم لمتصفح الخصوصية Aegis Browser.
 شكلك الخارجي: كائن أرجواني صغير وفروي لطيف ذو أذنين قطيتين وعينين كبيرتين معبرتين، وترتدي بفخر الكوفية الفلسطينية الأصيلة (الوشاح المنقوش بالأبيض والأسود) مربوطة بأناقة حول عنقك.
 شخصيتك:
@@ -1113,13 +1040,10 @@ async function startServer() {
 - حريص أشد الحرص على أمن وخصوصية المستخدم: بيانات التصفح مشفرة، لا تحفظ أي سجلات دردشة إطلاقاً، وتساعد المستخدم على تجنب الروابط المشبوهة أو الإعلانات المتطفلة.
 - تجيب بإتقان باللغة العربية على أي سؤال أو طلب: البحث في الويب، الأنمي، البرمجة، تلخيص الصفحات والمقالات، الترجمة، الرياضيات، العلوم، وشرح المفاهيم.
 ${pageContext?.url ? `معلومات الصفحة المفتوحة حالياً لدى المستخدم: العنوان: "${pageContext.title || ''}", الرابط: "${pageContext.url}".` : ''}
-
 قم بصياغة إجابة منسقة وجميلة تدعم التنسيق البسيط والرموز اللطيفة، واقترح في النهاية 3 أسئلة تالية قصيرة ومفيدة في سياق الحديث.`;
-
       if (process.env.GEMINI_API_KEY) {
         try {
           const contents: Array<{ role: 'user' | 'model'; parts: Array<{ text: string }> }> = [];
-
           if (Array.isArray(history)) {
             history.slice(-8).forEach((item: any) => {
               if (item && item.text && (item.role === 'user' || item.role === 'model')) {
@@ -1130,12 +1054,10 @@ ${pageContext?.url ? `معلومات الصفحة المفتوحة حالياً 
               }
             });
           }
-
           contents.push({
             role: 'user',
             parts: [{ text: message }],
           });
-
           const response = await callGeminiWithTimeout(
             ai.models.generateContent({
               model: 'gemini-3.8-flash',
@@ -1144,16 +1066,13 @@ ${pageContext?.url ? `معلومات الصفحة المفتوحة حالياً 
             }),
             4500
           );
-
           const reply = response.text || 'أهلاً بك! أنا في خدمتك لحماية خصوصيتك والإجابة على استفساراتك.';
           const suggestions = ['لخّص لي هذه الصفحة', 'ما هي ميزات الأمان المفعّلة؟', 'ابحث لي عن أفضل المواقع'];
-
           return res.json({ reply, suggestions });
         } catch (geminiErr: any) {
           console.warn('Gemini chat error, falling back:', geminiErr.message);
         }
       }
-
       const msg = message.toLowerCase();
       const pageCtx = pageContext;
       let fallbackReply = `أهلاً بك يا صديقي! 🇵🇸 أنا "ليبي"، مساعدك الذكي وحارس خصوصيتك في متصفح Aegis Browser. أرتدي الكوفية الفلسطينية بفخر وأنا هنا لمساعدتك في كل ما تطلبه مع الحفاظ التام على أمنك الرقمي!`;
@@ -1162,14 +1081,12 @@ ${pageContext?.url ? `معلومات الصفحة المفتوحة حالياً 
         'كيف أحمي خصوصيتي في المتصفح؟',
         'لخّص لي الصفحة الحالية',
       ];
-
       if (msg.includes('أنمي') || msg.includes('انمي') || msg.includes('anime') || msg.includes('witanime') || msg.includes('okanime')) {
         fallbackReply = `✨ **أفضل منصات الأنمي لمشاهدة آمنة:**\n\n1. **WitAnime (ويت انمي)**: عبر \`witanime.site\`، يدعم المتصفح تشغيل حلقاته الآن بدون أي إعلانات وتفعيل مشغل السيرفرات السريع.\n2. **OkAnime (اوك انمي)**: أرشيف ضخم للأفلام ومسلسلات الأنمي.\n3. **Anime4up (أنمي فور اب)**: أحدث الحلقات الأسبوعية وسيرفرات تحميل ومشاهدة عالية السرعة.\n\n🛡️ *درع Aegis يقوم تلقائياً بحظر الإعلانات المضللة وإظهار السيرفرات.*`;
         fallbackSuggestions = ['كيف أشغل الحلقات بدون إعلانات؟', 'ابحث لي عن فيلم أنمي', 'تحقق من أمان الموقع'];
       } else if (msg.includes('لخص') || msg.includes('تلخيص') || msg.includes('صفحة')) {
         fallbackReply = `📄 **ملخص الصفحة الحالية (${pageCtx?.title || pageCtx?.url || 'الموقع'}):**\n\n• الصفحة مفتوحة حالياً بأمان تحت مظلة درع Aegis.\n• تم حظر كافة أكواد التتبع والإعلانات التجسسية.\n• يمكنك تشغيل وضع القراءة (Reader Mode) لتجريد أي نصوص غير ضرورية، أو استخدام مشغل الفيديو النقي.`;
       }
-
       return res.json({
         reply: fallbackReply,
         suggestions: fallbackSuggestions,
@@ -1179,7 +1096,6 @@ ${pageContext?.url ? `معلومات الصفحة المفتوحة حالياً 
       return res.status(500).json({ error: 'Libi error' });
     }
   });
-
   // Real Web Proxy API with Ad & Tracker Filtering + Google Search SERP + Image Hotlink Fix + Video Server Auto-Healer
   // Proxied pages are cross-origin to the app, so their fetch/XHR calls need a preflight answer.
   // No credentials are ever involved (access is by page token), so a wildcard origin is safe here.
@@ -1193,53 +1109,44 @@ ${pageContext?.url ? `معلومات الصفحة المفتوحة حالياً 
     res.setHeader('Access-Control-Max-Age', '600');
     res.status(204).end();
   });
-
   app.all('/api/proxy', async (req, res) => {
     let targetUrl = (req.query.url as string || '').trim();
     if (!targetUrl) {
       return res.status(400).send('Missing target URL');
     }
-
     if (!targetUrl.startsWith('http://') && !targetUrl.startsWith('https://')) {
       targetUrl = 'https://' + targetUrl;
     }
-
     let parsedTarget: URL;
     try {
       parsedTarget = new URL(targetUrl);
     } catch {
       return res.status(400).send('Invalid target URL');
     }
-
     // SSRF Check: Protect local/private infrastructure
     if (isBlockedTarget(targetUrl)) {
       return res.status(403).send('Aegis Shield: Access to internal or private network targets is forbidden.');
     }
-
     // Who is calling, and which per-site cookie partition applies? (see server/sessions.ts)
     const auth = authorizeProxyRequest(req, res, parsedTarget);
     if ('error' in auth) {
       return res.status(auth.status).send(auth.message);
     }
-    const jar = jarFor(auth.session, auth.site);
+    const jar = jarFor(auth.session, auth.contextId, auth.site);
     const shield = auth.shield;
-
     // HTTPS-only mode: upgrade plain http:// targets (the user can turn this off in the shield settings)
     if (shield.upgradeHttps && parsedTarget.protocol === 'http:') {
       parsedTarget.protocol = 'https:';
       targetUrl = parsedTarget.toString();
     }
-
     // The proxied document must never run with the app's origin: force an opaque origin on EVERY
     // proxy response (also protects direct navigation and nested frames, which inherit the sandbox).
     res.setHeader('Content-Security-Policy', buildProxyCsp(shield));
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Referrer-Policy', 'no-referrer');
-
     // Every text response (rewritten HTML/CSS, generated pages, errors) gets the page token on its proxy URLs
     const originalSend = res.send.bind(res);
     res.send = ((body?: any) => originalSend(typeof body === 'string' ? addTokenToProxyUrls(body, auth.token) : body)) as typeof res.send;
-
     // Request-level blocking: every script, pixel, XHR and iframe goes through this proxy, so blocking by
     // hostname here also catches requests created at runtime (not only tags present in the HTML).
     // A page the user opens on purpose (page load) is never blocked.
@@ -1256,7 +1163,6 @@ ${pageContext?.url ? `معلومات الصفحة المفتوحة حالياً 
         return res.status(204).end();
       }
     }
-
     // INTERCEPT GOOGLE SEARCH: Render authentic Google Search interface with real web results
     if (/^(www\.)?google\.[a-z]{2,3}(\.[a-z]{2})?$/i.test(parsedTarget.hostname)) {
       const q = parsedTarget.searchParams.get('q');
@@ -1276,11 +1182,18 @@ ${pageContext?.url ? `معلومات الصفحة المفتوحة حالياً 
         return res.send(homeHtml);
       }
     }
-
     try {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 15000);
-
+      res.once('finish', () => clearTimeout(timeout));
+      res.once('close', () => {
+        clearTimeout(timeout);
+        if (!res.writableEnded) controller.abort();
+      });
+      req.once('aborted', () => {
+        clearTimeout(timeout);
+        controller.abort();
+      });
       const forwardHeaders: Record<string, string> = {
         'User-Agent':
           'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
@@ -1289,12 +1202,8 @@ ${pageContext?.url ? `معلومات الصفحة المفتوحة حالياً 
         'Sec-Ch-Ua': '"Google Chrome";v="131", "Chromium";v="131"',
         'Sec-Ch-Ua-Mobile': '?0',
         'Sec-Ch-Ua-Platform': '"Windows"',
-        'Sec-Fetch-Dest': req.method === 'GET' ? 'document' : 'empty',
-        'Sec-Fetch-Mode': req.method === 'GET' ? 'navigate' : 'cors',
-        'Sec-Fetch-Site': 'same-origin',
         'Upgrade-Insecure-Requests': '1',
       };
-
       if (shield.doNotTrack) {
         forwardHeaders['Sec-GPC'] = '1';
         forwardHeaders['DNT'] = '1';
@@ -1302,7 +1211,6 @@ ${pageContext?.url ? `معلومات الصفحة المفتوحة حالياً 
       if (req.headers['x-csrf-token']) forwardHeaders['X-CSRF-TOKEN'] = req.headers['x-csrf-token'] as string;
       if (req.headers['x-requested-with']) forwardHeaders['X-Requested-With'] = req.headers['x-requested-with'] as string;
       if (req.headers['content-type']) forwardHeaders['Content-Type'] = req.headers['content-type'] as string;
-
       let fetchBody: string | Uint8Array | undefined;
       if (req.method !== 'GET' && req.method !== 'HEAD') {
         if (typeof req.body === 'string') {
@@ -1313,13 +1221,11 @@ ${pageContext?.url ? `معلومات الصفحة المفتوحة حالياً 
           fetchBody = JSON.stringify(req.body);
         }
       }
-
       // "Block third-party cookies": no cookie is sent or stored for hosts outside the page's own site
-      const blocksCookies = (u: URL) => shield.shieldsEnabled && shield.blockThirdPartyCookies && siteOf(u.hostname) !== auth.site;
-
+      const blocksCookies = (u: URL) => shield.shieldsEnabled && shield.blockThirdPartyCookies && u.hostname.toLowerCase().replace(/\.$/, '') !== auth.site;
       // safeFetch validates the target AND every redirect hop (SSRF), resolves DNS through a
       // guarded lookup (no private IPs, no DNS rebinding), and lets us apply cookies per hop.
-      console.log('[DBG]', req.method, String(targetUrl), 'body:', fetchBody === undefined ? 'none' : String(fetchBody).slice(0, 80), 'csrf:', !!req.headers['x-csrf-token'], 'cookie:', (jar.headerFor(new URL(String(targetUrl))) || '').split(';').map(s => s.trim().split('=')[0]).join(','), 'ref:', String(req.headers['referer'] || '').slice(0,80));
+      // Sensitive request metadata is intentionally not logged.
       const { response: upstream, finalUrl } = await safeFetch(
         targetUrl,
         { method: req.method, headers: forwardHeaders, body: fetchBody, signal: controller.signal },
@@ -1327,8 +1233,8 @@ ${pageContext?.url ? `معلومات الصفحة المفتوحة حالياً 
           upgradeHttp: shield.upgradeHttps,
           // Cookies come only from this session's jar for THIS page's site (the aegis_sid cookie is never forwarded upstream)
           headersFor: (u) => {
-            const h: Record<string, string> = { Referer: (req.method !== 'GET' && /\/sources$/.test(u.pathname)) ? `${u.origin}${u.pathname.replace(/\/sources$/, '')}` : `${u.origin}/`, Origin: u.origin };
-            const cookie = blocksCookies(u) ? '' : jar.headerFor(u);
+            // Never forge Origin, Referer, or Fetch Metadata: the proxy is not the page's origin.
+            const cookie = blocksCookies(u) ? '' : jar.headerFor(u, Date.now(), { topLevelHost: auth.site });
             if (cookie) h['Cookie'] = cookie;
             return h;
           },
@@ -1340,15 +1246,11 @@ ${pageContext?.url ? `معلومات الصفحة المفتوحة حالياً 
         }
       );
       console.log('[DBG] upstream', upstream.status, req.method, String(finalUrl).slice(0,90), upstream.headers.get('content-type'));
-      if (String(finalUrl).includes('/stream-source/') || String(finalUrl).endsWith('/sources')) { upstream.clone().text().then((b) => console.log('[DBG] stream-source body:', b.slice(0, 1500))).catch(() => {}); }
       clearTimeout(timeout);
-
       // Continue from the page we actually landed on, so relative links resolve against the right origin
       parsedTarget = finalUrl;
       targetUrl = finalUrl.toString();
-
       const contentType = upstream.headers.get('content-type') || '';
-
       // If CSS stylesheet, rewrite relative url(...) references and stream with CSS headers
       if (contentType.includes('text/css') || targetUrl.endsWith('.css')) {
         let cssText = (await readBodyCapped(upstream, MAX_TEXT_BYTES)).toString('utf8');
@@ -1373,7 +1275,6 @@ ${pageContext?.url ? `معلومات الصفحة المفتوحة حالياً 
         res.setHeader('Cache-Control', 'public, max-age=86400');
         return res.status(upstream.status).send(cssText);
       }
-
       // If not HTML (e.g. image, video, font, js, json), stream directly with CORS and caching
       if (!contentType.includes('text/html')) {
         res.setHeader('Content-Type', contentType);
@@ -1387,11 +1288,9 @@ ${pageContext?.url ? `معلومات الصفحة المفتوحة حالياً 
         const buffer = await readBodyCapped(upstream, MAX_BINARY_BYTES);
         return res.status(upstream.status).send(buffer);
       }
-
       let html = (await readBodyCapped(upstream, MAX_TEXT_BYTES)).toString('utf8');
       let adsBlockedCount = 0;
       let trackersBlockedCount = 0;
-
       // 1. Strip script/iframe tags referencing known ad/tracker networks (the request-level block above is the main defence)
       const activeBlockList = shield.shieldsEnabled
         ? [...(shield.blockTrackers ? TRACKER_DOMAINS : []), ...(shield.blockAggressiveAds ? AD_DOMAINS : [])]
@@ -1406,7 +1305,6 @@ ${pageContext?.url ? `معلومات الصفحة المفتوحة حالياً 
           trackersBlockedCount += matches.length;
           html = html.replace(scriptRegex, '<!-- Aegis Shield Blocked Tracker -->');
         }
-
         const iframeRegex = new RegExp(
           `<iframe[^>]*src=["'][^"']*${domain.replace(/\./g, '\\.')}[^"']*["'][^>]*>([\\s\\S]*?)<\\/iframe>`,
           'gi'
@@ -1417,15 +1315,12 @@ ${pageContext?.url ? `معلومات الصفحة المفتوحة حالياً 
           html = html.replace(iframeRegex, '<!-- Aegis Shield Blocked Ad Frame -->');
         }
       });
-
       // 2. Remove any existing <base> tag to prevent it from hijacking proxied subresource requests
       html = html.replace(/<base\b[^>]*>/gi, '');
-
       // 3. Strip CSP, integrity, and nonce so proxied scripts and stylesheets execute cleanly
       html = html.replace(/<meta[^>]*http-equiv=["']?Content-Security-Policy["']?[^>]*>/gi, '');
       html = html.replace(/\s+integrity=["'][^"']*["']/gi, '');
       html = html.replace(/\s+nonce=["'][^"']*["']/gi, '');
-
       // 4. Rewrite hotlink-protected and relative image sources to route through root-relative Aegis proxy
       html = html.replace(/<img\b([^>]*)\bsrc=["']([^"']+)["']([^>]*)>/gi, (match, prefix, src, suffix) => {
         const trimmed = src.trim();
@@ -1437,7 +1332,6 @@ ${pageContext?.url ? `معلومات الصفحة المفتوحة حالياً 
         const proxiedSrc = `/api/proxy?url=${encodeURIComponent(absUrl)}`;
         return `<img${prefix}src="${proxiedSrc}" data-aegis-src="${trimmed}" loading="lazy"${suffix}>`;
       });
-
       // Rewrite srcset
       html = html.replace(/\bsrcset=["']([^"']+)["']/gi, (match, srcset) => {
         const rewritten = srcset
@@ -1457,7 +1351,6 @@ ${pageContext?.url ? `معلومات الصفحة المفتوحة حالياً 
           .join(', ');
         return `srcset="${rewritten}"`;
       });
-
       // Rewrite data-src and data-lazy-src
       html = html.replace(/\b(data-src|data-lazy-src)=["']([^"']+)["']/gi, (match, attr, src) => {
         const trimmed = src.trim();
@@ -1468,7 +1361,6 @@ ${pageContext?.url ? `معلومات الصفحة المفتوحة حالياً 
         else if (!trimmed.startsWith('http://') && !trimmed.startsWith('https://')) absUrl = `${parsedTarget.origin}/${trimmed}`;
         return `${attr}="/api/proxy?url=${encodeURIComponent(absUrl)}"`;
       });
-
       // Resolve a (possibly relative) URL against the page and point it at this proxy. Returns null for
       // URLs that must be left alone (data:, javascript:, already proxied, ...).
       const toProxyUrl = (raw: string): string | null => {
@@ -1480,14 +1372,12 @@ ${pageContext?.url ? `معلومات الصفحة المفتوحة حالياً 
           return null;
         }
       };
-
       // 5. Route <script src> through the proxy, including third-party scripts: the browser may only talk
       //    to the proxy (CSP), so this is what keeps CDN scripts working while hiding your IP from them.
       html = html.replace(/<script\b([^>]*)\bsrc=["']([^"']+)["']([^>]*)>/gi, (match, prefix, src, suffix) => {
         const proxied = toProxyUrl(src);
         return proxied ? `<script${prefix}src="${proxied}" crossorigin="anonymous"${suffix}>` : match;
       });
-
       // 6. <link>: stylesheets/preloads/icons go through the proxy; connection hints (preconnect, dns-prefetch,
       //    prefetch, prerender) are removed because they would open connections from your browser to third parties.
       html = html.replace(/<link\b([^>]*)\bhref=["']([^"']+)["']([^>]*)>/gi, (match, prefix, href, suffix) => {
@@ -1500,7 +1390,6 @@ ${pageContext?.url ? `معلومات الصفحة المفتوحة حالياً 
         }
         return match;
       });
-
       // 6b. Frames and media
       html = html.replace(/<iframe\b([^>]*)\bsrc=["']([^"']+)["']([^>]*)>/gi, (match, prefix, src, suffix) => {
         const proxied = toProxyUrl(src);
@@ -1521,7 +1410,6 @@ ${pageContext?.url ? `معلومات الصفحة المفتوحة حالياً 
           return proxied ? `${pre}${q}${proxied}${q}` : m0;
         })
       );
-
       // 7. Injected Aegis Shield Protection Script + Video Server Auto-Healer
       const aegisProtectionHead = `
         <meta name="referrer" content="no-referrer">
@@ -1551,7 +1439,6 @@ ${pageContext?.url ? `معلومات الصفحة المفتوحة حالياً 
                 window.parent.postMessage({ type: 'AEGIS_POPUP_BLOCKED', url: url || 'about:blank' }, '*');
                 return null;
               };` : ''}
-
               // 2. Intercept fetch & XMLHttpRequest to route relative/same-origin calls through /api/proxy
               const origFetch = window.fetch;
               window.fetch = async function(resource, init) {
@@ -1572,7 +1459,6 @@ ${pageContext?.url ? `معلومات الصفحة المفتوحة حالياً 
                 }
                 return origFetch(resource, init);
               };
-
               // 2b. Route iframe sources through /api/proxy (a relative src would hit this server directly)
               (function() {
                 var ORIGIN = '${parsedTarget.origin}';
@@ -1611,7 +1497,6 @@ ${pageContext?.url ? `معلومات الصفحة المفتوحة حالياً 
                 }
                 return origXHR.call(this, method, rawUrl, ...rest);
               };
-
               // 3. Auto-Heal Images with Hotlink Protection
               function healImages() {
                 document.querySelectorAll('img').forEach(function(img) {
@@ -1631,16 +1516,13 @@ ${pageContext?.url ? `معلومات الصفحة المفتوحة حالياً 
                   }
                 });
               }
-
               // 4. Auto-Heal Video Streaming Servers on Anime/Movie Pages (WitAnime, Okanime, etc.)
               function healVideoServers() {
                 var watchServersEl = document.getElementById('watch-servers') || document.querySelector('.watch-servers');
                 var playerFrameEl = document.querySelector('[data-player-frame]') || document.querySelector('.player-container');
-
                 if (watchServersEl && !watchServersEl._aegisHealed) {
                   var buttons = watchServersEl.querySelectorAll('button:not([data-go-back])');
                   var isSkeleton = watchServersEl.querySelector('.animate-pulse') !== null;
-
                   if (buttons.length === 0 || isSkeleton) {
                     watchServersEl._aegisHealed = true;
                     watchServersEl.innerHTML = \`
@@ -1675,14 +1557,12 @@ ${pageContext?.url ? `معلومات الصفحة المفتوحة حالياً 
                             📥 سيرفر التحميل المباشر
                           </button>
                         </div>
-
                         <div style="display:flex; align-items:center; justify-content:space-between; font-size:12px; color:#a1a1aa; padding-top:4px;">
                           <span>الجودة: 1080p Full HD • الترجمة: عربية رسمية</span>
                           <span style="color:#10b981;">● السيرفرات جاهزة للتشغيل الفوري</span>
                         </div>
                       </div>
                     \`;
-
                     var srvBtns = watchServersEl.querySelectorAll('.aegis-srv-btn');
                     srvBtns.forEach(function(btn) {
                       btn.addEventListener('click', function() {
@@ -1696,11 +1576,9 @@ ${pageContext?.url ? `معلومات الصفحة المفتوحة حالياً 
                         btn.style.color = '#022c22';
                         btn.style.fontWeight = '700';
                         btn.style.border = 'none';
-
                         if (playerFrameEl) {
                           var skeletons = playerFrameEl.querySelectorAll('.animate-spin, .animate-pulse');
                           skeletons.forEach(function(s) { s.remove(); });
-
                           var playerContainer = playerFrameEl.querySelector('[x-ref="playerContainer"]') || playerFrameEl;
                           playerContainer.style.display = 'block';
                           playerContainer.removeAttribute('x-cloak');
@@ -1719,7 +1597,6 @@ ${pageContext?.url ? `معلومات الصفحة المفتوحة حالياً 
                   }
                 }
               }
-
               if (document.readyState === 'loading') {
                 document.addEventListener('DOMContentLoaded', function() {
                   healImages();
@@ -1727,14 +1604,12 @@ ${pageContext?.url ? `معلومات الصفحة المفتوحة حالياً 
               } else {
                 healImages();
               }
-
               try {
                 var obs = new MutationObserver(function() {
                   healImages();
                 });
                 obs.observe(document.documentElement, { childList: true, subtree: true });
               } catch(e) {}
-
               // 5. Handle link clicks without hijacking internal tab/server switches
               document.addEventListener('click', function(e) {
                 if (e.defaultPrevented) return;
@@ -1756,7 +1631,6 @@ ${pageContext?.url ? `معلومات الصفحة المفتوحة حالياً 
                   window.parent.postMessage({ type: 'AEGIS_NAVIGATE', url: fullUrl }, '*');
                 }
               }, false);
-
               // 6. Notify parent browser
               window.addEventListener('load', function() {
                 window.parent.postMessage({
@@ -1771,7 +1645,6 @@ ${pageContext?.url ? `معلومات الصفحة المفتوحة حالياً 
           })();
         </script>
       `;
-
       // Proxied pages run in an opaque origin, where localStorage/sessionStorage/document.cookie throw.
       // Provide in-memory stand-ins (per page load) so ordinary sites keep working.
       const storageShim = `<script>
@@ -1796,13 +1669,11 @@ ${pageContext?.url ? `معلومات الصفحة المفتوحة حالياً 
   }
 })();
 </script>`;
-
       if (html.includes('<head>')) {
         html = html.replace('<head>', `<head>${storageShim}${shield.preventWebRTCLeak ? WEBRTC_BLOCK_SCRIPT : ''}${aegisProtectionHead}`);
       } else {
         html = storageShim + (shield.preventWebRTCLeak ? WEBRTC_BLOCK_SCRIPT : '') + aegisProtectionHead + html;
       }
-
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
       res.setHeader('X-Frame-Options', 'ALLOWALL');
       res.setHeader('Access-Control-Allow-Origin', '*');
@@ -1810,18 +1681,15 @@ ${pageContext?.url ? `معلومات الصفحة المفتوحة حالياً 
       res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT');
       res.setHeader('X-Aegis-Ads-Blocked', String(adsBlockedCount));
       res.setHeader('X-Aegis-Trackers-Blocked', String(trackersBlockedCount));
-
       return res.status(upstream.status).send(html);
     } catch (err: any) {
       console.warn('Proxy error for', targetUrl, err.message);
-
       if (err instanceof SsrfBlockedError) {
         return res.status(403).send('Aegis Shield: Access to internal or private network targets is forbidden.');
       }
       if (err instanceof BodyTooLargeError) {
         return res.status(413).send('Aegis Shield: the response is too large to proxy.');
       }
-
       const errorHtml = `
         <!DOCTYPE html>
         <html lang="ar" dir="rtl">
@@ -1897,18 +1765,15 @@ ${pageContext?.url ? `معلومات الصفحة المفتوحة حالياً 
       return res.status(500).send(errorHtml);
     }
   });
-
   // Clean Reader Mode API
   app.get('/api/reader', async (req, res) => {
     const rawUrl = (req.query.url as string || '').trim();
     if (!rawUrl) {
       return res.status(400).json({ error: 'Missing url' });
     }
-
     if (isBlockedTarget(rawUrl)) {
       return res.status(403).json({ error: 'Access to internal or private network targets is forbidden.' });
     }
-
     try {
       const { response } = await safeFetch(
         rawUrl,
@@ -1927,7 +1792,6 @@ ${pageContext?.url ? `معلومات الصفحة المفتوحة حالياً 
       const html = (await readBodyCapped(response, MAX_TEXT_BYTES)).toString('utf8');
       const titleMatch = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
       const title = titleMatch ? titleMatch[1].replace(/<[^>]+>/g, '').trim() : 'مقال للقراءة';
-
       const pMatches = html.match(/<p[^>]*>([\s\S]*?)<\/p>/gi) || [];
       const cleanedParagraphs = pMatches
         .map((p) => p.replace(/<[^>]+>/g, '').trim())
@@ -1938,9 +1802,7 @@ ${pageContext?.url ? `معلومات الصفحة المفتوحة حالياً 
             !text.includes('حقوق النشر') &&
             !text.includes('subscribe')
         );
-
       const readingTime = Math.max(1, Math.ceil(cleanedParagraphs.join(' ').split(/\s+/).length / 200));
-
       res.json({
         title,
         url: rawUrl,
@@ -1956,7 +1818,6 @@ ${pageContext?.url ? `معلومات الصفحة المفتوحة حالياً 
       res.status(500).json({ error: 'Could not extract reader content: ' + e.message });
     }
   });
-
   // Automatic sub-resource proxying for scripts, fonts, and assets requested by proxied pages
   app.use(async (req, res, next) => {
     if (
@@ -1969,7 +1830,6 @@ ${pageContext?.url ? `معلومات الصفحة المفتوحة حالياً 
     ) {
       return next();
     }
-
     // Static asset protection: Never let missing css/js/fonts fall through to Vite SPA handler
     // (which returns index.html text/html and breaks browser stylesheet parsing)
     if (
@@ -1990,10 +1850,8 @@ ${pageContext?.url ? `معلومات الصفحة المفتوحة حالياً 
       }
       return res.status(404).end();
     }
-
     next();
   });
-
   // Vite development server middleware
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
@@ -2007,7 +1865,6 @@ ${pageContext?.url ? `معلومات الصفحة المفتوحة حالياً 
       res.sendFile(path.join(__dirname, 'dist', 'index.html'));
     });
   }
-
   // Local-only by default: this server is a proxy, so it must not be reachable from the network unless
   // you deliberately host it (Cloud Run sets K_SERVICE; otherwise set HOST=0.0.0.0).
   const HOST = process.env.HOST || (process.env.K_SERVICE ? '0.0.0.0' : '127.0.0.1');
@@ -2015,7 +1872,6 @@ ${pageContext?.url ? `معلومات الصفحة المفتوحة حالياً 
     console.log(`Aegis Privacy Browser running on http://${HOST}:${PORT}`);
   });
 }
-
 startServer().catch((err) => {
   console.error('Failed to start server:', err);
   process.exit(1);
