@@ -843,6 +843,48 @@ function generateGoogleHomeHtml(): string {
 async function startServer() {
   const app = express();
   const PORT = resolvePort();
+
+  // Localhost is the default trust boundary. A future remote deployment must explicitly list
+  // its public hostnames; binding to 0.0.0.0 alone never grants them app-API access.
+  const allowedAppHosts = new Set<string>(['localhost', '127.0.0.1', '::1']);
+  for (const host of (process.env.AEGIS_ALLOWED_HOSTS || '').split(',')) {
+    const value = host.trim().toLowerCase();
+    if (value) allowedAppHosts.add(value.replace(/^\\[|\\]$/g, ''));
+  }
+  if (process.env.APP_URL) {
+    try { allowedAppHosts.add(new URL(process.env.APP_URL).hostname.toLowerCase().replace(/^\\[|\\]$/g, '')); } catch {}
+  }
+
+  app.use((req, res, next) => {
+    const rawHost = req.headers.host || '';
+    let requestHost = '';
+    try { requestHost = new URL('http://' + rawHost).hostname.toLowerCase().replace(/^\\[|\\]$/g, ''); } catch {}
+    if (!requestHost || !allowedAppHosts.has(requestHost)) {
+      return res.status(421).send('Aegis: unrecognized Host header.');
+    }
+
+    // Opaque-origin page requests may only use /api/proxy with a capability token.
+    // All other API routes belong exclusively to the same-origin Aegis application.
+    if (req.path.startsWith('/api') && req.path !== '/api/proxy') {
+      if (req.headers['sec-fetch-site'] !== 'same-origin') {
+        return res.status(403).json({ error: 'Same-origin application request required.' });
+      }
+      const originHeader = req.headers.origin;
+      if (originHeader) {
+        try {
+          const origin = new URL(originHeader);
+          if (origin.origin === 'null' || origin.host.toLowerCase() !== rawHost.toLowerCase()) {
+            return res.status(403).json({ error: 'Origin mismatch.' });
+          }
+        } catch {
+          return res.status(403).json({ error: 'Invalid Origin header.' });
+        }
+      } else if (!['GET', 'HEAD'].includes(req.method.toUpperCase())) {
+        return res.status(403).json({ error: 'Origin header required for state-changing requests.' });
+      }
+    }
+    next();
+  });
   // Security headers for the app itself (/api/proxy sets its own, stricter policy per response).
   const APP_CSP = [
     "default-src 'self'",
@@ -874,16 +916,6 @@ async function startServer() {
   app.use(express.json({ limit: '10mb' }));
   app.use(express.urlencoded({ extended: true, limit: '10mb' }));
   app.use(express.raw({ type: '*/*', limit: '10mb' }));
-  // Proxied pages run in an opaque origin and are therefore "cross-site". They may only talk to
-  // /api/proxy (with a page token). Every other API is for the app UI itself.
-  app.use('/api', (req, res, next) => {
-    if (req.path === '/proxy') return next();
-    const fetchSite = req.headers['sec-fetch-site'];
-    if (fetchSite === 'cross-site' || fetchSite === 'same-site') {
-      return res.status(403).json({ error: 'Cross-site requests are not allowed.' });
-    }
-    next();
-  });
   // Health check endpoint
   app.get('/api/health', (req, res) => {
     res.json({ status: 'ok', engine: 'AegisShield/4.2', timestamp: Date.now() });
@@ -1187,11 +1219,11 @@ ${pageContext?.url ? `معلومات الصفحة المفتوحة حالياً 
       const timeout = setTimeout(() => controller.abort(), 15000);
       res.once('finish', () => clearTimeout(timeout));
       res.once('close', () => {
-        clearTimeout(timeout);
+      // The timeout remains active through response-body consumption.
         if (!res.writableEnded) controller.abort();
       });
       req.once('aborted', () => {
-        clearTimeout(timeout);
+      // The timeout remains active through response-body consumption.
         controller.abort();
       });
       const forwardHeaders: Record<string, string> = {
@@ -1234,6 +1266,7 @@ ${pageContext?.url ? `معلومات الصفحة المفتوحة حالياً 
           // Cookies come only from this session's jar for THIS page's site (the aegis_sid cookie is never forwarded upstream)
           headersFor: (u) => {
             // Never forge Origin, Referer, or Fetch Metadata: the proxy is not the page's origin.
+            const h: Record<string, string> = {};
             const cookie = blocksCookies(u) ? '' : jar.headerFor(u, Date.now(), { topLevelHost: auth.site });
             if (cookie) h['Cookie'] = cookie;
             return h;
@@ -1245,8 +1278,8 @@ ${pageContext?.url ? `معلومات الصفحة المفتوحة حالياً 
           },
         }
       );
-      console.log('[DBG] upstream', upstream.status, req.method, String(finalUrl).slice(0,90), upstream.headers.get('content-type'));
-      clearTimeout(timeout);
+      // Sensitive upstream metadata and full target URLs are not logged.
+      // The timeout remains active through response-body consumption.
       // Continue from the page we actually landed on, so relative links resolve against the right origin
       parsedTarget = finalUrl;
       targetUrl = finalUrl.toString();
