@@ -1310,8 +1310,8 @@ ${pageContext?.url ? `معلومات الصفحة المفتوحة حالياً 
         'Sec-Ch-Ua': '"Google Chrome";v="131", "Chromium";v="131"',
         'Sec-Ch-Ua-Mobile': '?0',
         'Sec-Ch-Ua-Platform': '"Windows"',
-        'Sec-Fetch-Dest': 'document',
-        'Sec-Fetch-Mode': 'navigate',
+        'Sec-Fetch-Dest': req.method === 'GET' ? 'document' : 'empty',
+        'Sec-Fetch-Mode': req.method === 'GET' ? 'navigate' : 'cors',
         'Sec-Fetch-Site': 'same-origin',
         'Upgrade-Insecure-Requests': '1',
       };
@@ -1340,6 +1340,7 @@ ${pageContext?.url ? `معلومات الصفحة المفتوحة حالياً 
 
       // safeFetch validates the target AND every redirect hop (SSRF), resolves DNS through a
       // guarded lookup (no private IPs, no DNS rebinding), and lets us apply cookies per hop.
+      console.log('[DBG]', req.method, String(targetUrl), 'body:', fetchBody === undefined ? 'none' : String(fetchBody).slice(0, 80), 'csrf:', !!req.headers['x-csrf-token'], 'cookie:', (jar.headerFor(new URL(String(targetUrl))) || '').split(';').map(s => s.trim().split('=')[0]).join(','), 'ref:', String(req.headers['referer'] || '').slice(0,80));
       const { response: upstream, finalUrl } = await safeFetch(
         targetUrl,
         { method: req.method, headers: forwardHeaders, body: fetchBody, signal: controller.signal },
@@ -1347,7 +1348,7 @@ ${pageContext?.url ? `معلومات الصفحة المفتوحة حالياً 
           upgradeHttp: shield.upgradeHttps,
           // Cookies come only from this session's jar for THIS page's site (the aegis_sid cookie is never forwarded upstream)
           headersFor: (u) => {
-            const h: Record<string, string> = { Referer: `${u.origin}/`, Origin: u.origin };
+            const h: Record<string, string> = { Referer: (req.method !== 'GET' && /\/sources$/.test(u.pathname)) ? `${u.origin}${u.pathname.replace(/\/sources$/, '')}` : `${u.origin}/`, Origin: u.origin };
             const cookie = blocksCookies(u) ? '' : jar.headerFor(u);
             if (cookie) h['Cookie'] = cookie;
             return h;
@@ -1359,6 +1360,8 @@ ${pageContext?.url ? `معلومات الصفحة المفتوحة حالياً 
           },
         }
       );
+      console.log('[DBG] upstream', upstream.status, req.method, String(finalUrl).slice(0,90), upstream.headers.get('content-type'));
+      if (String(finalUrl).includes('/stream-source/') || String(finalUrl).endsWith('/sources')) { upstream.clone().text().then((b) => console.log('[DBG] stream-source body:', b.slice(0, 1500))).catch(() => {}); }
       clearTimeout(timeout);
 
       // Continue from the page we actually landed on, so relative links resolve against the right origin
@@ -1591,6 +1594,33 @@ ${pageContext?.url ? `معلومات الصفحة المفتوحة حالياً 
                 return origFetch(resource, init);
               };
 
+              // 2b. Route iframe sources through /api/proxy (a relative src would hit this server directly)
+              (function() {
+                var ORIGIN = '${parsedTarget.origin}';
+                function fixSrc(v) {
+                  try {
+                    var s = String(v || '');
+                    if (!s || s.startsWith('data:') || s.startsWith('blob:') || s.startsWith('about:') || s.startsWith('javascript:') || s.includes('/api/proxy')) return v;
+                    var abs = (s.startsWith('/') && !s.startsWith('//')) ? ORIGIN + s : s;
+                    if (abs.startsWith(ORIGIN)) return '/api/proxy?url=' + encodeURIComponent(abs);
+                  } catch (e) {}
+                  return v;
+                }
+                var d = Object.getOwnPropertyDescriptor(HTMLIFrameElement.prototype, 'src');
+                if (d && d.set) {
+                  Object.defineProperty(HTMLIFrameElement.prototype, 'src', {
+                    configurable: true,
+                    enumerable: d.enumerable,
+                    get: d.get,
+                    set: function(v) { d.set.call(this, fixSrc(v)); }
+                  });
+                }
+                var origSetAttr = Element.prototype.setAttribute;
+                Element.prototype.setAttribute = function(n, v) {
+                  if (this instanceof HTMLIFrameElement && String(n).toLowerCase() === 'src') v = fixSrc(v);
+                  return origSetAttr.call(this, n, v);
+                };
+              })();
               const origXHR = XMLHttpRequest.prototype.open;
               XMLHttpRequest.prototype.open = function(method, url, ...rest) {
                 var rawUrl = String(url || '');
@@ -1714,17 +1744,14 @@ ${pageContext?.url ? `معلومات الصفحة المفتوحة حالياً 
               if (document.readyState === 'loading') {
                 document.addEventListener('DOMContentLoaded', function() {
                   healImages();
-                  healVideoServers();
                 });
               } else {
                 healImages();
-                healVideoServers();
               }
 
               try {
                 var obs = new MutationObserver(function() {
                   healImages();
-                  healVideoServers();
                 });
                 obs.observe(document.documentElement, { childList: true, subtree: true });
               } catch(e) {}
