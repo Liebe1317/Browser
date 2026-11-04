@@ -877,6 +877,9 @@ function generateGoogleHomeHtml(): string {
 }
 async function startServer() {
   const app = express();
+  // Trust exactly one reverse proxy only when the deployment owner explicitly enables it.
+  // This controls req.secure and prevents spoofed X-Forwarded-Proto from setting Secure cookies.
+  if (process.env.AEGIS_TRUST_PROXY === '1') app.set('trust proxy', 1);
   const PORT = resolvePort();
 
   // Localhost is the default trust boundary. A future remote deployment must explicitly list
