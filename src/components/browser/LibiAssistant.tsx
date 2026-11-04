@@ -194,7 +194,7 @@ export const LibiAssistant: React.FC<LibiAssistantProps> = ({
           <div className="px-4 py-1.5 bg-emerald-950/40 border-b border-emerald-500/20 flex items-center justify-between text-[11px] text-emerald-300">
             <div className="flex items-center gap-1.5">
               <Shield className="w-3.5 h-3.5 text-emerald-400" />
-              <span>ليبي لا يملك صلاحية قراءة كلمات المرور أو الكوكيز أو ملفات الجهاز.</span>
+              <span>ليبي لا يقرأ كلمات المرور أو كوكيز المواقع أو ملفات الجهاز.</span>
             </div>
             {currentPageContext?.url && !currentPageContext.url.startsWith('chrome://') && (
               <span className="text-slate-400 text-[10px] truncate max-w-[140px]" title={currentPageContext.title}>
