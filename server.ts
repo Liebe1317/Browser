@@ -959,7 +959,7 @@ async function startServer() {
     res.json(getAksaVpnStatus());
   });
 
-  app.post('/api/aksa/vpn/toggle', (req, res) => {
+  app.post('/api/aksa/vpn/toggle', async (req, res) => {
     const sid = appSessionId(req);
     const csrf = req.headers['x-aegis-csrf'];
     if (!sid || !verifyAppCsrf(req, typeof csrf === 'string' ? csrf : undefined)) {
@@ -968,7 +968,7 @@ async function startServer() {
     if (typeof req.body?.enabled !== 'boolean') {
       return res.status(400).json({ error: 'enabled must be a boolean.' });
     }
-    const result = setAksaVpnEnabled(req.body.enabled);
+    const result = await setAksaVpnEnabled(req.body.enabled);
     if (!result.ok) return res.status(409).json({ ...result.status, error: result.error });
     res.setHeader('Cache-Control', 'no-store');
     return res.json(result.status);
