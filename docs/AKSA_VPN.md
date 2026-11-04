@@ -19,7 +19,7 @@ This repository does not contain an Aksa VPN server, WireGuard peer credentials,
 - enabled: the server-side request dispatcher has been switched to that endpoint.
 - Neither flag is a live VPN handshake/health check.
 
-The adapter covers server-side browser requests. Direct requests initiated by the renderer (for example external media, images, and the allowed YouTube iframe) do not automatically traverse this server-side proxy. It is not a device-wide VPN and must not be marketed as full renderer traffic protection.
+The adapter covers server-side outbound requests initiated by Aegis. Direct requests initiated by the renderer (for example external media, images, and the allowed YouTube iframe) do not automatically traverse this server-side proxy. It is not a device-wide VPN and must not be marketed as full renderer traffic protection.
 
 ## Required gateway security properties before release
 
