@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { detectLibiAction, describeLibiAction } from '../server/libi.ts';
+import { detectLibiAction, describeLibiAction, parseLibiSearchQuery } from '../server/libi.ts';
 import { parseLibiSearchResults } from '../src/types/libi.ts';
 
 assert.deepEqual(detectLibiAction('ليبي، افتح الإعدادات'), { type: 'open_settings' });
@@ -21,6 +21,11 @@ assert.equal(detectLibiAction('افتح http://192.168.1.1/'), null, 'private LA
 assert.equal(detectLibiAction('افتح https://user:pass@example.com/'), null, 'credential-bearing URLs are denied');
 assert.equal(detectLibiAction('احذف كل ملفات الجهاز'), null, 'unknown/high-impact actions are not in the allowlist');
 assert.match(describeLibiAction({ type: 'open_settings' }), /إعدادات/);
+assert.equal(parseLibiSearchQuery('ابحث عن Hunter x Hunter'), 'Hunter x Hunter');
+assert.equal(parseLibiSearchQuery('ليبي، ابحث لي عن أفضل متصفح'), 'أفضل متصفح');
+assert.equal(parseLibiSearchQuery('search for Electron 45'), 'Electron 45');
+assert.equal(parseLibiSearchQuery('مرحبا يا ليبي'), null);
+assert.equal(parseLibiSearchQuery('ابحث عن'), null);
 
 const results = parseLibiSearchResults([
   { title: 'Safe result', url: 'https://example.com/article', snippet: 'A useful snippet' },
