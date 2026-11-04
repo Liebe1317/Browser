@@ -19,6 +19,7 @@ interface LibiAssistantProps {
   currentPageContext?: {
     title: string;
     url: string;
+    text?: string;
   };
   initialQuery?: string;
   onNavigate?: (url: string) => void;
@@ -50,9 +51,18 @@ export const LibiAssistant: React.FC<LibiAssistantProps> = ({
   ]);
   const [isMinimized, setIsMinimized] = useState(false);
   const [pendingAction, setPendingAction] = useState<LibiBrowserAction | null>(null);
+  const [sharePageContext, setSharePageContext] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!isOpen) setSharePageContext(false);
+  }, [isOpen]);
+
+  useEffect(() => {
+    setSharePageContext(false);
+  }, [currentPageContext?.url]);
 
   useEffect(() => {
     if (isOpen && initialQuery) {
@@ -98,7 +108,11 @@ export const LibiAssistant: React.FC<LibiAssistantProps> = ({
         body: JSON.stringify({
           message: textToSend.slice(0, 4000),
           history: historyPayload.slice(-8),
-          pageContext: currentPageContext,
+          pageContext: currentPageContext ? {
+            title: currentPageContext.title,
+            url: currentPageContext.url,
+            ...(sharePageContext && currentPageContext.text ? { text: currentPageContext.text.slice(0, 12000) } : {}),
+          } : undefined,
         }),
       });
 
@@ -192,10 +206,21 @@ export const LibiAssistant: React.FC<LibiAssistantProps> = ({
         <>
           {/* Privacy Guarantee Ribbon */}
           <div className="px-4 py-1.5 bg-emerald-950/40 border-b border-emerald-500/20 flex items-center justify-between text-[11px] text-emerald-300">
-            <div className="flex items-center gap-1.5">
-              <Shield className="w-3.5 h-3.5 text-emerald-400" />
+            <div className="flex items-center gap-2 min-w-0">
+              <Shield className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
               <span>ليبي لا يقرأ كلمات المرور أو كوكيز المواقع أو ملفات الجهاز.</span>
             </div>
+            {currentPageContext?.text?.trim() && (
+              <label className="flex items-center gap-1.5 text-[10px] text-emerald-200 shrink-0 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={sharePageContext}
+                  onChange={(e) => setSharePageContext(e.target.checked)}
+                  className="accent-emerald-500"
+                />
+                <span>السماح بمشاركة نص الصفحة مع Gemini</span>
+              </label>
+            )}
             {currentPageContext?.url && !currentPageContext.url.startsWith('chrome://') && (
               <span className="text-slate-400 text-[10px] truncate max-w-[140px]" title={currentPageContext.title}>
                 {currentPageContext.title || currentPageContext.url}
