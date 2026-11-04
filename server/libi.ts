@@ -44,6 +44,14 @@ function cleanCommand(value: string): string {
     .trim();
 }
 
+/** Parse an explicit user web-search request without delegating query routing to the model. */
+export function parseLibiSearchQuery(input: string): string | null {
+  const command = cleanCommand(input);
+  const match = command.match(/^(?:ابحث عن|ابحث لي عن|ابحثلي عن|دور لي على|دورلي على|فتش عن|search for)\s+(.+)$/i);
+  const query = match?.[1]?.trim().slice(0, 200) ?? '';
+  return query.length >= 2 ? query : null;
+}
+
 function safeNavigationUrl(raw: string): string | null {
   const candidate = raw.trim().replace(/[)>،؛.!؟]+$/g, '');
   if (!candidate || candidate.length > 2048) return null;
