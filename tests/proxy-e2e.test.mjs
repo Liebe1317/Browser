@@ -49,7 +49,7 @@ const server = spawn(process.execPath, ['--import', 'tsx', 'server.ts'], {
   env: { ...process.env, NODE_ENV: 'production', PORT: String(APP), NODE_OPTIONS: `--import ${pathToFileURL(path.join(root, 'tests/helpers/preload.mjs')).href}`, NODE_TLS_REJECT_UNAUTHORIZED: '0' },
 });
 
-const req = (p, { method = 'GET', headers = {} } = {}) =>
+const req = (p, { method = 'GET', headers = {}, body } = {}) =>
   new Promise((resolve, reject) => {
     const r = http.request({ host: '127.0.0.1', port: APP, path: p, method, headers }, (res) => {
       let b = '';
@@ -57,7 +57,7 @@ const req = (p, { method = 'GET', headers = {} } = {}) =>
       res.on('end', () => resolve({ status: res.statusCode, headers: res.headers, body: b }));
     });
     r.on('error', reject);
-    r.end();
+    r.end(body);
   });
 const app = { 'Sec-Fetch-Site': 'same-origin', 'Sec-Fetch-Mode': 'navigate', 'Sec-Fetch-Dest': 'iframe' };
 const appWrite = { ...app, Origin: `http://127.0.0.1:${APP}` };
