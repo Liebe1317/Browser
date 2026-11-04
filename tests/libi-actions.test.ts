@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { detectLibiAction, describeLibiAction } from '../server/libi.ts';
 
 assert.deepEqual(detectLibiAction('ليبي، افتح الإعدادات'), { type: 'open_settings' });
+assert.deepEqual(detectLibiAction('افتح الإعدادات'), { type: 'open_settings' }, 'hamza variants in Arabic commands are normalized');
 assert.deepEqual(detectLibiAction('افتح تبويب جديد'), { type: 'new_tab' });
 assert.deepEqual(detectLibiAction('ارجع'), { type: 'back' });
 assert.deepEqual(detectLibiAction('أعد تحميل الصفحة'), { type: 'reload' });
