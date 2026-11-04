@@ -28,3 +28,30 @@ export async function getAegisCsrfToken(): Promise<string> {
     pendingBootstrap = null;
   }
 }
+
+/**
+ * Send a same-origin state-changing request with the current session CSRF token.
+ * If the server process restarted or evicted this session, refresh the token and retry once.
+ * Only replay string/empty bodies, which are safe to resend in the current browser API usage.
+ */
+export async function fetchWithAegisCsrf(input: RequestInfo | URL, init: RequestInit = {}): Promise<Response> {
+  let token = await getAegisCsrfToken();
+  const replayable = init.body == null || typeof init.body === 'string';
+
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const headers = new Headers(init.headers);
+    headers.set('X-Aegis-CSRF', token);
+    const response = await fetch(input, {
+      ...init,
+      credentials: 'same-origin',
+      headers,
+    });
+
+    if (response.status !== 403 || attempt !== 0 || !replayable) return response;
+
+    cachedCsrfToken = null;
+    token = await getAegisCsrfToken();
+  }
+
+  throw new Error('Aegis request could not be authenticated');
+}
