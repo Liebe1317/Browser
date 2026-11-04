@@ -41,7 +41,7 @@ export function renderSearchResultCard(result: SearchResultCardData, index: numb
   if (safeUrl) {
     const parsed = new URL(safeUrl);
     domain = parsed.hostname;
-    const rawPath = parsed.pathname.length > 1 ? parsed.pathname.replace(/^\\//, '').replace(/\\/$/, '') : '';
+    const rawPath = parsed.pathname.length > 1 ? parsed.pathname.replace(/^\//, '').replace(/\/$/, '') : '';
     try {
       pathPart = decodeURIComponent(rawPath);
     } catch {
@@ -73,5 +73,5 @@ export function renderSearchResultCard(result: SearchResultCardData, index: numb
     '  <h3 class="g-title">' + titleMarkup + '</h3>',
     '  <p class="g-snippet">' + snippet + '</p>',
     '</div>'
-  ].join('\\n');
+  ].join('\n');
 }
