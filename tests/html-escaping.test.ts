@@ -15,7 +15,7 @@ const payload = renderSearchResultCard({
 }, 0, 'fallback');
 assert.match(payload, /&lt;img/);
 assert.match(payload, /&lt;script&gt;/);
-assert.match(payload, /&lt;\\/p&gt;&lt;svg/);
+assert.ok(payload.includes('&lt;/p&gt;&lt;svg'), 'closing tags and SVG markup are escaped');
 assert.doesNotMatch(payload, /<img[^>]+onerror/i);
 assert.doesNotMatch(payload, /<script/i);
 assert.doesNotMatch(payload, /<svg[^>]+onload/i);
