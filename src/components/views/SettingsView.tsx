@@ -51,7 +51,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       const desktopConfigured = !isDesktop || desktopStatus?.configured === true;
       setAksaVpn({
         configured: serverStatus.configured === true && desktopConfigured,
-        enabled: serverStatus.enabled === true && (!isDesktop || desktopStatus?.enabled === true),
+        enabled: serverStatus.enabled === true || (isDesktop && desktopStatus?.enabled === true),
         connected: serverStatus.connected === true && (!isDesktop || desktopStatus?.connected === true),
         scope: isDesktop ? 'electron-session + server-egress' : 'server-egress-only',
         desktop: isDesktop,
@@ -120,6 +120,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     } catch (error) {
       if (enabled && serverChanged) {
         try {
+          await desktopBridge?.setEnabled(false);
+        } catch {}
+        try {
           await fetch('/api/aksa/vpn/toggle', {
             method: 'POST',
             credentials: 'same-origin',
@@ -127,8 +130,23 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             body: JSON.stringify({ enabled: false }),
           });
         } catch {}
+        setAksaVpn((current) => ({ ...current, enabled: false, connected: false }));
+      } else {
+        // A disable operation may partially succeed; reflect both layers rather than falsely showing OFF.
+        try {
+          const [serverStatus, desktopStatus] = await Promise.all([
+            fetch('/api/aksa/vpn/status', { credentials: 'same-origin' }).then((response) => response.json()),
+            desktopBridge?.getStatus().catch(() => null) ?? Promise.resolve(null),
+          ]);
+          setAksaVpn({
+            configured: serverStatus.configured === true && (!desktopBridge || desktopStatus?.configured === true),
+            enabled: serverStatus.enabled === true || (!!desktopBridge && desktopStatus?.enabled === true),
+            connected: serverStatus.connected === true && (!desktopBridge || desktopStatus?.connected === true),
+            scope: desktopBridge ? 'electron-session + server-egress' : 'server-egress-only',
+            desktop: !!desktopBridge,
+          });
+        } catch {}
       }
-      setAksaVpn((current) => ({ ...current, enabled: false, connected: false }));
       setAksaError(error instanceof Error ? error.message : 'تعذر تغيير حالة Aksa.');
     } finally {
       setAksaBusy(false);
