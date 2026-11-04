@@ -12,7 +12,7 @@ assert.match(systemBlock, /جميع الرسائل وسجل المحادثة و�
 
 const userPromptStart = end;
 const userPromptEnd = source.indexOf('const contents =', userPromptStart);
-assert.ok(userPromptStart > end && userPromptEnd > userPromptStart, 'page text is added to the user prompt, not the system prompt');
+assert.ok(userPromptStart === end && userPromptEnd > userPromptStart, 'page text is added to the user prompt, not the system prompt');
 const userPromptBlock = source.slice(userPromptStart, userPromptEnd);
 assert.match(userPromptBlock, /غير موثوق/);
 assert.match(userPromptBlock, /safePageContext/);
