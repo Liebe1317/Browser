@@ -112,13 +112,14 @@ export class CookieJar {
     if (secure && !secureTransport) return;
     if (sameSite === 'none' && !secure) return;
 
+    // Aegis jars are partitioned by the exact top-level hostname. Accepting a parent
+    // Domain cookie here would let a page share credentials with sibling hosts from this jar.
+    // Domain cookies wider than the exact response host are intentionally rejected.
     let domain = host;
-    let hostOnly = true;
+    const hostOnly = true;
     if (domainAttr !== null) {
-      const covers = host === domainAttr || host.endsWith('.' + domainAttr);
-      if (!covers || isPublicSuffix(domainAttr)) return;
-      domain = domainAttr;
-      hostOnly = false;
+      if (domainAttr !== host || isPublicSuffix(domainAttr)) return;
+      // Treat Domain=<exact-host> as host-only inside this stricter partition.
     }
 
     const path = pathAttr && pathAttr.startsWith('/') ? pathAttr : defaultPath(requestPath);
