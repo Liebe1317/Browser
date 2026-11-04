@@ -80,10 +80,16 @@ function probeGateway(_gateway: string, healthUrl: string): Promise<boolean> {
         try {
           const body = JSON.parse(Buffer.concat(chunks).toString('utf8'));
           if (body?.status === 'ok' && body?.tunnel === 'connected') return finish(true);
-          const stamps = body && typeof body === 'object' && !Array.isArray(body) ? Object.values(body) : [];
+          const stamps: unknown[] = body && typeof body === 'object' && !Array.isArray(body)
+            ? Object.values(body as Record<string, unknown>)
+            : [];
           const nowSeconds = Math.floor(Date.now() / 1000);
-          finish(stamps.length > 0 && stamps.every((stamp) =>
-            Number.isInteger(stamp) && stamp > 0 && stamp <= nowSeconds + 2 && nowSeconds - stamp <= 9
+          finish(stamps.length > 0 && stamps.every((stamp): stamp is number =>
+            typeof stamp === 'number' &&
+            Number.isInteger(stamp) &&
+            stamp > 0 &&
+            stamp <= nowSeconds + 2 &&
+            nowSeconds - stamp <= 9
           ));
         } catch {
           finish(false);
