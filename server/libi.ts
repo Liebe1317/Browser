@@ -12,7 +12,14 @@ export type LibiAction =
   | { type: 'open_downloads' }
   | { type: 'open_security' }
   | { type: 'open_shields' }
-  | { type: 'toggle_theme' };
+  | { type: 'toggle_theme' }
+  | { type: 'toggle_reader' }
+  | { type: 'bookmark_page' }
+  | { type: 'zoom_in' }
+  | { type: 'zoom_out' }
+  | { type: 'zoom_reset' }
+  | { type: 'scroll_top' }
+  | { type: 'scroll_bottom' };
 
 const INTERNAL_COMMANDS: Array<[RegExp, LibiAction]> = [
   [/^(?:افتح|اعرض|اذهب الى|انتقل الى)\s+(?:الاعدادات|اعدادات المتصفح|settings)$/, { type: 'open_settings' }],
@@ -59,6 +66,13 @@ export function detectLibiAction(input: string): LibiAction | null {
   if (/^(اعادة تحميل|اعد تحميل الصفحة|حدث الصفحة|ريفريش|refresh)$/.test(command)) return { type: 'reload' };
   if (/^(افتح تبويب جديد|علامة تبويب جديدة|تبويب جديد|new tab)$/.test(command)) return { type: 'new_tab' };
   if (/^(غير الثيم|بدل الثيم|غير المظهر|بدل المظهر|toggle theme)$/.test(command)) return { type: 'toggle_theme' };
+  if (/^(افتح وضع القراءة|شغل وضع القراءة|وضع القراءة|reader mode)$/.test(command)) return { type: 'toggle_reader' };
+  if (/^(احفظ الصفحة|اضف الصفحة للمفضلة|احفظ الموقع|ضع الصفحة في المفضلة)$/.test(command)) return { type: 'bookmark_page' };
+  if (/^(كبر الصفحة|كبر|تكبير|zoom in)$/.test(command)) return { type: 'zoom_in' };
+  if (/^(صغر الصفحة|صغر|تصغير|zoom out)$/.test(command)) return { type: 'zoom_out' };
+  if (/^(اعادة ضبط التكبير|ارجع الحجم الطبيعي|حجم طبيعي|zoom reset)$/.test(command)) return { type: 'zoom_reset' };
+  if (/^(اصعد لاعلى الصفحة|اذهب لاعلى الصفحة|بداية الصفحة|scroll top)$/.test(command)) return { type: 'scroll_top' };
+  if (/^(انزل لاسفل الصفحة|اذهب لنهاية الصفحة|نهاية الصفحة|scroll bottom)$/.test(command)) return { type: 'scroll_bottom' };
 
   for (const [pattern, action] of INTERNAL_COMMANDS) {
     if (pattern.test(command)) return action;
@@ -86,5 +100,12 @@ export function describeLibiAction(action: LibiAction): string {
     case 'open_security': return 'فتح الخزنة ومركز الأمان';
     case 'open_shields': return 'فتح لوحة درع الحماية';
     case 'toggle_theme': return 'تبديل مظهر المتصفح';
+    case 'toggle_reader': return 'فتح وضع القراءة';
+    case 'bookmark_page': return 'حفظ الصفحة في الإشارات المرجعية';
+    case 'zoom_in': return 'تكبير الصفحة';
+    case 'zoom_out': return 'تصغير الصفحة';
+    case 'zoom_reset': return 'إعادة الحجم الطبيعي للصفحة';
+    case 'scroll_top': return 'الصعود إلى أعلى الصفحة';
+    case 'scroll_bottom': return 'النزول إلى نهاية الصفحة';
   }
 }
