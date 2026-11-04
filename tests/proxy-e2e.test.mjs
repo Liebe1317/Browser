@@ -135,6 +135,18 @@ try {
   r = await req('/api/health'); ok(r.status === 403, 'API requests without Fetch Metadata fail closed');
   r = await req('/api/health', { headers: { ...app, Origin: 'https://attacker.example' } }); ok(r.status === 403, 'API requests with a forged Origin are rejected');
   r = await req('/api/health', { headers: { ...app, Host: 'attacker.example' } }); ok(r.status === 421, 'DNS-rebinding Host headers are rejected');
+
+  r = await req('/api/session/bootstrap', { method: 'POST', headers: { ...appWrite, Cookie: sid1 } });
+  const csrf = (() => { try { return JSON.parse(r.body).csrfToken; } catch { return ''; } })();
+  ok(r.status === 200 && /^[a-f0-9]{64}$/.test(csrf), 'same-origin bootstrap issues a session-bound CSRF token');
+  r = await req('/api/session/clear', { method: 'POST', headers: { ...appWrite, Cookie: sid1 } });
+  ok(r.status === 403, 'state-changing app APIs reject requests without a CSRF token');
+  r = await req('/api/aksa/vpn/status', { headers: app });
+  const aksaStatus = (() => { try { return JSON.parse(r.body); } catch { return {}; } })();
+  ok(r.status === 200 && aksaStatus.configured === false && aksaStatus.enabled === false, 'Aksa is reported unavailable until a local VPN gateway is configured');
+  r = await req('/api/aksa/vpn/toggle', { method: 'POST', headers: { ...appWrite, Cookie: sid1, 'X-Aegis-CSRF': csrf }, body: JSON.stringify({ enabled: true }) });
+  ok(r.status === 409, 'Aksa cannot be enabled without a configured local gateway');
+
   const before = seen.length;
   r = await req('/api/proxy', { method: 'OPTIONS', headers: { Origin: 'null', 'Access-Control-Request-Method': 'POST', 'Access-Control-Request-Headers': 'content-type,x-csrf-token' } });
   ok(r.status === 204 && r.headers['access-control-allow-origin'] === '*', 'CORS preflight is answered by the proxy');
@@ -143,7 +155,7 @@ try {
   r = await req('/api/health', { headers: app });
   ok(r.status === 200 && /frame-ancestors 'none'/.test(r.headers['content-security-policy'] || '') && r.headers['x-content-type-options'] === 'nosniff', 'same-origin app API responses carry CSP and security headers');
 
-  await req('/api/session/clear', { method: 'POST', headers: { ...appWrite, Cookie: sid1 } });
+  await req('/api/session/clear', { method: 'POST', headers: { ...appWrite, Cookie: sid1, 'X-Aegis-CSRF': csrf } });
   r = await req(proxy(A + '/whoami', `t=${tokA}&`), { headers: page });
   ok(r.body === 'cookie=', 'session/clear empties every site partition');
 } finally {
