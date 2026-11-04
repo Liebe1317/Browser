@@ -9,6 +9,11 @@ on:
     branches:
       - main
 
+# Keep only the newest validation run for a branch/PR to avoid a queue of obsolete commits.
+concurrency:
+  group: aegis-security-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
