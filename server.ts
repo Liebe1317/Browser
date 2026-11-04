@@ -18,16 +18,14 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 // Process-level stability guards to prevent unexpected crash/exit on aborted sockets or network drops
 process.on('uncaughtException', (err: NodeJS.ErrnoException) => {
-  // Log only a stable error code; raw messages may contain request URLs or provider metadata.
-  if (err.code === 'EADDRINUSE' || err.code === 'EACCES') {
-    console.error('[Aegis Process Guard] Fatal startup error:', err.code);
-    process.exit(1);
-  }
-  console.warn('[Aegis Process Guard] An uncaught exception was contained; details withheld.');
+  // Continuing after an uncaught exception can leave security state inconsistent. Never log raw details.
+  console.error('[Aegis Process Guard] Fatal process error:', err.code || 'UNKNOWN');
+  process.exit(1);
 });
 process.on('unhandledRejection', () => {
-  // Do not serialize raw Error objects, prompts, request details, or provider response metadata.
-  console.warn('[Aegis Process Guard] An unhandled rejection was contained; details withheld.');
+  // Do not serialize raw Error objects, prompts, URLs, or provider response metadata.
+  console.error('[Aegis Process Guard] Fatal unhandled rejection; details withheld.');
+  process.exit(1);
 });
 // Strict SSRF validation: block loopback, link-local, Google Cloud metadata, and private IP ranges
 // Initialize Gemini API client for AI features
@@ -184,7 +182,7 @@ async function fetchLiveWebResults(query: string): Promise<Array<{ title: string
       }
     }
   } catch (err: any) {
-    console.warn('Live search scraper error:', err.message);
+    console.warn('Live search scraper failed; request details withheld.');
   }
   return results;
 }
@@ -1027,7 +1025,7 @@ async function startServer() {
         .slice(0, 24);
       res.json({ results, count: results.length });
     } catch (err: any) {
-      console.warn('YouTube search API error:', err.message);
+      console.warn('YouTube search failed; request details withheld.');
       res.json({ results: [], error: err.message });
     }
   });
@@ -1085,7 +1083,7 @@ async function startServer() {
         .slice(0, 24);
       res.json({ results, category });
     } catch (err: any) {
-      console.warn('YouTube feed API error:', err.message);
+      console.warn('YouTube feed failed; request details withheld.');
       res.json({ results: [] });
     }
   });
@@ -1577,7 +1575,7 @@ ${safePageContext}`;
             try {
               ${shield.blockPopups ? `// 1. Strict Pop-up & Pop-under Interceptor (the CSP sandbox also forbids popups)
               window.open = function(url) {
-                console.warn('[Aegis Shield] Blocked pop-up window:', url);
+                console.warn('[Aegis Shield] A pop-up was blocked; destination withheld.');
                 window.parent.postMessage({ type: 'AEGIS_POPUP_BLOCKED', url: url || 'about:blank' }, '*');
                 return null;
               };` : ''}
@@ -1825,7 +1823,7 @@ ${safePageContext}`;
       res.setHeader('X-Aegis-Trackers-Blocked', String(trackersBlockedCount));
       return res.status(upstream.status).send(html);
     } catch (err: any) {
-      console.warn('Proxy error for', targetUrl, err.message);
+      console.warn('[Aegis Proxy] Upstream request failed; destination and error details withheld.');
       if (err instanceof SsrfBlockedError) {
         return res.status(403).send('Aegis Shield: Access to internal or private network targets is forbidden.');
       }
@@ -2015,6 +2013,6 @@ ${safePageContext}`;
   });
 }
 startServer().catch((err) => {
-  console.error('Failed to start server:', err);
+  console.error('Failed to start server; details withheld.');
   process.exit(1);
 });
