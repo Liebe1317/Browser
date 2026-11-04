@@ -22,8 +22,8 @@ assert.equal(detectLibiAction('افتح https://user:pass@example.com/'), null, 
 assert.equal(detectLibiAction('احذف كل ملفات الجهاز'), null, 'unknown/high-impact actions are not in the allowlist');
 assert.match(describeLibiAction({ type: 'open_settings' }), /إعدادات/);
 assert.equal(parseLibiSearchQuery('ابحث عن Hunter x Hunter'), 'hunter x hunter', 'search commands are normalized to lowercase');
-assert.equal(parseLibiSearchQuery('ليبي، ابحث لي عن أفضل متصفح'), 'أفضل متصفح');
-assert.equal(parseLibiSearchQuery('search for Electron 45'), 'Electron 45');
+assert.equal(parseLibiSearchQuery('ليبي، ابحث لي عن أفضل متصفح'), 'افضل متصفح', 'Arabic hamza variants are normalized in the query');
+assert.equal(parseLibiSearchQuery('search for Electron 45'), 'electron 45', 'English search queries are normalized to lowercase');
 assert.equal(parseLibiSearchQuery('مرحبا يا ليبي'), null);
 assert.equal(parseLibiSearchQuery('ابحث عن'), null);
 
