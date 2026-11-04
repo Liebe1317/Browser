@@ -19,7 +19,7 @@ import { VaultLockScreen } from './components/browser/VaultLockScreen';
 import { isVaultSetUp, createVault, unlockVault, lockVault, saveVaultData, loadVaultData, destroyVault, UnlockResult } from './utils/vault';
 import { LibiAssistant } from './components/browser/LibiAssistant';
 import { LibiBrowserAction } from './types/libi';
-import { getAegisCsrfToken } from './utils/sessionSecurity';
+import { fetchWithAegisCsrf } from './utils/sessionSecurity';
 
 import { Tab, Bookmark, HistoryItem, DownloadItem, BrowserSettings, ShieldSettings, NetworkRequest, BrowserPageType, VaultState } from './types/browser';
 import { DEFAULT_SETTINGS, DEFAULT_SHIELD_SETTINGS, DEFAULT_BOOKMARKS, SEARCH_ENGINES } from './data/initialData';
@@ -204,12 +204,7 @@ export default function App() {
   const clearServerSessionCookies = () => {
     void (async () => {
       try {
-        const csrfToken = await getAegisCsrfToken();
-        await fetch('/api/session/clear', {
-          method: 'POST',
-          credentials: 'same-origin',
-          headers: { 'X-Aegis-CSRF': csrfToken },
-        });
+        await fetchWithAegisCsrf('/api/session/clear', { method: 'POST' });
       } catch {
         // Local browsing data is still cleared; the server session expires independently.
       }
@@ -298,12 +293,10 @@ export default function App() {
     if (closingTab?.isIncognito) {
       void (async () => {
         try {
-          const csrfToken = await getAegisCsrfToken();
-          await fetch('/api/session/context/close', {
+          await fetchWithAegisCsrf('/api/session/context/close', {
             method: 'POST',
-            credentials: 'same-origin',
             keepalive: true,
-            headers: { 'Content-Type': 'application/json', 'X-Aegis-CSRF': csrfToken },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ contextId: `private-${closingTab.id}` }),
           });
         } catch {
