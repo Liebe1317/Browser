@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { detectLibiAction, describeLibiAction } from '../server/libi.ts';
+import { parseLibiSearchResults } from '../src/types/libi.ts';
 
 assert.deepEqual(detectLibiAction('ليبي، افتح الإعدادات'), { type: 'open_settings' });
 assert.deepEqual(detectLibiAction('افتح الإعدادات'), { type: 'open_settings' }, 'hamza variants in Arabic commands are normalized');
@@ -21,4 +22,15 @@ assert.equal(detectLibiAction('افتح https://user:pass@example.com/'), null, 
 assert.equal(detectLibiAction('احذف كل ملفات الجهاز'), null, 'unknown/high-impact actions are not in the allowlist');
 assert.match(describeLibiAction({ type: 'open_settings' }), /إعدادات/);
 
-console.log('PASS - Libi action allowlist and navigation safety');
+const results = parseLibiSearchResults([
+  { title: 'Safe result', url: 'https://example.com/article', snippet: 'A useful snippet' },
+  { title: 'Script link', url: 'javascript:alert(1)', snippet: 'bad' },
+  { title: 'Credential link', url: 'https://user:pass@example.com/', snippet: 'bad' },
+  { title: '<img onerror=alert(1)>', url: 'https://example.org/', snippet: '<script>bad</script>' },
+  { title: 'Invalid', url: 'not a url', snippet: 'bad' },
+]);
+assert.equal(results.length, 2, 'only ordinary HTTP(S) links survive validation');
+assert.equal(results[0].url, 'https://example.com/article');
+assert.equal(results[1].title.length > 0, true, 'untrusted result labels remain text data');
+
+console.log('PASS - Libi action allowlist, navigation safety, and search-result validation');
