@@ -18,6 +18,8 @@ import { SecurityVaultView } from './components/views/SecurityVaultView';
 import { VaultLockScreen } from './components/browser/VaultLockScreen';
 import { isVaultSetUp, createVault, unlockVault, lockVault, saveVaultData, loadVaultData, destroyVault, UnlockResult } from './utils/vault';
 import { LibiAssistant } from './components/browser/LibiAssistant';
+import { LibiBrowserAction } from './types/libi';
+import { getAegisCsrfToken } from './utils/sessionSecurity';
 
 import { Tab, Bookmark, HistoryItem, DownloadItem, BrowserSettings, ShieldSettings, NetworkRequest, BrowserPageType, VaultState } from './types/browser';
 import { DEFAULT_SETTINGS, DEFAULT_SHIELD_SETTINGS, DEFAULT_BOOKMARKS, SEARCH_ENGINES } from './data/initialData';
@@ -150,6 +152,12 @@ export default function App() {
   const [showLibi, setShowLibi] = useState(false);
   const [libiContextQuery, setLibiContextQuery] = useState<string | undefined>(undefined);
   const [networkRequests, setNetworkRequests] = useState<NetworkRequest[]>([]);
+  const [reloadNonce, setReloadNonce] = useState(0);
+  const [pageTexts, setPageTexts] = useState<Record<string, string>>({});
+  const [pageScrollCommand, setPageScrollCommand] = useState<{ id: number; direction: 'top' | 'bottom' } | null>(null);
+  const handlePageText = useCallback((id: string, text: string) => {
+    setPageTexts((previous) => ({ ...previous, [id]: text.slice(0, 12000) }));
+  }, []);
 
   // Persist state
   useEffect(() => {
@@ -265,6 +273,28 @@ export default function App() {
 
   const handleCloseTab = (id: string, e?: React.MouseEvent) => {
     e?.stopPropagation();
+    setPageTexts((previous) => {
+      const next = { ...previous };
+      delete next[id];
+      return next;
+    });
+    const closingTab = tabs.find((tab) => tab.id === id);
+    if (closingTab?.isIncognito) {
+      void (async () => {
+        try {
+          const csrfToken = await getAegisCsrfToken();
+          await fetch('/api/session/context/close', {
+            method: 'POST',
+            credentials: 'same-origin',
+            keepalive: true,
+            headers: { 'Content-Type': 'application/json', 'X-Aegis-CSRF': csrfToken },
+            body: JSON.stringify({ contextId: `private-${closingTab.id}` }),
+          });
+        } catch {
+          // The browser tab is closed immediately; the server also expires abandoned sessions.
+        }
+      })();
+    }
     if (tabs.length === 1) {
       // If closing last tab, reset to a fresh new tab
       const freshTab = createDefaultTab(activeTab.isIncognito);
@@ -284,6 +314,14 @@ export default function App() {
   };
 
   const handleUpdateTab = (id: string, updates: Partial<Tab>) => {
+    const existingTab = tabs.find((tab) => tab.id === id);
+    if (existingTab && typeof updates.url === 'string' && updates.url !== existingTab.url) {
+      setPageTexts((previous) => {
+        const next = { ...previous };
+        delete next[id];
+        return next;
+      });
+    }
     setTabs((prev) =>
       prev.map((t) => (t.id === id ? { ...t, ...updates } : t))
     );
@@ -445,11 +483,49 @@ export default function App() {
   };
 
   const handleReload = () => {
+    setPageTexts((previous) => {
+      const next = { ...previous };
+      delete next[activeTab.id];
+      return next;
+    });
+    setReloadNonce((value) => value + 1);
     handleUpdateTab(activeTab.id, { isLoading: true });
-    setTimeout(() => {
-      handleUpdateTab(activeTab.id, { isLoading: false });
-    }, 800);
   };
+
+  // Libi can request only allowlisted UI actions; each request is confirmed inside its panel.
+  const handleLibiBrowserAction = (action: LibiBrowserAction) => {
+    switch (action.type) {
+      case 'navigate': handleNavigate(action.url); break;
+      case 'new_tab': handleNewTab(); break;
+      case 'back': handleGoBack(); break;
+      case 'forward': handleGoForward(); break;
+      case 'reload': handleReload(); break;
+      case 'open_settings': handleNavigate('chrome://settings'); break;
+      case 'open_history': handleNavigate('chrome://history'); break;
+      case 'open_bookmarks': handleNavigate('chrome://bookmarks'); break;
+      case 'open_downloads': handleNavigate('chrome://downloads'); break;
+      case 'open_security': handleNavigate('chrome://security'); break;
+      case 'open_shields': handleNavigate('chrome://shields'); break;
+      case 'toggle_theme':
+        setSettings((current) => ({ ...current, theme: current.theme === 'light' ? 'dark' : 'light' }));
+        break;
+      case 'toggle_reader': handleToggleReaderMode(); break;
+      case 'bookmark_page': handleToggleBookmark(); break;
+      case 'zoom_in': handleZoomIn(); break;
+      case 'zoom_out': handleZoomOut(); break;
+      case 'zoom_reset': handleZoomReset(); break;
+      case 'scroll_top':
+        setPageScrollCommand((current) => ({ id: (current?.id ?? 0) + 1, direction: 'top' }));
+        break;
+      case 'scroll_bottom':
+        setPageScrollCommand((current) => ({ id: (current?.id ?? 0) + 1, direction: 'bottom' }));
+        break;
+    }
+  };
+
+  useEffect(() => {
+    setPageScrollCommand(null);
+  }, [activeTabId]);
 
   const handleGoHome = () => {
     handleNavigate(settings.homePage || 'chrome://newtab');
@@ -687,6 +763,7 @@ export default function App() {
           />
         ) : activeTab.pageType === 'webpage' ? (
           <WebPageView
+            key={`${activeTab.id}-${reloadNonce}`}
             tab={activeTab}
             shieldSettings={shieldSettings}
             sendDoNotTrack={settings.doNotTrack}
@@ -694,6 +771,9 @@ export default function App() {
             onNavigate={handleNavigate}
             onOpenReader={handleOpenReader}
             onRecordRequest={handleRecordRequest}
+            onPageText={handlePageText}
+            pageScrollCommand={pageScrollCommand}
+            requestPageText={showLibi}
           />
         ) : activeTab.pageType === 'history' ? (
           <HistoryView
@@ -808,9 +888,11 @@ export default function App() {
         currentPageContext={{
           title: activeTab.title,
           url: activeTab.url,
+          text: pageTexts[activeTab.id] || '',
         }}
         initialQuery={libiContextQuery}
         onNavigate={handleNavigate}
+        onExecuteBrowserAction={handleLibiBrowserAction}
       />
     </div>
   );

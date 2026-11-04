@@ -11,6 +11,9 @@ interface WebPageViewProps {
   onNavigate: (url: string) => void;
   onOpenReader: (url: string) => void;
   onRecordRequest: (domain: string, status: 'allowed' | 'blocked', reason?: 'ad' | 'tracker') => void;
+  onPageText?: (id: string, text: string) => void;
+  pageScrollCommand?: { id: number; direction: 'top' | 'bottom' } | null;
+  requestPageText?: boolean;
 }
 
 export const WebPageView: React.FC<WebPageViewProps> = ({
@@ -21,6 +24,9 @@ export const WebPageView: React.FC<WebPageViewProps> = ({
   onNavigate,
   onOpenReader,
   onRecordRequest,
+  onPageText,
+  pageScrollCommand,
+  requestPageText = false,
 }) => {
   const [loadProgress, setLoadProgress] = useState(25);
   const [isIframeLoading, setIsIframeLoading] = useState(true);
@@ -29,7 +35,8 @@ export const WebPageView: React.FC<WebPageViewProps> = ({
 
   // The privacy settings travel with the page load; the proxy applies them (see server/shield.ts).
   // Changing a setting changes this URL, so the page reloads with the new protection.
-  const proxyUrl = `/api/proxy?url=${encodeURIComponent(tab.url)}&s=${encodeShieldFlags(shieldSettings, sendDoNotTrack)}`;
+  const browsingContext = tab.isIncognito ? `private-${tab.id}` : 'regular';
+  const proxyUrl = `/api/proxy?ctx=${encodeURIComponent(browsingContext)}&url=${encodeURIComponent(tab.url)}&s=${encodeShieldFlags(shieldSettings, sendDoNotTrack)}`;
 
   // Simulate smooth page loading bar like Chrome
   useEffect(() => {
@@ -57,6 +64,11 @@ export const WebPageView: React.FC<WebPageViewProps> = ({
       // Only trust messages that really come from THIS tab's page frame (never from other windows/frames)
       if (!iframeRef.current || event.source !== iframeRef.current.contentWindow) return;
       if (!event.data || typeof event.data !== 'object') return;
+
+      if (event.data.type === 'AEGIS_PAGE_CONTENT') {
+        const pageText = typeof event.data.text === 'string' ? event.data.text.slice(0, 12000) : '';
+        onPageText?.(tab.id, pageText);
+      }
 
       if (event.data.type === 'AEGIS_PAGE_LOADED') {
         setLoadProgress(100);
@@ -110,10 +122,28 @@ export const WebPageView: React.FC<WebPageViewProps> = ({
   }, [tab.id, tab.title, tab.adsBlocked, tab.trackersBlocked, tab.popupsBlocked]);
 
   const handleIframeLoad = () => {
+    if (requestPageText) {
+      // Extracted text stays in React memory until the user explicitly opts to share it with Libi.
+      iframeRef.current?.contentWindow?.postMessage({ type: 'AEGIS_EXTRACT_PAGE_TEXT' }, '*');
+    }
     setLoadProgress(100);
     setIsIframeLoading(false);
     onUpdateTabInfo(tab.id, { isLoading: false });
   };
+
+  useEffect(() => {
+    if (!pageScrollCommand || !iframeRef.current?.contentWindow) return;
+    iframeRef.current.contentWindow.postMessage({
+      type: 'AEGIS_SCROLL',
+      direction: pageScrollCommand.direction,
+    }, '*');
+  }, [pageScrollCommand?.id]);
+
+  useEffect(() => {
+    if (requestPageText) {
+      iframeRef.current?.contentWindow?.postMessage({ type: 'AEGIS_EXTRACT_PAGE_TEXT' }, '*');
+    }
+  }, [requestPageText, tab.url]);
 
   const handleIframeError = () => {
     setHasLoadError(true);

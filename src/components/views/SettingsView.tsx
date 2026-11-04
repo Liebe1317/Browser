@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { BrowserSettings, CustomColorTheme } from '../../types/browser';
 import { SEARCH_ENGINES } from '../../data/initialData';
+import { getAegisCsrfToken } from '../../utils/sessionSecurity';
 import { THEME_PRESETS, applyCustomTheme } from '../../utils/theme';
 
 interface SettingsViewProps {
@@ -25,12 +26,54 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const initialTheme = settings.customColors || THEME_PRESETS[0];
   const [customTheme, setCustomTheme] = useState<CustomColorTheme>(initialTheme);
   const [isSavedToast, setIsSavedToast] = useState(false);
+  const [aksaVpn, setAksaVpn] = useState<{ configured: boolean; enabled: boolean }>({ configured: false, enabled: false });
+  const [aksaBusy, setAksaBusy] = useState(false);
+  const [aksaError, setAksaError] = useState('');
 
   useEffect(() => {
     if (settings.customColors) {
       setCustomTheme(settings.customColors);
     }
   }, [settings.customColors]);
+
+  useEffect(() => {
+    let active = true;
+    fetch('/api/aksa/vpn/status', { credentials: 'same-origin' })
+      .then(async (response) => {
+        if (!response.ok) throw new Error('تعذر قراءة حالة Aksa');
+        return response.json();
+      })
+      .then((status) => {
+        if (active && status && typeof status.configured === 'boolean' && typeof status.enabled === 'boolean') {
+          setAksaVpn({ configured: status.configured, enabled: status.enabled });
+        }
+      })
+      .catch(() => {
+        if (active) setAksaError('تعذر الاتصال بخدمة Aksa المحلية.');
+      });
+    return () => { active = false; };
+  }, []);
+
+  const toggleAksaVpn = async (enabled: boolean) => {
+    setAksaBusy(true);
+    setAksaError('');
+    try {
+      const csrfToken = await getAegisCsrfToken();
+      const response = await fetch('/api/aksa/vpn/toggle', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json', 'X-Aegis-CSRF': csrfToken },
+        body: JSON.stringify({ enabled }),
+      });
+      const status = await response.json();
+      if (!response.ok) throw new Error(typeof status.error === 'string' ? status.error : 'تعذر تغيير حالة Aksa.');
+      setAksaVpn({ configured: status.configured, enabled: status.enabled });
+    } catch (error) {
+      setAksaError(error instanceof Error ? error.message : 'تعذر تغيير حالة Aksa.');
+    } finally {
+      setAksaBusy(false);
+    }
+  };
 
   const updateSetting = <K extends keyof BrowserSettings>(key: K, value: BrowserSettings[K]) => {
     onUpdateSettings({
@@ -669,6 +712,29 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   disabled
                   title="غير متوفر بعد"
                   className="w-4 h-4 rounded opacity-40 cursor-not-allowed"
+                />
+              </div>
+
+              <div className="p-4 rounded-xl bg-slate-850 border border-slate-800 flex items-center justify-between gap-4">
+                <div className="min-w-0">
+                  <h4 className="font-bold text-slate-200 flex items-center gap-2">
+                    <Globe className="w-4 h-4 text-cyan-400" />
+                    <span>Aksa VPN — اتصال خاص بالمتصفح</span>
+                  </h4>
+                  <p className="text-[11px] text-slate-400 mt-0.5">
+                    {aksaVpn.configured
+                      ? (aksaVpn.enabled ? 'نشط لاتصالات الخروج التي يصدرها خادم Aegis. الصور والوسائط والإطارات الخارجية التي يحمّلها محرك العرض مباشرة، مثل مشغّل YouTube، ليست داخل النفق بعد. إذا تعطلت البوابة تفشل الطلبات الموجّهة ولا تعود للاتصال المباشر.' : 'بوابة Aksa المحلية مهيأة. هذا المسار يوجّه اتصالات خادم Aegis عبر VPN؛ لا يغطي الاتصالات المباشرة التي يجريها محرك العرض.')
+                      : 'غير مهيأ: يتطلب بوابة Aksa محلية تعتمد VPN/WireGuard وضبط AKSA_VPN_PROXY على الخادم.'}
+                  </p>
+                  {aksaError && <p className="text-[11px] text-rose-300 mt-1">{aksaError}</p>}
+                </div>
+                <input
+                  type="checkbox"
+                  checked={aksaVpn.enabled}
+                  disabled={!aksaVpn.configured || aksaBusy}
+                  onChange={(e) => toggleAksaVpn(e.target.checked)}
+                  aria-label="تشغيل Aksa VPN"
+                  className="w-4 h-4 accent-emerald-500 rounded cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
                 />
               </div>
 

@@ -1,0 +1,38 @@
+name: Aegis Security CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+# Keep only the newest validation run for a branch/PR to avoid a queue of obsolete commits.
+concurrency:
+  group: aegis-security-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Run unit and proxy integration tests
+        run: npm test
+      - name: Type-check
+        run: npm run lint
+      - name: Build production bundle
+        run: npm run build

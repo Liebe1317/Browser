@@ -10,7 +10,8 @@
  */
 import dns from 'node:dns';
 import net from 'node:net';
-import { Agent, fetch as undiciFetch } from 'undici';
+import { Agent, fetch as undiciFetch, type Dispatcher } from 'undici';
+import { getAksaDispatcher } from './aksaVpn.ts';
 
 export class SsrfBlockedError extends Error {
   constructor(message: string) {
@@ -187,6 +188,8 @@ export interface SafeFetcherConfig {
   /** Overridable for tests only. */
   lookup?: typeof guardedLookup;
   isBlockedUrl?: (u: URL) => boolean;
+  /** Optional browser-scoped VPN dispatcher. It must fail closed; never fall back to direct fetch. */
+  getDispatcher?: () => Dispatcher | undefined;
 }
 
 const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
@@ -220,7 +223,7 @@ export function createSafeFetcher(config: SafeFetcherConfig = {}) {
         body: method === 'GET' || method === 'HEAD' ? undefined : body,
         signal: init.signal,
         redirect: 'manual',
-        dispatcher: agent,
+        dispatcher: config.getDispatcher?.() ?? agent,
       });
       opts.onResponse?.(url, response);
 
@@ -251,7 +254,7 @@ export function createSafeFetcher(config: SafeFetcherConfig = {}) {
   };
 }
 
-export const safeFetch = createSafeFetcher();
+export const safeFetch = createSafeFetcher({ getDispatcher: getAksaDispatcher });
 
 /** Reads a response body but aborts if it exceeds `maxBytes` (protects server memory). */
 export async function readBodyCapped(response: SafeResponse, maxBytes: number): Promise<Buffer> {
