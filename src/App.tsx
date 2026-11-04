@@ -152,6 +152,7 @@ export default function App() {
   const [showLibi, setShowLibi] = useState(false);
   const [libiContextQuery, setLibiContextQuery] = useState<string | undefined>(undefined);
   const [networkRequests, setNetworkRequests] = useState<NetworkRequest[]>([]);
+  const [reloadNonce, setReloadNonce] = useState(0);
 
   // Persist state
   useEffect(() => {
@@ -464,10 +465,8 @@ export default function App() {
   };
 
   const handleReload = () => {
+    setReloadNonce((value) => value + 1);
     handleUpdateTab(activeTab.id, { isLoading: true });
-    setTimeout(() => {
-      handleUpdateTab(activeTab.id, { isLoading: false });
-    }, 800);
   };
 
   // Libi can request only allowlisted UI actions; each request is confirmed inside its panel.
@@ -726,6 +725,7 @@ export default function App() {
           />
         ) : activeTab.pageType === 'webpage' ? (
           <WebPageView
+            key={`${activeTab.id}-${reloadNonce}`}
             tab={activeTab}
             shieldSettings={shieldSettings}
             sendDoNotTrack={settings.doNotTrack}
