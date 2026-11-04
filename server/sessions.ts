@@ -259,6 +259,27 @@ export function clearSessionCookies(req: Request): void {
   if (sid) sessions.get(sid)!.jars.clear();
 }
 
+/** Destroy one private browsing context: remove its cookie jars and invalidate every page token. */
+export function destroyPrivateContext(req: Request, contextId: string): boolean {
+  if (!/^private-[A-Za-z0-9._:-]{1,120}$/.test(contextId)) return false;
+  const sid = lookupSessionFromCookie(req);
+  if (!sid) return false;
+  const session = sessions.get(sid);
+  if (!session) return false;
+  const prefix = `${contextId}|`;
+  for (const key of session.jars.keys()) {
+    if (key.startsWith(prefix)) session.jars.delete(key);
+  }
+  for (const [token, record] of tokens) {
+    if (record.sid === sid && record.contextId === contextId) {
+      tokens.delete(token);
+      const indexKey = `${record.sid}|${record.contextId}|${record.site}`;
+      if (tokenIndex.get(indexKey) === token) tokenIndex.delete(indexKey);
+    }
+  }
+  return true;
+}
+
 // Drop idle sessions and all associated capabilities.
 const sweeper = setInterval(() => {
   const now = Date.now();
