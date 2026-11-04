@@ -49,6 +49,7 @@ export const LibiAssistant: React.FC<LibiAssistantProps> = ({
   const [suggestions, setSuggestions] = useState<string[]>([
     'ما هي أفضل مواقع الأنمي الموثوقة؟',
     'لخّص لي الصفحة الحالية',
+    'ابحث عن أدوات حماية الخصوصية',
     'كيف يحميني متصفح Aegis من التتبع؟',
   ]);
   const [isMinimized, setIsMinimized] = useState(false);
