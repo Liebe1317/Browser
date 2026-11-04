@@ -1,12 +1,17 @@
 'use strict';
 
-const { app, BrowserWindow, session, ipcMain, Menu } = require('electron');
+const { app, BrowserWindow, session, ipcMain, Menu, dialog } = require('electron');
 const path = require('path');
 const { pathToFileURL } = require('url');
-const { parseAksaLocalProxy, isConnectedHealthPayload } = require('./aksa-config.cjs');
+const { parseAksaLocalProxy, getAegisUserDataPath } = require('./aksa-config.cjs');
+const { AksaSidecar } = require('./aksa-sidecar.cjs');
+const { installWireproxy } = require('./aksa-installer.cjs');
 
 let mainWindow = null;
-const aksaProxy = parseAksaLocalProxy(process.env.AKSA_VPN_PROXY);
+const userDataPath = getAegisUserDataPath();
+app.setPath('userData', userDataPath);
+const aksaProxy = parseAksaLocalProxy(process.env.AKSA_VPN_PROXY || 'http://127.0.0.1:19090');
+let aksaSidecar = null;
 let aksaEnabled = false;
 let aksaConnected = false;
 let aksaMonitor = null;
@@ -51,20 +56,8 @@ function isAppRequest(rawUrl) {
 }
 
 async function probeAksaTunnel() {
-  if (!aksaProxy) return false;
-  try {
-    const response = await fetch(aksaProxy.healthUrl, {
-      method: 'GET',
-      cache: 'no-store',
-      signal: AbortSignal.timeout(2200),
-      headers: { Accept: 'application/json' },
-    });
-    if (!response.ok) return false;
-    const body = await response.json();
-    return isConnectedHealthPayload(body);
-  } catch {
-    return false;
-  }
+  if (!aksaProxy || !aksaSidecar) return false;
+  return aksaSidecar.checkHealth();
 }
 
 async function applyAksaProxy() {
@@ -89,11 +82,17 @@ async function applyAksaFailClosedProxy() {
 }
 
 function getAksaStatus() {
+  const sidecarStatus = aksaSidecar ? aksaSidecar.getStatus() : {};
+  const configured = !!aksaProxy && sidecarStatus.installed === true && sidecarStatus.profileConfigured === true;
   return {
-    configured: !!aksaProxy,
+    configured,
+    installed: sidecarStatus.installed === true,
+    profileConfigured: sidecarStatus.profileConfigured === true,
+    running: sidecarStatus.running === true,
     enabled: aksaEnabled,
     connected: aksaEnabled && aksaConnected,
-    gateway: aksaProxy ? 'configured-local' : 'not-configured',
+    gateway: configured ? 'configured-local' : 'not-configured',
+    version: sidecarStatus.version || null,
     scope: 'electron-session',
   };
 }
@@ -134,18 +133,25 @@ async function setAksaEnabled(next) {
     aksaMonitor = null;
     await session.defaultSession.setProxy({ mode: 'system' });
     await session.defaultSession.closeAllConnections();
+    await aksaSidecar?.stop();
     return { ok: true, status: getAksaStatus() };
   }
 
-  if (!aksaProxy) {
-    return { ok: false, status: getAksaStatus(), error: 'AKSA_VPN_PROXY is not configured.' };
+  if (!aksaProxy || !aksaSidecar) {
+    return { ok: false, status: getAksaStatus(), error: 'Aksa desktop engine is unavailable.' };
   }
+  const started = await aksaSidecar.start();
+  if (!started.ok) {
+    return { ok: false, status: getAksaStatus(), error: started.error || 'تعذر تشغيل نفق Aksa.' };
+  }
+
   const healthy = await probeAksaTunnel();
   if (!healthy) {
+    await aksaSidecar.stop();
     return {
       ok: false,
       status: getAksaStatus(),
-      error: 'Aksa gateway does not confirm an active WireGuard tunnel. The browser connection was not switched.',
+      error: 'بوابة WireGuard لم تؤكد اتصال النفق عبر /readyz. لم يتم تحويل حركة المتصفح.',
     };
   }
 
@@ -160,8 +166,9 @@ async function setAksaEnabled(next) {
   } catch {
     aksaEnabled = false;
     aksaConnected = false;
-    try { await session.defaultSession.setProxy({ mode: 'system' }); } catch {}
-    return { ok: false, status: getAksaStatus(), error: 'Unable to apply Aksa proxy to the Electron session.' };
+    try { await applyAksaFailClosedProxy(); } catch {}
+    await aksaSidecar.stop();
+    return { ok: false, status: getAksaStatus(), error: 'تعذر تحويل جلسة Chromium إلى بروكسي Aksa المحلي.' };
   }
 }
 
@@ -252,6 +259,42 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
+  aksaSidecar = new AksaSidecar(userDataPath, {
+    onExit: () => {
+      if (aksaEnabled) {
+        aksaConnected = false;
+        void applyAksaFailClosedProxy().catch(() => {});
+      }
+    },
+  });
+
+  ipcMain.handle('aegis:vpn:install', async (event) => {
+    if (!isTrustedUi(event)) return { ok: false, error: 'Untrusted desktop IPC request.' };
+    try {
+      const result = await installWireproxy({ userDataPath });
+      return { ok: true, version: result.version, status: getAksaStatus() };
+    } catch (error) {
+      return { ok: false, error: error instanceof Error ? error.message : 'تعذر تثبيت محرك Aksa.', status: getAksaStatus() };
+    }
+  });
+
+  ipcMain.handle('aegis:vpn:choose-config', async (event) => {
+    if (!isTrustedUi(event)) return { ok: false, error: 'Untrusted desktop IPC request.' };
+    if (aksaEnabled) return { ok: false, error: 'أوقف Aksa قبل تغيير ملف WireGuard.' };
+    const selection = await dialog.showOpenDialog(mainWindow, {
+      title: 'اختيار ملف إعداد WireGuard من مزود VPN',
+      properties: ['openFile'],
+      filters: [{ name: 'WireGuard configuration', extensions: ['conf'] }],
+    });
+    if (selection.canceled || !selection.filePaths[0]) return { ok: false, cancelled: true, status: getAksaStatus() };
+    try {
+      aksaSidecar.configureProfile(selection.filePaths[0]);
+      return { ok: true, status: getAksaStatus() };
+    } catch (error) {
+      return { ok: false, error: error instanceof Error ? error.message : 'ملف WireGuard غير صالح.', status: getAksaStatus() };
+    }
+  });
+
   ipcMain.handle('aegis:vpn:get-status', (event) => {
     if (!isTrustedUi(event)) return { configured: false, enabled: false, connected: false, gateway: 'not-configured', scope: 'electron-session' };
     return getAksaStatus();
@@ -269,8 +312,14 @@ app.whenReady().then(() => {
   });
 });
 
-app.on('before-quit', () => {
+let finalQuitStarted = false;
+app.on('before-quit', (event) => {
   if (aksaMonitor) clearInterval(aksaMonitor);
+  if (!finalQuitStarted && aksaSidecar) {
+    finalQuitStarted = true;
+    event.preventDefault();
+    void aksaSidecar.stop().finally(() => app.quit());
+  }
 });
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
