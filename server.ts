@@ -4,7 +4,7 @@ import { createServer as createViteServer } from 'vite';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
-import { escapeHtml, renderSearchResultCard } from './server/html.ts';
+import { escapeHtml, renderSearchResultCard, jsStringLiteral } from './server/html.ts';
 import { GoogleGenAI } from '@google/genai';
 import { authorizeProxyRequest, jarFor, addTokenToProxyUrls, clearSessionCookies, bootstrapAppSession, appSessionId, verifyAppCsrf, destroyPrivateContext } from './server/sessions.ts';
 import { detectLibiAction, describeLibiAction } from './server/libi.ts';
@@ -1544,12 +1544,6 @@ ${safePageContext}`;
       );
       // Serialize URL-derived values as JavaScript string literals. Never interpolate raw URLs
       // inside executable script: URL query text is attacker-controlled.
-      const jsStringLiteral = (value: string) => JSON.stringify(value)
-        .replace(/</g, '\\u003c')
-        .replace(/>/g, '\\u003e')
-        .replace(/&/g, '\\u0026')
-        .replace(/\\u2028/g, '\\u2028')
-        .replace(/\\u2029/g, '\\u2029');
       const jsTargetOrigin = jsStringLiteral(parsedTarget.origin);
       const jsTargetHostname = jsStringLiteral(parsedTarget.hostname);
 
