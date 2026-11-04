@@ -26,12 +26,12 @@ const upstream = https.createServer(tls, (req, res) => {
   if (host === 'evil.example.test' && req.url === '/?mode=private') {
     res.setHeader('Set-Cookie', 'login=PRIVATE; Path=/; HttpOnly; Secure; SameSite=Lax');
     res.setHeader('Content-Type', 'text/html');
-    return res.end('<html><head></head><body>private A</body></html>');
+    return res.end('<html><head><link rel="stylesheet" href="/style.css"></head><body>private A</body></html>');
   }
   if (host === 'evil.example.test' && req.url === '/') {
     res.setHeader('Set-Cookie', ['login=A; Path=/; HttpOnly', 'pref=dark; Path=/']);
     res.setHeader('Content-Type', 'text/html');
-    return res.end(`<html><head><title>A</title><link rel="stylesheet" href="/style.css"><link rel="preconnect" href="https://direct.test"></head><body><img src="https://site-b.test:${UP}/pixel.png"><script src="https://site-b.test:${UP}/lib.js"></script></body></html>`);
+    return res.end(`<html><head><title>A</title><link rel="stylesheet" href="/style.css"><link rel="preconnect" href="https://direct.test"></head><body><img src="https://bank.example.test:${UP}/pixel.png"><script src="https://site-b.test:${UP}/lib.js"></script></body></html>`);
   }
   if (req.url === '/style.css') { res.setHeader('Content-Type', 'text/css'); return res.end('body{background:url(/bg.png)}'); }
   if (req.url === '/pixel.png') { res.setHeader('Set-Cookie', 'track=B; Path=/'); res.setHeader('Content-Type', 'image/png'); return res.end('PNG'); }
