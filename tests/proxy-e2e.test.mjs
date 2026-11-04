@@ -105,7 +105,7 @@ try {
   ok(!r.body.includes('loginB=1'), "a page with A's token CANNOT use the user's login on a sibling subdomain");
 
   r = await req(proxy(A + '/?mode=private', '', 'private-tab-123'), { headers: { ...app, Cookie: sid1 } });
-  const tokPrivate = (r.body.match(/\\/api\\/proxy\\?t=([a-f0-9]{48})&url=/) || [])[1];
+  const tokPrivate = (r.body.match(/t=([a-f0-9]{48})&url=/) || [])[1];
   ok(tokPrivate && tokPrivate !== tokA, 'private browsing context receives an independent capability token');
   r = await req(proxy(A + '/whoami', `t=${tokPrivate}&`), { headers: page });
   ok(r.body.includes('login=PRIVATE') && !r.body.includes('login=A'), 'private browsing cookies are isolated from the regular profile');
