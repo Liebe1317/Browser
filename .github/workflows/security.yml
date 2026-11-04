@@ -4,7 +4,9 @@ on:
   push:
     branches:
       - main
-      - 'security/**'
+  pull_request:
+    branches:
+      - main
 
 # Keep only the newest validation run for a branch/PR to avoid a queue of obsolete commits.
 concurrency:
