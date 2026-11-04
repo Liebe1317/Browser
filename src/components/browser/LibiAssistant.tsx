@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { LibiBrowserAction, isLibiBrowserAction } from '../../types/libi';
+import { LibiBrowserAction, isLibiBrowserAction, LibiSearchResult, parseLibiSearchResults } from '../../types/libi';
 import { getAegisCsrfToken } from '../../utils/sessionSecurity';
 import { 
   Sparkles, Send, X, Shield, Lock, RefreshCw, MessageSquare, 
@@ -11,6 +11,7 @@ interface ChatMessage {
   role: 'user' | 'model';
   text: string;
   timestamp: number;
+  results?: LibiSearchResult[];
 }
 
 interface LibiAssistantProps {
@@ -139,7 +140,7 @@ export const LibiAssistant: React.FC<LibiAssistantProps> = ({
         {
           id: `bot-err-${Date.now()}`,
           role: 'model',
-          text: 'أعتذر منك، حدث اضطراب طفيف في الاتصال. خصوصيتك ما زالت في أمان تام، يرجى المحاولة مرة أخرى.',
+          text: 'تعذر الاتصال بخدمة ليبي حالياً. لم يتم تنفيذ أي أمر؛ حاول مرة أخرى لاحقاً.',
           timestamp: Date.now(),
         },
       ]);
@@ -244,14 +245,28 @@ export const LibiAssistant: React.FC<LibiAssistantProps> = ({
                     </div>
                   )}
 
-                  <div 
-                    className={`max-w-[82%] rounded-2xl px-3.5 py-2.5 leading-relaxed break-words whitespace-pre-wrap shadow-sm ${
-                      isUser
-                        ? 'bg-indigo-600 text-white rounded-br-none'
-                        : 'bg-slate-800/90 text-slate-100 border border-slate-700/60 rounded-bl-none'
-                    }`}
-                  >
+                  <div className={`max-w-[82%] min-w-0 rounded-2xl px-3.5 py-2.5 leading-relaxed break-words whitespace-pre-wrap shadow-sm ${
+                    isUser
+                      ? 'bg-indigo-600 text-white rounded-br-none'
+                      : 'bg-slate-800/90 text-slate-100 border border-slate-700/60 rounded-bl-none'
+                  }`}>
                     {m.text}
+                    {m.results && m.results.length > 0 && (
+                      <div className="mt-3 space-y-2">
+                        {m.results.map((result, index) => (
+                          <button
+                            key={result.url + index}
+                            type="button"
+                            onClick={() => onNavigate?.(result.url)}
+                            className="w-full text-right rounded-xl border border-slate-700 bg-slate-900/80 hover:border-indigo-400/60 p-2.5 transition-colors whitespace-normal"
+                          >
+                            <span className="block text-indigo-300 font-semibold leading-snug">{result.title}</span>
+                            <span className="block text-[10px] text-emerald-300/80 mt-1 break-all">{new URL(result.url).hostname}</span>
+                            <span className="block text-[11px] text-slate-400 mt-1 leading-relaxed">{result.snippet}</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
               );
