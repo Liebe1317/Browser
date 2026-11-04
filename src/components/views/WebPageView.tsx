@@ -65,7 +65,7 @@ export const WebPageView: React.FC<WebPageViewProps> = ({
       if (!iframeRef.current || event.source !== iframeRef.current.contentWindow) return;
       if (!event.data || typeof event.data !== 'object') return;
 
-      if (event.data.type === 'AEGIS_PAGE_CONTENT') {
+      if (requestPageText && event.data.type === 'AEGIS_PAGE_CONTENT') {
         const pageText = typeof event.data.text === 'string' ? event.data.text.slice(0, 12000) : '';
         onPageText?.(tab.id, pageText);
       }
@@ -133,7 +133,7 @@ export const WebPageView: React.FC<WebPageViewProps> = ({
 
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
-  }, [tab.id, tab.title, tab.adsBlocked, tab.trackersBlocked, tab.popupsBlocked]);
+  }, [tab.id, tab.title, tab.adsBlocked, tab.trackersBlocked, tab.popupsBlocked, requestPageText, onPageText]);
 
   const handleIframeLoad = () => {
     if (requestPageText) {
