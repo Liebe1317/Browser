@@ -23,7 +23,7 @@ const seen = [];
 const upstream = https.createServer(tls, (req, res) => {
   const host = (req.headers.host || '').split(':')[0];
   seen.push({ host, url: req.url, cookie: req.headers.cookie || '' });
-  if (host === 'site-a.test' && req.url === '/') {
+  if (host === 'evil.example.test' && req.url === '/') {
     res.setHeader('Set-Cookie', ['login=A; Path=/; HttpOnly', 'pref=dark; Path=/']);
     res.setHeader('Content-Type', 'text/html');
     return res.end(`<html><head><title>A</title><link rel="stylesheet" href="/style.css"><link rel="preconnect" href="https://direct.test"></head><body><img src="https://site-b.test:${UP}/pixel.png"><script src="https://site-b.test:${UP}/lib.js"></script></body></html>`);
@@ -31,7 +31,7 @@ const upstream = https.createServer(tls, (req, res) => {
   if (req.url === '/style.css') { res.setHeader('Content-Type', 'text/css'); return res.end('body{background:url(/bg.png)}'); }
   if (req.url === '/pixel.png') { res.setHeader('Set-Cookie', 'track=B; Path=/'); res.setHeader('Content-Type', 'image/png'); return res.end('PNG'); }
   if (req.url === '/lib.js') { res.setHeader('Content-Type', 'application/javascript'); return res.end('window.lib=1'); }
-  if (host === 'site-b.test' && req.url === '/') { res.setHeader('Set-Cookie', 'loginB=1; Path=/'); res.setHeader('Content-Type', 'text/html'); return res.end('<html><head></head><body>B home</body></html>'); }
+  if (host === 'bank.example.test' && req.url === '/') { res.setHeader('Set-Cookie', 'loginB=1; Path=/'); res.setHeader('Content-Type', 'text/html'); return res.end('<html><head></head><body>B home</body></html>'); }
   if (req.url === '/whoami') { res.setHeader('Content-Type', 'text/plain'); return res.end('cookie=' + (req.headers.cookie || '')); }
   res.statusCode = 404;
   res.end('nf');
@@ -54,16 +54,18 @@ const req = (p, { method = 'GET', headers = {} } = {}) =>
     r.on('error', reject);
     r.end();
   });
+const app = { 'Sec-Fetch-Site': 'same-origin', 'Sec-Fetch-Mode': 'navigate', 'Sec-Fetch-Dest': 'iframe' };
+const appWrite = { ...app, Origin: `http://127.0.0.1:${APP}` };
+const page = { 'Sec-Fetch-Site': 'cross-site', 'Sec-Fetch-Mode': 'no-cors' }; // opaque-origin page request
 for (let i = 0; i < 60; i++) {
-  try { await req('/api/health'); break; } catch { await new Promise((r) => setTimeout(r, 500)); }
+  try { const health = await req('/api/health', { headers: app }); if (health.status === 200) break; } catch {}
+  await new Promise((r) => setTimeout(r, 500));
 }
 
-const proxy = (url, q = '') => `/api/proxy?${q}url=${encodeURIComponent(url)}`;
-const A = `https://site-a.test:${UP}`;
-const B = `https://site-b.test:${UP}`;
+const proxy = (url, q = '', context = 'regular') => `/api/proxy?${q}ctx=${encodeURIComponent(context)}&url=${encodeURIComponent(url)}`;
+const A = `https://evil.example.test:${UP}`;
+const B = `https://bank.example.test:${UP}`;
 const sidOf = (r) => (r.headers['set-cookie'] || []).map((c) => c.split(';')[0]).find((c) => c.startsWith('aegis_sid='));
-const app = { 'Sec-Fetch-Site': 'same-origin', 'Sec-Fetch-Mode': 'navigate', 'Sec-Fetch-Dest': 'iframe' };
-const page = { 'Sec-Fetch-Site': 'cross-site', 'Sec-Fetch-Mode': 'no-cors' }; // what an opaque-origin page sends
 
 try {
   let r = await req(proxy(A + '/'), { headers: app });
@@ -95,7 +97,15 @@ try {
   r = await req(proxy(B + '/whoami', `t=${tokB}&`), { headers: page });
   ok(r.body.includes('loginB=1'), 'site B first-party cookies work in its own partition');
   r = await req(proxy(B + '/whoami', `t=${tokA}&`), { headers: page });
-  ok(!r.body.includes('loginB=1'), "a page with A's token CANNOT use the user's login on site B");
+  ok(!r.body.includes('loginB=1'), "a page with A's token CANNOT use the user's login on a sibling subdomain");
+
+  r = await req(proxy(A + '/?mode=private', '', 'private-tab-123'), { headers: { ...app, Cookie: sid1 } });
+  const tokPrivate = (r.body.match(/\\/api\\/proxy\\?t=([a-f0-9]{48})&url=/) || [])[1];
+  ok(tokPrivate && tokPrivate !== tokA, 'private browsing context receives an independent capability token');
+  r = await req(proxy(A + '/whoami', `t=${tokPrivate}&`), { headers: page });
+  ok(r.body.includes('login=PRIVATE') && !r.body.includes('login=A'), 'private browsing cookies are isolated from the regular profile');
+  r = await req(proxy(A + '/whoami', `t=${tokA}&`), { headers: page });
+  ok(r.body.includes('login=A') && !r.body.includes('login=PRIVATE'), 'regular browsing cookies are unchanged by private context');
 
   r = await req(proxy(A + '/whoami'), { headers: app });
   ok(r.status === 200 && r.body === 'cookie=', 'another client gets an empty jar (no leakage between users)');
@@ -117,6 +127,9 @@ try {
   r = await req('/api/health', { headers: page }); ok(r.status === 403, 'other /api routes refuse cross-site callers');
   r = await req('/api/session/clear', { method: 'POST', headers: page }); ok(r.status === 403, 'session/clear refuses cross-site callers');
   r = await req('/api/health', { headers: app }); ok(r.status === 200, 'the app UI itself can use /api');
+  r = await req('/api/health'); ok(r.status === 403, 'API requests without Fetch Metadata fail closed');
+  r = await req('/api/health', { headers: { ...app, Origin: 'https://attacker.example' } }); ok(r.status === 403, 'API requests with a forged Origin are rejected');
+  r = await req('/api/health', { headers: { ...app, Host: 'attacker.example' } }); ok(r.status === 421, 'DNS-rebinding Host headers are rejected');
   const before = seen.length;
   r = await req('/api/proxy', { method: 'OPTIONS', headers: { Origin: 'null', 'Access-Control-Request-Method': 'POST', 'Access-Control-Request-Headers': 'content-type,x-csrf-token' } });
   ok(r.status === 204 && r.headers['access-control-allow-origin'] === '*', 'CORS preflight is answered by the proxy');
@@ -125,7 +138,7 @@ try {
   r = await req('/', { headers: app });
   ok(/frame-ancestors 'none'/.test(r.headers['content-security-policy'] || '') && r.headers['x-content-type-options'] === 'nosniff', 'the app itself has a CSP and security headers');
 
-  await req('/api/session/clear', { method: 'POST', headers: { ...app, Cookie: sid1 } });
+  await req('/api/session/clear', { method: 'POST', headers: { ...appWrite, Cookie: sid1 } });
   r = await req(proxy(A + '/whoami', `t=${tokA}&`), { headers: page });
   ok(r.body === 'cookie=', 'session/clear empties every site partition');
 } finally {
