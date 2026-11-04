@@ -99,21 +99,35 @@ export const WebPageView: React.FC<WebPageViewProps> = ({
         onUpdateTabInfo(tab.id, {
           popupsBlocked: nextCount,
         });
-        onRecordRequest(event.data.url || 'popup-interstitial.ad', 'blocked', 'ad');
+        const popupTarget = typeof event.data.url === 'string' ? event.data.url.slice(0, 160) : 'popup-interstitial.ad';
+        onRecordRequest(popupTarget, 'blocked', 'ad');
       }
 
       if (event.data.type === 'AEGIS_NAVIGATE') {
-        const raw = String(event.data.url || '').trim();
-        if (raw.startsWith('http://') || raw.startsWith('https://') || raw.startsWith('chrome://')) {
-          onNavigate(raw);
-        }
+        const raw = typeof event.data.url === 'string' ? event.data.url.trim().slice(0, 2048) : '';
+        try {
+          const target = new URL(raw);
+          // Untrusted site frames may request ordinary web navigation only, never internal browser pages.
+          if (
+            (target.protocol === 'http:' || target.protocol === 'https:') &&
+            target.hostname &&
+            !target.username &&
+            !target.password
+          ) onNavigate(target.toString());
+        } catch {}
       }
 
       if (event.data.type === 'AEGIS_OPEN_READER') {
-        const raw = String(event.data.url || '').trim();
-        if (raw.startsWith('http://') || raw.startsWith('https://')) {
-          onOpenReader(raw);
-        }
+        const raw = typeof event.data.url === 'string' ? event.data.url.trim().slice(0, 2048) : '';
+        try {
+          const target = new URL(raw);
+          if (
+            (target.protocol === 'http:' || target.protocol === 'https:') &&
+            target.hostname &&
+            !target.username &&
+            !target.password
+          ) onOpenReader(target.toString());
+        } catch {}
       }
     };
 
