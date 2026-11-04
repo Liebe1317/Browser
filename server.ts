@@ -38,13 +38,6 @@ const ai = new GoogleGenAI({
     },
   },
 });
-async function callGeminiWithTimeout<T>(promise: Promise<T>, timeoutMs = 3500): Promise<T> {
-  let timer: NodeJS.Timeout;
-  const timeoutPromise = new Promise<never>((_, reject) => {
-    timer = setTimeout(() => reject(new Error('AI request timed out')), timeoutMs);
-  });
-  return Promise.race([promise, timeoutPromise]).finally(() => clearTimeout(timer));
-}
 // Cosmetic CSS rules to suppress banner ads without breaking video players, server switchers, or layout
 const COSMETIC_ADBLOCK_CSS = `
   /* Aegis Privacy Shield Ad Suppression */
@@ -1286,14 +1279,21 @@ async function startServer() {
 ${safePageContext}`
         : message;
       const contents = [...safeHistory, { role: 'user' as const, parts: [{ text: userPrompt }] }];
-      const response = await callGeminiWithTimeout(
-        ai.models.generateContent({
+      const modelAbort = new AbortController();
+      const modelTimeout = setTimeout(() => modelAbort.abort(), 10_000);
+      let response;
+      try {
+        response = await ai.models.generateContent({
           model: 'gemini-3.8-flash',
           contents,
-          config: { systemInstruction },
-        }),
-        10_000
-      );
+          config: {
+            systemInstruction,
+            abortSignal: modelAbort.signal,
+          },
+        });
+      } finally {
+        clearTimeout(modelTimeout);
+      }
       const reply = typeof response.text === 'string' ? response.text.slice(0, 8000) : '';
       return res.json({
         reply: reply || 'لم أتمكن من تكوين إجابة واضحة. أعد صياغة سؤالك من فضلك.',
