@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { LibiBrowserAction, isLibiBrowserAction, LibiSearchResult, parseLibiSearchResults } from '../../types/libi';
-import { getAegisCsrfToken } from '../../utils/sessionSecurity';
+import { fetchWithAegisCsrf } from '../../utils/sessionSecurity';
 import { 
   Sparkles, Send, X, Shield, Lock, RefreshCw, MessageSquare, 
   ExternalLink, CheckCircle2, ChevronDown, Minimize2, Maximize2 
@@ -103,11 +103,9 @@ export const LibiAssistant: React.FC<LibiAssistantProps> = ({
         text: m.text,
       }));
 
-      const csrfToken = await getAegisCsrfToken();
-      const res = await fetch('/api/libi/chat', {
+      const res = await fetchWithAegisCsrf('/api/libi/chat', {
         method: 'POST',
-        credentials: 'same-origin',
-        headers: { 'Content-Type': 'application/json', 'X-Aegis-CSRF': csrfToken },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           message: textToSend.slice(0, 4000),
           history: historyPayload.slice(-8),
