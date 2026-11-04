@@ -1193,7 +1193,7 @@ async function startServer() {
           } catch {}
         }
         const pageText = typeof pageContext.text === 'string'
-          ? pageContext.text.replace(/\\u0000/g, '').slice(0, 12000)
+          ? pageContext.text.replace(/\0/g, '').slice(0, 12000)
           : '';
         hasPageText = pageText.trim().length > 0;
         // JSON encoding keeps page text data-shaped. It is still untrusted content, never an instruction.
