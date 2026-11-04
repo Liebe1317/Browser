@@ -849,16 +849,16 @@ async function startServer() {
   const allowedAppHosts = new Set<string>(['localhost', '127.0.0.1', '::1']);
   for (const host of (process.env.AEGIS_ALLOWED_HOSTS || '').split(',')) {
     const value = host.trim().toLowerCase();
-    if (value) allowedAppHosts.add(value.replace(/^\\[|\\]$/g, ''));
+    if (value) allowedAppHosts.add(value.replace(/^\[|\]$/g, ''));
   }
   if (process.env.APP_URL) {
-    try { allowedAppHosts.add(new URL(process.env.APP_URL).hostname.toLowerCase().replace(/^\\[|\\]$/g, '')); } catch {}
+    try { allowedAppHosts.add(new URL(process.env.APP_URL).hostname.toLowerCase().replace(/^\[|\]$/g, '')); } catch {}
   }
 
   app.use((req, res, next) => {
     const rawHost = req.headers.host || '';
     let requestHost = '';
-    try { requestHost = new URL('http://' + rawHost).hostname.toLowerCase().replace(/^\\[|\\]$/g, ''); } catch {}
+    try { requestHost = new URL('http://' + rawHost).hostname.toLowerCase().replace(/^\[|\]$/g, ''); } catch {}
     if (!requestHost || !allowedAppHosts.has(requestHost)) {
       return res.status(421).send('Aegis: unrecognized Host header.');
     }
@@ -1218,6 +1218,14 @@ ${pageContext?.url ? `معلومات الصفحة المفتوحة حالياً 
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 15000);
       res.once('finish', () => clearTimeout(timeout));
+      res.once('close', () => {
+        clearTimeout(timeout);
+        if (!res.writableEnded) controller.abort();
+      });
+      req.once('aborted', () => {
+        clearTimeout(timeout);
+        controller.abort();
+      });
       res.once('close', () => {
       // The timeout remains active through response-body consumption.
         if (!res.writableEnded) controller.abort();
