@@ -9,8 +9,8 @@ const url = (value: string) => new URL(value);
 const jar = new CookieJar();
 jar.setFromResponse(url('https://a.example.com/x/y'), [
   'sid=1; Path=/; HttpOnly; Secure; SameSite=Strict',
-  'theme=dark; Domain=example.com; Path=/; Secure; SameSite=Lax',
-  'cross=ok; Domain=example.com; Path=/; Secure; SameSite=None',
+  'theme=dark; Domain=a.example.com; Path=/; Secure; SameSite=Lax',
+  'cross=ok; Domain=a.example.com; Path=/; Secure; SameSite=None',
 ]);
 ok(
   jar.headerFor(url('https://a.example.com/z')).includes('sid=1') &&
@@ -40,6 +40,8 @@ jar.setFromResponse(url('https://a.example.com/'), ['sid=; Max-Age=0; Path=/; Se
 ok(!jar.headerFor(url('https://a.example.com/')).includes('sid='), 'Max-Age=0 deletes a cookie');
 jar.setFromResponse(url('https://evil.com/'), ['x=1; Domain=example.com']);
 ok(!jar.headerFor(url('https://a.example.com/')).includes('x=1'), 'a Domain attribute that does not cover the response host is rejected');
+jar.setFromResponse(url('https://a.example.com/'), ['sibling=1; Domain=example.com; Secure; SameSite=None']);
+ok(!jar.headerFor(url('https://a.example.com/')).includes('sibling=1'), 'parent Domain cookies cannot widen an exact-host cookie partition');
 jar.setFromResponse(url('https://evil.co.uk/'), ['bad=1; Domain=co.uk']);
 ok(!jar.headerFor(url('https://evil.co.uk/')).includes('bad=1'), 'public-suffix Domain attributes are rejected');
 jar.setFromResponse(url('http://a.example.com/'), ['insecure=1; Secure']);
