@@ -201,8 +201,7 @@ function parseWireproxyReadyPayload(value, nowSeconds = Math.floor(Date.now() / 
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
   const stamps = Object.values(value);
   if (!stamps.length || !stamps.every((stamp) => Number.isInteger(stamp) && stamp > 0)) return false;
-  const newest = Math.max(...stamps);
-  return newest <= nowSeconds + 2 && nowSeconds - newest <= HEALTH_MAX_AGE_SECONDS;
+  return stamps.every((stamp) => stamp <= nowSeconds + 2 && nowSeconds - stamp <= HEALTH_MAX_AGE_SECONDS);
 }
 
 function isConnectedHealthPayload(value) {
