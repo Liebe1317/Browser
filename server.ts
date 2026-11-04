@@ -1698,7 +1698,7 @@ ${safePageContext}`;
               XMLHttpRequest.prototype.open = function(method, url, ...rest) {
                 var rawUrl = String(url || '');
                 if (rawUrl.startsWith('/')) {
-                  rawUrl = '${parsedTarget.origin}' + rawUrl;
+                  rawUrl = ${jsTargetOrigin} + rawUrl;
                 }
                 if (rawUrl.startsWith(${jsTargetOrigin}) && !rawUrl.includes('/api/proxy')) {
                   rawUrl = '/api/proxy?url=' + encodeURIComponent(rawUrl);
@@ -1717,7 +1717,7 @@ ${safePageContext}`;
                       var s = this.getAttribute('data-aegis-src') || this.getAttribute('src') || this.src;
                       if (s && !s.includes('/api/proxy') && !s.startsWith('data:')) {
                         var abs = s;
-                        if (s.startsWith('/')) abs = '${parsedTarget.origin}' + s;
+                        if (s.startsWith('/')) abs = ${jsTargetOrigin} + s;
                         this.src = '/api/proxy?url=' + encodeURIComponent(abs);
                       }
                     });
