@@ -5,7 +5,7 @@ const assigned: unknown[] = [];
 const proxy = { name: 'mock-vpn-proxy' } as any;
 
 const missing = createAksaVpnController(undefined, (dispatcher) => assigned.push(dispatcher), () => proxy);
-assert.deepEqual(missing.status(), { configured: false, enabled: false, gateway: 'not-configured' });
+assert.deepEqual(missing.status(), { configured: false, enabled: false, gateway: 'not-configured', scope: 'server-proxy-only' });
 const refused = missing.setEnabled(true);
 assert.equal(refused.ok, false, 'Aksa refuses to enable without a local VPN gateway');
 assert.equal(missing.dispatcher(), undefined, 'no direct or fake dispatcher is substituted');
