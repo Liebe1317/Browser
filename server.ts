@@ -1281,19 +1281,14 @@ ${safePageContext}`
       const contents = [...safeHistory, { role: 'user' as const, parts: [{ text: userPrompt }] }];
       const modelAbort = new AbortController();
       const modelTimeout = setTimeout(() => modelAbort.abort(), 10_000);
-      let response;
-      try {
-        response = await ai.models.generateContent({
-          model: 'gemini-3.8-flash',
-          contents,
-          config: {
-            systemInstruction,
-            abortSignal: modelAbort.signal,
-          },
-        });
-      } finally {
-        clearTimeout(modelTimeout);
-      }
+      const response = await ai.models.generateContent({
+        model: 'gemini-3.8-flash',
+        contents,
+        config: {
+          systemInstruction,
+          abortSignal: modelAbort.signal,
+        },
+      }).finally(() => clearTimeout(modelTimeout));
       const reply = typeof response.text === 'string' ? response.text.slice(0, 8000) : '';
       return res.json({
         reply: reply || 'لم أتمكن من تكوين إجابة واضحة. أعد صياغة سؤالك من فضلك.',
