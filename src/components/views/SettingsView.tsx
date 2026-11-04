@@ -38,29 +38,45 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
   useEffect(() => {
     let active = true;
+    let refreshing = false;
     const desktopBridge = window.aegisDesktop?.vpn;
-    Promise.all([
-      fetch('/api/aksa/vpn/status', { credentials: 'same-origin' }).then(async (response) => {
-        if (!response.ok) throw new Error('تعذر قراءة حالة Aksa من الخادم');
-        return response.json();
-      }),
-      desktopBridge?.getStatus().catch(() => null) ?? Promise.resolve(null),
-    ]).then(([serverStatus, desktopStatus]) => {
-      if (!active) return;
-      const isDesktop = !!desktopBridge;
-      const desktopConfigured = !isDesktop || desktopStatus?.configured === true;
-      setAksaVpn({
-        configured: serverStatus.configured === true && desktopConfigured,
-        enabled: serverStatus.enabled === true || (isDesktop && desktopStatus?.enabled === true),
-        connected: serverStatus.connected === true && (!isDesktop || desktopStatus?.connected === true),
-        scope: isDesktop ? 'electron-session + server-egress' : 'server-egress-only',
-        desktop: isDesktop,
-      });
-    }).catch(() => {
-      if (active) setAksaError('تعذر قراءة حالة Aksa. تحقق من تشغيل خادم المتصفح والبوابة المحلية.');
-    });
-    return () => { active = false; };
-  }, []);
+
+    const refreshStatus = async () => {
+      if (!active || refreshing || aksaBusy) return;
+      refreshing = true;
+      try {
+        const [serverStatus, desktopStatus] = await Promise.all([
+          fetch('/api/aksa/vpn/status', { credentials: 'same-origin', cache: 'no-store' }).then(async (response) => {
+            if (!response.ok) throw new Error('تعذر قراءة حالة Aksa من الخادم');
+            return response.json();
+          }),
+          desktopBridge?.getStatus().catch(() => null) ?? Promise.resolve(null),
+        ]);
+        if (!active) return;
+        const isDesktop = !!desktopBridge;
+        const desktopConfigured = !isDesktop || desktopStatus?.configured === true;
+        setAksaVpn({
+          configured: serverStatus.configured === true && desktopConfigured,
+          enabled: serverStatus.enabled === true || (isDesktop && desktopStatus?.enabled === true),
+          connected: serverStatus.connected === true && (!isDesktop || desktopStatus?.connected === true),
+          scope: isDesktop ? 'electron-session + server-egress' : 'server-egress-only',
+          desktop: isDesktop,
+        });
+        setAksaError('');
+      } catch {
+        if (active) setAksaError('تعذر قراءة حالة Aksa. تحقق من تشغيل الخادم والبوابة المحلية.');
+      } finally {
+        refreshing = false;
+      }
+    };
+
+    void refreshStatus();
+    const interval = window.setInterval(() => { void refreshStatus(); }, 4000);
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+    };
+  }, [aksaBusy]);
 
   const toggleAksaVpn = async (enabled: boolean) => {
     setAksaBusy(true);
