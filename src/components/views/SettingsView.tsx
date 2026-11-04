@@ -26,7 +26,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const initialTheme = settings.customColors || THEME_PRESETS[0];
   const [customTheme, setCustomTheme] = useState<CustomColorTheme>(initialTheme);
   const [isSavedToast, setIsSavedToast] = useState(false);
-  const [aksaVpn, setAksaVpn] = useState<{ configured: boolean; enabled: boolean; connected?: boolean; scope?: string; desktop?: boolean }>({ configured: false, enabled: false, connected: false, desktop: false });
+  const [aksaVpn, setAksaVpn] = useState<{ configured: boolean; enabled: boolean; connected?: boolean; scope?: string; desktop?: boolean; installed?: boolean; profileConfigured?: boolean; running?: boolean; version?: string | null }>({ configured: false, enabled: false, connected: false, desktop: false, installed: false, profileConfigured: false, running: false, version: null });
   const [aksaBusy, setAksaBusy] = useState(false);
   const [aksaError, setAksaError] = useState('');
 
@@ -61,6 +61,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           connected: serverStatus.connected === true && (!isDesktop || desktopStatus?.connected === true),
           scope: isDesktop ? 'electron-session + server-egress' : 'server-egress-only',
           desktop: isDesktop,
+          installed: desktopStatus?.installed === true,
+          profileConfigured: desktopStatus?.profileConfigured === true,
+          running: desktopStatus?.running === true,
+          version: typeof desktopStatus?.version === 'string' ? desktopStatus.version : null,
         });
         setAksaError('');
       } catch {
@@ -78,10 +82,59 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     };
   }, [aksaBusy]);
 
+  const updateAksaDesktopStatus = (status: any) => {
+    setAksaVpn((current) => ({
+      ...current,
+      configured: status?.configured === true,
+      installed: status?.installed === true,
+      profileConfigured: status?.profileConfigured === true,
+      running: status?.running === true,
+      enabled: status?.enabled === true,
+      connected: status?.connected === true,
+      version: typeof status?.version === 'string' ? status.version : null,
+      desktop: true,
+      scope: 'electron-session + server-egress',
+    }));
+  };
+
+  const installAksaEngine = async () => {
+    const desktopBridge = window.aegisDesktop?.vpn;
+    if (!desktopBridge) return;
+    setAksaBusy(true);
+    setAksaError('');
+    try {
+      const result = await desktopBridge.install();
+      if (!result.ok) throw new Error(result.error || 'تعذر تثبيت محرك Aksa.');
+      if (result.status) updateAksaDesktopStatus(result.status);
+    } catch (error) {
+      setAksaError(error instanceof Error ? error.message : 'تعذر تثبيت محرك Aksa.');
+    } finally {
+      setAksaBusy(false);
+    }
+  };
+
+  const chooseAksaWireGuardProfile = async () => {
+    const desktopBridge = window.aegisDesktop?.vpn;
+    if (!desktopBridge) return;
+    setAksaBusy(true);
+    setAksaError('');
+    try {
+      const result = await desktopBridge.chooseConfig();
+      if (result.cancelled) return;
+      if (!result.ok) throw new Error(result.error || 'ملف WireGuard غير صالح.');
+      if (result.status) updateAksaDesktopStatus(result.status);
+    } catch (error) {
+      setAksaError(error instanceof Error ? error.message : 'ملف WireGuard غير صالح.');
+    } finally {
+      setAksaBusy(false);
+    }
+  };
+
   const toggleAksaVpn = async (enabled: boolean) => {
     setAksaBusy(true);
     setAksaError('');
     let serverChanged = false;
+    let desktopChanged = false;
     const desktopBridge = window.aegisDesktop?.vpn;
     try {
       const postServer = async (next: boolean) => {
@@ -96,8 +149,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       };
 
       if (enabled) {
-        const serverStatus = await postServer(true);
-        serverChanged = true;
         let desktopStatus = null;
         if (desktopBridge) {
           const desktopResult = await desktopBridge.setEnabled(true);
@@ -105,7 +156,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             throw new Error(desktopResult.error || 'لم يؤكد محرك Chromium اتصال نفق Aksa.');
           }
           desktopStatus = desktopResult.status;
+          desktopChanged = true;
+          updateAksaDesktopStatus(desktopStatus);
         }
+        const serverStatus = await postServer(true);
+        serverChanged = true;
         setAksaVpn({
           configured: true,
           enabled: true,
@@ -131,7 +186,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         if (desktopError) setAksaError(desktopError);
       }
     } catch (error) {
-      if (enabled && serverChanged) {
+      if (enabled && (serverChanged || desktopChanged)) {
         try {
           await desktopBridge?.setEnabled(false);
         } catch {}
@@ -154,6 +209,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             connected: serverStatus.connected === true && (!desktopBridge || desktopStatus?.connected === true),
             scope: desktopBridge ? 'electron-session + server-egress' : 'server-egress-only',
             desktop: !!desktopBridge,
+            installed: desktopStatus?.installed === true,
+            profileConfigured: desktopStatus?.profileConfigured === true,
+            running: desktopStatus?.running === true,
+            version: typeof desktopStatus?.version === 'string' ? desktopStatus.version : null,
           });
         } catch {}
       } else {
@@ -828,11 +887,37 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                     {aksaVpn.configured
                       ? (aksaVpn.enabled && aksaVpn.connected
                         ? (aksaVpn.desktop
-                          ? 'متصل: طلبات الخادم وحركة جلسة Chromium تمر عبر بوابة Aksa. يراقب التطبيق صحة النفق ويوقف الحركة عند فقدانه.'
-                          : 'متصل لطلبات خادم Aegis فقط. المتصفح داخل تبويب الويب لا يضمن تمرير كل الوسائط والإطارات المباشرة عبر النفق.')
-                        : 'البوابة مهيأة، لكن Aksa غير متصل حالياً. لن يُعلن عن الاتصال قبل تأكيد نفق WireGuard.')
-                      : 'غير مهيأ: يحتاج بوابة محلية تعتمد WireGuard وتعيد حالة /health وفيها tunnel=connected.'}
+                          ? 'متصل: Chromium وطلبات خادم Aegis يمران عبر نفق WireGuard. عند انقطاع النفق يحجب المتصفح الاتصالات الخارجية حتى عودته.'
+                          : 'Aksa متاح في تطبيق سطح المكتب فقط لضمان تحكم محرك Chromium بحركة التصفح.')
+                        : (aksaVpn.desktop
+                          ? (!aksaVpn.installed ? 'ثبّت محرك Wireproxy أولاً.' : (!aksaVpn.profileConfigured ? 'اختر ملف WireGuard من مزود VPN لإعداد Aksa.' : 'المحرك والملف جاهزان. شغّل Aksa للتحقق من اتصال النفق.'))
+                          : 'Aksa يعمل في تطبيق سطح المكتب فقط؛ نسخة المتصفح العادية لا تستطيع تشغيل نفق محلي.'))
+                      : 'أكمل إعداد محرك Wireproxy وملف WireGuard من داخل تطبيق سطح المكتب.'}
                   </p>
+                  {aksaVpn.desktop && (
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={installAksaEngine}
+                        disabled={aksaBusy || aksaVpn.installed}
+                        className="px-3 py-1.5 rounded-lg border border-cyan-700/60 bg-cyan-950/30 text-cyan-200 hover:bg-cyan-900/40 disabled:opacity-40 disabled:cursor-not-allowed text-[11px] font-semibold"
+                      >
+                        {aksaVpn.installed ? 'تم تثبيت المحرك' : 'تثبيت محرك Aksa'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={chooseAksaWireGuardProfile}
+                        disabled={aksaBusy || !aksaVpn.installed || aksaVpn.enabled}
+                        className="px-3 py-1.5 rounded-lg border border-slate-700 bg-slate-900 text-slate-200 hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed text-[11px] font-semibold"
+                      >
+                        {aksaVpn.profileConfigured ? 'تغيير ملف WireGuard' : 'اختيار ملف WireGuard'}
+                      </button>
+                    </div>
+                  )}
+                  {aksaVpn.desktop && <p className="text-[10px] text-slate-500 mt-2">
+                    {aksaVpn.installed ? `Wireproxy ${aksaVpn.version || 'v1.1.3'}` : 'يُنزّل محرك Wireproxy من إصدار مثبت مع التحقق من SHA-256.'}
+                    {aksaVpn.profileConfigured ? ' • ملف WireGuard محفوظ محلياً بصلاحيات خاصة.' : ' • يلزم ملف إعداد من مزود VPN.'}
+                  </p>}
                   {aksaError && <p className="text-[11px] text-rose-300 mt-1">{aksaError}</p>}
                 </div>
                 <input
