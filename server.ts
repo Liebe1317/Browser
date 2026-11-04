@@ -1596,13 +1596,20 @@ ${pageContext?.url ? `معلومات الصفحة المفتوحة حالياً 
 
               // 2b. Route iframe sources through /api/proxy (a relative src would hit this server directly)
               (function() {
-                var ORIGIN = '${parsedTarget.origin}';
+                var PAGE_URL = '${parsedTarget.href.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}';
+                var AEGIS_PAGE_TOKEN = '${auth.token}';
                 function fixSrc(v) {
                   try {
-                    var s = String(v || '');
-                    if (!s || s.startsWith('data:') || s.startsWith('blob:') || s.startsWith('about:') || s.startsWith('javascript:') || s.includes('/api/proxy')) return v;
-                    var abs = (s.startsWith('/') && !s.startsWith('//')) ? ORIGIN + s : s;
-                    if (abs.startsWith(ORIGIN)) return '/api/proxy?url=' + encodeURIComponent(abs);
+                    var s = String(v || '').trim();
+                    if (!s || /^(data:|blob:|about:|javascript:|mailto:|tel:)/i.test(s)) return v;
+                    var current = new URL(s, window.location.href);
+                    if (current.origin === window.location.origin && current.pathname === '/api/proxy') {
+                      if (!current.searchParams.has('t')) current.searchParams.set('t', AEGIS_PAGE_TOKEN);
+                      return current.pathname + current.search + current.hash;
+                    }
+                    var target = new URL(s, PAGE_URL);
+                    if (target.protocol !== 'http:' && target.protocol !== 'https:') return v;
+                    return '/api/proxy?t=' + encodeURIComponent(AEGIS_PAGE_TOKEN) + '&url=' + encodeURIComponent(target.href);
                   } catch (e) {}
                   return v;
                 }
