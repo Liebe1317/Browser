@@ -112,6 +112,15 @@ try {
   r = await req(proxy(A + '/whoami', `t=${tokA}&`), { headers: page });
   ok(r.body.includes('login=A') && !r.body.includes('login=PRIVATE'), 'regular browsing cookies are unchanged by private context');
 
+  r = await req('/api/session/bootstrap', { method: 'POST', headers: { ...appWrite, Cookie: sid1 } });
+  const closeCsrf = (() => { try { return JSON.parse(r.body).csrfToken; } catch { return ''; } })();
+  r = await req('/api/session/context/close', { method: 'POST', headers: { ...appWrite, Cookie: sid1, 'X-Aegis-CSRF': closeCsrf, 'Content-Type': 'application/json' }, body: JSON.stringify({ contextId: 'private-tab-123' }) });
+  ok(r.status === 200, 'closing a private context erases its stored session partition');
+  r = await req(proxy(A + '/whoami', `t=${tokPrivate}&`), { headers: page });
+  ok(r.status === 403, 'page capabilities from a closed private context are revoked');
+  r = await req(proxy(A + '/whoami', `t=${tokA}&`), { headers: page });
+  ok(r.status === 200 && r.body.includes('login=A'), 'closing a private context does not destroy the regular profile');
+
   r = await req(proxy(A + '/whoami'), { headers: app });
   ok(r.status === 200 && r.body === 'cookie=', 'another client gets an empty jar (no leakage between users)');
 
