@@ -19,6 +19,7 @@ interface LibiAssistantProps {
   currentPageContext?: {
     title: string;
     url: string;
+    tabId?: string;
     text?: string;
   };
   initialQuery?: string;
@@ -62,7 +63,7 @@ export const LibiAssistant: React.FC<LibiAssistantProps> = ({
 
   useEffect(() => {
     setSharePageContext(false);
-  }, [currentPageContext?.url]);
+  }, [currentPageContext?.url, currentPageContext?.tabId]);
 
   useEffect(() => {
     if (isOpen && initialQuery) {
