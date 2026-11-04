@@ -194,6 +194,20 @@ export interface SafeFetcherConfig {
 
 const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
 
+// Only browser presentation headers may cross an origin-changing redirect.
+// CSRF, authorization, cookies, content metadata and custom headers are origin-bound.
+const SAFE_REDIRECT_HEADERS = new Set([
+  'accept',
+  'accept-language',
+  'user-agent',
+  'sec-ch-ua',
+  'sec-ch-ua-mobile',
+  'sec-ch-ua-platform',
+  'upgrade-insecure-requests',
+  'dnt',
+  'sec-gpc',
+]);
+
 export function createSafeFetcher(config: SafeFetcherConfig = {}) {
   const urlBlocked = config.isBlockedUrl ?? isBlockedUrl;
   const agent = new Agent({
@@ -238,6 +252,13 @@ export function createSafeFetcher(config: SafeFetcherConfig = {}) {
         next = new URL(location, url);
       } catch {
         throw new Error('Invalid redirect location');
+      }
+
+      // Never forward site-bound or custom headers to a different origin after redirect.
+      if (next.origin !== url.origin) {
+        baseHeaders = Object.fromEntries(
+          Object.entries(baseHeaders).filter(([name]) => SAFE_REDIRECT_HEADERS.has(name.toLowerCase()))
+        );
       }
 
       // Per the Fetch spec: 303 (and 301/302 after POST) become GET without a body
