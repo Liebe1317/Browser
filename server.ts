@@ -3,6 +3,7 @@ import { createServer as createViteServer } from 'vite';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
+import { escapeHtml, renderSearchResultCard } from './server/html.ts';
 import { GoogleGenAI } from '@google/genai';
 import { authorizeProxyRequest, jarFor, addTokenToProxyUrls, clearSessionCookies, siteOf } from './server/sessions.ts';
 import { AD_DOMAINS, TRACKER_DOMAINS, hostMatches, buildProxyCsp, WEBRTC_BLOCK_SCRIPT } from './server/shield.ts';
@@ -205,39 +206,17 @@ async function fetchLiveWebResults(query: string): Promise<Array<{ title: string
 
 // Generate the authentic, official 1:1 Google Search Results SERP HTML
 function generateGoogleSearchHtml(query: string, results: Array<{ title: string; url: string; snippet: string }>): string {
-  const safeQuery = query.replace(/"/g, '&quot;');
+  const safeQuery = escapeHtml(query);
   const resultCount = (results.length * 420000 + 120000).toLocaleString('ar-EG');
 
   const resultItemsHtml = results
-    .map((r, idx) => {
-      let domain = '';
-      let pathPart = '';
-      try {
-        const u = new URL(r.url);
-        domain = u.hostname;
-        pathPart = u.pathname.length > 1 ? decodeURIComponent(u.pathname.replace(/^\//, '').replace(/\/$/, '')) : '';
-      } catch {
-        domain = r.url;
-      }
-
-      return `
-        <div class="g-result-card" data-idx="${idx}">
-          <div class="g-result-header">
-            <div class="g-favicon-box">
-              <img src="https://www.google.com/s2/favicons?domain=${domain}&sz=32" alt="" class="g-favicon" onerror="this.src='https://www.google.com/favicon.ico'" />
-            </div>
-            <div class="g-url-meta">
-              <span class="g-site-name">${domain}</span>
-              <span class="g-display-url">${domain}${pathPart ? ' › ' + pathPart : ''}</span>
-            </div>
-          </div>
-          <h3 class="g-title">
-            <a href="${r.url}" class="g-title-link">${r.title}</a>
-          </h3>
-          <p class="g-snippet">${r.snippet || 'استعراض محتوى الموقع المباشر مع الحماية الفائقة من الإعلانات والتتبع عبر متصفح Aegis.'}</p>
-        </div>
-      `;
-    })
+    .map((result, idx) =>
+      renderSearchResultCard(
+        result,
+        idx,
+        'استعراض محتوى الموقع المباشر مع الحماية الفائقة من الإعلانات والتتبع عبر متصفح Aegis.'
+      )
+    )
     .join('');
 
   return `
