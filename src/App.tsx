@@ -525,6 +525,7 @@ export default function App() {
 
   useEffect(() => {
     setPageScrollCommand(null);
+    setPageTexts((previous) => previous[activeTabId] ? { [activeTabId]: previous[activeTabId] } : {});
   }, [activeTabId]);
 
   const handleGoHome = () => {
@@ -884,6 +885,7 @@ export default function App() {
         onClose={() => {
           setShowLibi(false);
           setLibiContextQuery(undefined);
+          setPageTexts({});
         }}
         currentPageContext={{
           title: activeTab.title,
