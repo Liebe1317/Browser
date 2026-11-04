@@ -6,6 +6,10 @@ assert.deepEqual(detectLibiAction('افتح الإعدادات'), { type: 'open_
 assert.deepEqual(detectLibiAction('افتح تبويب جديد'), { type: 'new_tab' });
 assert.deepEqual(detectLibiAction('ارجع'), { type: 'back' });
 assert.deepEqual(detectLibiAction('أعد تحميل الصفحة'), { type: 'reload' });
+assert.deepEqual(detectLibiAction('احفظ الصفحة'), { type: 'bookmark_page' });
+assert.deepEqual(detectLibiAction('افتح وضع القراءة'), { type: 'toggle_reader' });
+assert.deepEqual(detectLibiAction('كبر الصفحة'), { type: 'zoom_in' });
+assert.deepEqual(detectLibiAction('اذهب لنهاية الصفحة'), { type: 'scroll_bottom' });
 assert.deepEqual(detectLibiAction('افتح example.com'), { type: 'navigate', url: 'https://example.com/' });
 assert.deepEqual(detectLibiAction('افتح https://example.com/path'), { type: 'navigate', url: 'https://example.com/path' });
 
