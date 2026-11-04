@@ -26,8 +26,8 @@ ok(
   'SameSite=Lax cookies are not sent to sibling hosts through a different top-level host'
 );
 ok(
-  jar.headerFor(url('https://b.example.com/'), Date.now(), { topLevelHost: 'a.example.com' }).includes('cross=ok'),
-  'SameSite=None cookies require Secure and can be sent when explicitly allowed by caller policy'
+  !jar.headerFor(url('https://b.example.com/'), Date.now(), { topLevelHost: 'a.example.com' }).includes('cross='),
+  'even SameSite=None cookies remain isolated from sibling hosts by Aegis exact-host partitions'
 );
 ok(
   !jar.headerFor(url('http://a.example.com/')).includes('sid=') &&
