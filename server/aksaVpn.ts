@@ -89,6 +89,32 @@ export function createAksaVpnController(
   let proxyDispatcher: Dispatcher | null = null;
   let enabled = false;
   let connected = false;
+  let monitor: NodeJS.Timeout | null = null;
+  let checking = false;
+
+  const refreshHealth = async (): Promise<boolean> => {
+    if (!enabled || !gateway || checking) return connected;
+    checking = true;
+    try {
+      connected = await healthCheck(gateway);
+    } catch {
+      connected = false;
+    } finally {
+      checking = false;
+    }
+    return connected;
+  };
+
+  const startMonitor = () => {
+    if (monitor) clearInterval(monitor);
+    monitor = setInterval(() => { void refreshHealth(); }, 5000);
+    monitor.unref();
+  };
+
+  const stopMonitor = () => {
+    if (monitor) clearInterval(monitor);
+    monitor = null;
+  };
 
   const status = (): AksaVpnStatus => ({
     configured: !!gateway,
@@ -102,6 +128,7 @@ export function createAksaVpnController(
     status,
     async setEnabled(next: boolean): Promise<{ ok: boolean; status: AksaVpnStatus; error?: string }> {
       if (!next) {
+        stopMonitor();
         setDispatcher(directDispatcher);
         enabled = false;
         connected = false;
@@ -133,8 +160,10 @@ export function createAksaVpnController(
         setDispatcher(proxyDispatcher);
         enabled = true;
         connected = true;
+        startMonitor();
         return { ok: true, status: status() };
       } catch {
+        stopMonitor();
         enabled = false;
         connected = false;
         setDispatcher(directDispatcher);
@@ -144,6 +173,9 @@ export function createAksaVpnController(
           error: 'تعذر تهيئة نفق Aksa. بقي الاتصال عبر الوكيل غير مفعّل.',
         };
       }
+    },
+    async checkNow(): Promise<boolean> {
+      return refreshHealth();
     },
     dispatcher(): Dispatcher | undefined {
       if (!enabled) return undefined;
