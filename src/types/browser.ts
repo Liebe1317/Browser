@@ -34,6 +34,8 @@ export interface Tab {
   isIncognito: boolean;
   isPinned: boolean;
   isMuted: boolean;
+  mediaState?: 'playing' | 'paused';
+  isAudible?: boolean;
   readerMode: boolean;
   zoomLevel: number;
   adsBlocked: number;
