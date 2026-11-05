@@ -35,7 +35,7 @@ const policy = createBrowserSessionPolicy({
 });
 const regular = fakeSession();
 const privateSession = fakeSession();
-policy.register(regular);
+policy.register(regular, { trustedAppSession: true });
 policy.register(privateSession);
 policy.register(regular);
 ok(policy.getSessions().length === 2, 'each Chromium session is registered once');
@@ -49,9 +49,11 @@ ok(!allowedResult.cancel, 'ordinary requests are allowed when VPN is disabled');
 
 vpnState = { enabled: true, connected: false };
 const closedResult = await privateSession.triggerBefore({ url: 'https://video.example/player' });
-const localResult = await privateSession.triggerBefore({ url: 'http://127.0.0.1:3000/api/health' });
+const localResult = await regular.triggerBefore({ url: 'http://127.0.0.1:3000/api/health' });
 ok(closedResult.cancel === true, 'external requests fail closed while VPN is disconnected');
-ok(!localResult.cancel, 'the explicitly configured local application origin remains reachable');
+ok(!localResult.cancel, 'the trusted application session remains reachable while VPN is disconnected');
+const privateLocalResult = await privateSession.triggerBefore({ url: 'http://127.0.0.1:3000/api/health' });
+ok(privateLocalResult.cancel === true, 'untrusted site sessions cannot use the application-origin VPN bypass');
 
 let fullscreenGranted = null;
 regular.state.permissionRequest(null, 'fullscreen', (value) => { fullscreenGranted = value; }, { userGesture: false });
