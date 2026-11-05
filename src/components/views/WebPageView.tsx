@@ -245,6 +245,13 @@ export const WebPageView: React.FC<WebPageViewProps> = ({
       if (!iframeRef.current || event.source !== iframeRef.current.contentWindow) return;
       if (!event.data || typeof event.data !== 'object') return;
 
+      if (event.data.type === 'AEGIS_PROXY_ERROR' && event.data.code === 'capability-expired') {
+        setHasLoadError(true);
+        setIsIframeLoading(false);
+        updateTabRef.current(tab.id, { isLoading: false });
+        return;
+      }
+
       if (requestPageText && event.data.type === 'AEGIS_PAGE_CONTENT') {
         const pageText = typeof event.data.text === 'string' ? event.data.text.slice(0, 12000) : '';
         onPageText?.(tab.id, pageText);
@@ -291,6 +298,7 @@ export const WebPageView: React.FC<WebPageViewProps> = ({
   const handleIframeLoad = () => {
     if (requestPageText) iframeRef.current?.contentWindow?.postMessage({ type: 'AEGIS_EXTRACT_PAGE_TEXT' }, '*');
     setLoadProgress(100);
+    setHasLoadError(false);
     setIsIframeLoading(false);
     updateTabRef.current(tab.id, { isLoading: false });
   };
@@ -374,6 +382,22 @@ export const WebPageView: React.FC<WebPageViewProps> = ({
             allowFullScreen
             sandbox="allow-scripts allow-forms allow-popups allow-modals allow-presentation allow-downloads"
           />
+        )}
+        {!nativeBrowser && hasLoadError && (
+          <div className="absolute inset-0 z-40 flex flex-col items-center justify-center gap-3 bg-slate-950/95 text-slate-200" dir="rtl">
+            <p className="text-sm">انتهت صلاحية جلسة الموقع أو تعذر التحقق منها.</p>
+            <button
+              type="button"
+              onClick={() => {
+                setHasLoadError(false);
+                setIsIframeLoading(true);
+                if (iframeRef.current) iframeRef.current.src = proxyUrl + '&_aegis_retry=' + Date.now();
+              }}
+              className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm"
+            >
+              إعادة إنشاء جلسة الموقع
+            </button>
+          </div>
         )}
       </div>
 
