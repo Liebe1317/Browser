@@ -31,6 +31,7 @@ function createSiteViewManager({
   if (typeof WebContentsView !== 'function') throw new TypeError('WebContentsView constructor is required.');
   const views = new Map();
   const partitions = new Map();
+  const partitionCleanup = new Map();
 
   function send(tabId, type, data = {}) {
     onEvent?.({ tabId, type, ...data });
@@ -105,6 +106,8 @@ function createSiteViewManager({
     const initialUrl = safeSiteUrl(url, getTrustedAppOrigin());
     if (!initialUrl) return { ok: false, error: 'navigation-denied' };
 
+    const pendingCleanup = partitionCleanup.get(partition);
+    if (pendingCleanup) await pendingCleanup;
     const browserSession = getSession(partition);
     registerSession(browserSession);
     await prepareSession(browserSession);
@@ -238,7 +241,12 @@ function createSiteViewManager({
       partitionEntry.count = Math.max(0, partitionEntry.count - 1);
       if (partitionEntry.count === 0) {
         partitions.delete(entry.partition);
-        if (entry.profileKind === 'private') await clearPrivateSession(entry.browserSession);
+        if (entry.profileKind === 'private') {
+          const cleanup = clearPrivateSession(entry.browserSession);
+          partitionCleanup.set(entry.partition, cleanup);
+          await cleanup;
+          if (partitionCleanup.get(entry.partition) === cleanup) partitionCleanup.delete(entry.partition);
+        }
       }
     }
     return true;
