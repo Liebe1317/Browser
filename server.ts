@@ -1356,14 +1356,30 @@ ${safePageContext}`
       });
       const forwardHeaders: Record<string, string> = {
         'User-Agent':
-          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+          (typeof req.headers['user-agent'] === 'string' && req.headers['user-agent'].length <= 512 && !/[\\r\\n]/.test(req.headers['user-agent']))
+            ? req.headers['user-agent']
+            : 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
         'Accept': req.headers.accept || 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
         'Accept-Language': (req.headers['accept-language'] as string) || 'ar,en;q=0.9',
-        'Sec-Ch-Ua': '"Google Chrome";v="131", "Chromium";v="131"',
-        'Sec-Ch-Ua-Mobile': '?0',
-        'Sec-Ch-Ua-Platform': '"Windows"',
+        'Sec-Ch-Ua': req.headers['sec-ch-ua'] || '"Google Chrome";v="131", "Chromium";v="131"',
+        'Sec-Ch-Ua-Mobile': req.headers['sec-ch-ua-mobile'] || '?0',
+        'Sec-Ch-Ua-Platform': req.headers['sec-ch-ua-platform'] || '"Windows"',
         'Upgrade-Insecure-Requests': '1',
       };
+      // Preserve browser-generated Client Hints so the upstream sees a consistent Chromium
+      // version instead of a hard-coded, contradictory fingerprint. Never accept multiline values.
+      for (const name of ['sec-ch-ua-arch', 'sec-ch-ua-bitness', 'sec-ch-ua-full-version', 'sec-ch-ua-full-version-list', 'sec-ch-ua-model', 'sec-ch-ua-platform-version', 'sec-ch-ua-wow64']) {
+        const value = req.headers[name];
+        if (typeof value === 'string' && value.length <= 512 && !/[\\r\\n]/.test(value)) {
+          forwardHeaders[name.replace(/(^|-)([a-z])/g, (_m, sep, ch) => sep + ch.toUpperCase())] = value;
+        }
+      }
+      // The page runs in an opaque sandbox origin locally. Reconstruct Origin only for a
+      // same-origin upstream mutation, from the server-issued page capability's bound origin.
+      // safeFetch strips it automatically on every cross-origin redirect.
+      if (!['GET', 'HEAD'].includes(req.method.toUpperCase()) && parsedTarget.origin === auth.origin) {
+        forwardHeaders.Origin = auth.origin;
+      }
       if (shield.doNotTrack) {
         forwardHeaders['Sec-GPC'] = '1';
         forwardHeaders['DNT'] = '1';
