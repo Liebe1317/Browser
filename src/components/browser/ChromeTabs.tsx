@@ -125,7 +125,7 @@ export const ChromeTabs: React.FC<ChromeTabsProps> = ({
 
               {/* Native Chromium audio activity indicator */}
               {tab.isAudible && !tab.isMuted && (
-                <Volume2 className="w-3 h-3 text-emerald-400 mr-1 shrink-0" title="يصدر صوتاً" />
+                <Volume2 className="w-3 h-3 text-emerald-400 mr-1 shrink-0" aria-label="يصدر صوتاً" role="img" />
               )}
 
               {/* Mute Audio Icon */}
