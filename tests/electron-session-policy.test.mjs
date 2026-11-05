@@ -1,7 +1,7 @@
 import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
-const { createBrowserSessionPolicy, isBlockedAdOrTracker } = require('../electron/session-policy.cjs');
+const { createBrowserSessionPolicy, isBlockedAdOrTracker, isPrivateOrLocalUrl } = require('../electron/session-policy.cjs');
 const ok = (condition, message) => {
   console.log((condition ? 'PASS' : 'FAIL') + ' - ' + message);
   if (!condition) process.exitCode = 1;
@@ -42,11 +42,18 @@ policy.register(regular);
 ok(policy.getSessions().length === 2, 'each Chromium session is registered once');
 ok(isBlockedAdOrTracker('https://sub.google-analytics.com/pixel'), 'tracker subdomains are identified');
 ok(!isBlockedAdOrTracker('https://notgoogle-analytics.com/'), 'lookalike domains are not blocked');
+ok(isPrivateOrLocalUrl('http://127.0.0.1:3000/'), 'loopback IP URLs are recognized as local');
+ok(isPrivateOrLocalUrl('http://10.0.0.8/'), 'RFC1918 IPv4 URLs are recognized as private');
+ok(isPrivateOrLocalUrl('http://[fd00::1]/'), 'IPv6 unique-local URLs are recognized as private');
+ok(isPrivateOrLocalUrl('http://printer.local/'), 'local mDNS hostnames are recognized as local');
+ok(!isPrivateOrLocalUrl('https://video.example/watch'), 'public web URLs are not classified as local');
 
 const adResult = await regular.triggerBefore({ url: 'https://doubleclick.net/ad.js' });
 ok(adResult.cancel === true, 'ad and tracker requests are blocked in each registered session');
 const allowedResult = await privateSession.triggerBefore({ url: 'https://video.example/player' });
 ok(!allowedResult.cancel, 'ordinary requests are allowed when VPN is disabled');
+const localWhenVpnOff = await privateSession.triggerBefore({ url: 'http://192.168.1.1/' });
+ok(localWhenVpnOff.cancel === true, 'untrusted sites cannot reach private network addresses even when VPN is disabled');
 
 vpnState = { enabled: true, connected: false };
 const closedResult = await privateSession.triggerBefore({ url: 'https://video.example/player' });
@@ -68,13 +75,16 @@ let downloadCanceled = false;
 regular.state.listeners['will-download']({ preventDefault: () => { downloadPrevented = true; } }, { cancel: () => { downloadCanceled = true; } });
 ok(downloadPrevented && downloadCanceled, 'downloads are denied until a user-confirmed download flow exists');
 
-await policy.applyProxyToAll({ mode: 'fixed_servers', proxyRules: 'http=127.0.0.1:19090;https=127.0.0.1:19090' });
+await policy.applyProxyToAll({ mode: 'fixed_servers', proxyRules: 'http=127.0.0.1:19090;https=127.0.0.1:19090', proxyBypassRules: 'localhost;127.0.0.1;[::1]' });
 ok(regular.state.proxies.length === 1 && privateSession.state.proxies.length === 1, 'VPN proxy is applied to regular and private sessions');
+ok(regular.state.proxies[0].proxyBypassRules === 'localhost;127.0.0.1;[::1]', 'trusted app session retains its local API bypass');
+ok(privateSession.state.proxies[0].proxyBypassRules === '<-loopback>', 'untrusted site sessions route loopback through the VPN proxy instead of bypassing it');
 ok(regular.state.closed === 1 && privateSession.state.closed === 1, 'pooled connections are closed after proxy changes');
 
 await policy.applyFailClosedToAll();
 ok(regular.state.proxies.at(-1).proxyRules.includes('127.0.0.1:1'), 'regular session receives fail-closed proxy rules');
 ok(privateSession.state.proxies.at(-1).proxyRules.includes('127.0.0.1:1'), 'private session receives fail-closed proxy rules');
+ok(privateSession.state.proxies.at(-1).proxyBypassRules === '<-loopback>', 'private session fail-closed rules cannot bypass loopback');
 
 regular.triggerError({ error: 'ERR_TUNNEL_CONNECTION_FAILED' });
 ok(proxyFailures === 1, 'proxy tunnel failures notify the shared VPN health controller');
