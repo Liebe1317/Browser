@@ -1250,7 +1250,7 @@ ${safePageContext}`
       libiRequestsInFlight = Math.max(0, libiRequestsInFlight - 1);
     }
   });
-  // Real Web Proxy API with Ad & Tracker Filtering + Google Search SERP + Image Hotlink Fix + Video Server Auto-Healer
+  // Real Web Proxy API with bounded URL rewriting, media compatibility, and privacy filtering
   // Proxied pages are cross-origin to the app, so their fetch/XHR calls need a preflight answer.
   // No credentials are ever involved (access is by page token), so a wildcard origin is safe here.
   app.options('/api/proxy', (req, res) => {
@@ -1594,7 +1594,7 @@ ${safePageContext}`
       const jsTargetHostname = jsStringLiteral(parsedTarget.hostname);
       const jsProxyToken = jsStringLiteral(auth.token);
 
-      // 7. Injected Aegis Shield Protection Script + Video Server Auto-Healer
+      // 7. Injected Aegis Shield network and page integration script
       const aegisProtectionHead = `
         <meta name="referrer" content="no-referrer">
         <style>
