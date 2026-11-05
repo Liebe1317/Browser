@@ -206,6 +206,10 @@ const SAFE_REDIRECT_HEADERS = new Set([
   'upgrade-insecure-requests',
   'dnt',
   'sec-gpc',
+  // Byte-range metadata is representation selection, not origin credentials. CDN redirects
+  // must retain it or video seeking and segmented media requests silently degrade to full fetches.
+  'range',
+  'if-range',
 ]);
 
 export function createSafeFetcher(config: SafeFetcherConfig = {}) {
