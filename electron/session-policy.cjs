@@ -57,8 +57,10 @@ function createBrowserSessionPolicy({ getVpnState, isAppRequest }) {
       },
     );
 
-    browserSession.setPermissionRequestHandler((_contents, permission, callback, details) => {
-      callback(permission === 'fullscreen' && details?.userGesture === true);
+    // Electron's permission-request details do not expose a userGesture flag for fullscreen.
+    // Chromium gates the Fullscreen API on transient user activation; automatic-fullscreen stays denied.
+    browserSession.setPermissionRequestHandler((_contents, permission, callback) => {
+      callback(permission === 'fullscreen');
     });
     browserSession.setPermissionCheckHandler((_contents, permission, _origin, details) => {
       return permission === 'fullscreen';
