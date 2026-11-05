@@ -317,7 +317,28 @@ export const WebPageView: React.FC<WebPageViewProps> = ({
           hasLoadError ? (
             <div className="w-full h-full flex flex-col items-center justify-center gap-3 bg-slate-950 text-slate-200" dir="rtl">
               <p className="text-sm">تعذر تحميل الصفحة في نافذة Chromium المعزولة.</p>
-              <button type="button" onClick={() => void nativeBrowser.reloadSiteView(tab.id)} className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm">
+              <button type="button" onClick={() => {
+                setHasLoadError(false);
+                setIsIframeLoading(true);
+                void nativeBrowser.createSiteView({
+                  tabId: tab.id,
+                  profileKind: tab.isIncognito ? 'private' : 'regular',
+                  profileId: 'main',
+                  url: tabRef.current.url,
+                }).then((result) => {
+                  if (!result.ok) {
+                    setHasLoadError(true);
+                    setIsIframeLoading(false);
+                    return;
+                  }
+                  setNativeReady(true);
+                  void nativeBrowser.setSiteViewVisible(tab.id, true);
+                  void nativeBrowser.reloadSiteView(tab.id);
+                }).catch(() => {
+                  setHasLoadError(true);
+                  setIsIframeLoading(false);
+                });
+              }} className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm">
                 إعادة المحاولة
               </button>
             </div>
