@@ -9,7 +9,7 @@ const ok = (condition, message) => {
 
 function fakeSession() {
   const handlers = {};
-  const state = { proxies: [], closed: 0, permissionRequest: null, permissionCheck: null };
+  const state = { proxies: [], closed: 0, permissionRequest: null, permissionCheck: null, listeners: {} };
   return {
     state,
     webRequest: {
@@ -18,6 +18,7 @@ function fakeSession() {
     },
     setPermissionRequestHandler: (handler) => { state.permissionRequest = handler; },
     setPermissionCheckHandler: (handler) => { state.permissionCheck = handler; },
+    on: (name, handler) => { state.listeners[name] = handler; },
     setProxy: async (config) => { state.proxies.push(config); },
     closeAllConnections: async () => { state.closed += 1; },
     triggerBefore: (details) => new Promise((resolve) => handlers.before(details, resolve)),
@@ -62,6 +63,10 @@ regular.state.permissionRequest(null, 'fullscreen', (value) => { fullscreenGrant
 ok(fullscreenGranted === true, 'the standard fullscreen permission is delegated to Chromium user-activation enforcement');
 ok(regular.state.permissionCheck(null, 'camera', 'https://video.example', { userGesture: true }) === false, 'camera permission remains denied');
 ok(regular.state.permissionCheck(null, 'fullscreen', 'https://video.example', {}) === true, 'fullscreen permission checks are separate from the gesture-gated request decision');
+let downloadPrevented = false;
+let downloadCanceled = false;
+regular.state.listeners['will-download']({ preventDefault: () => { downloadPrevented = true; } }, { cancel: () => { downloadCanceled = true; } });
+ok(downloadPrevented && downloadCanceled, 'downloads are denied until a user-confirmed download flow exists');
 
 await policy.applyProxyToAll({ mode: 'fixed_servers', proxyRules: 'http=127.0.0.1:19090;https=127.0.0.1:19090' });
 ok(regular.state.proxies.length === 1 && privateSession.state.proxies.length === 1, 'VPN proxy is applied to regular and private sessions');
