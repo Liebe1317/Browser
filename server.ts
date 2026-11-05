@@ -1567,7 +1567,6 @@ ${safePageContext}`
       );
       // Serialize URL-derived values as JavaScript string literals. Never interpolate raw URLs
       // inside executable script: URL query text is attacker-controlled.
-      const jsTargetOrigin = jsStringLiteral(parsedTarget.origin);
       const jsTargetHref = jsStringLiteral(parsedTarget.href);
       const jsTargetHostname = jsStringLiteral(parsedTarget.hostname);
       const jsProxyToken = jsStringLiteral(auth.token);
