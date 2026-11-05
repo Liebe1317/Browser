@@ -70,6 +70,14 @@ export const WebPageView: React.FC<WebPageViewProps> = ({
         updateTabRef.current(tab.id, { isLoading: loading });
         return;
       }
+      if (event.type === 'media-state') {
+        if (event.state === 'playing' || event.state === 'paused') updateTabRef.current(tab.id, { mediaState: event.state });
+        return;
+      }
+      if (event.type === 'audio-state') {
+        updateTabRef.current(tab.id, { isAudible: event.audible === true });
+        return;
+      }
       if (event.type === 'title') {
         if (event.title) updateTabRef.current(tab.id, { title: event.title.slice(0, 200) });
         return;
@@ -97,6 +105,8 @@ export const WebPageView: React.FC<WebPageViewProps> = ({
           canGoBack: event.canGoBack ?? historyIndex > 0,
           canGoForward: event.canGoForward ?? false,
           isLoading: false,
+          mediaState: 'paused',
+          isAudible: false,
         });
         return;
       }
