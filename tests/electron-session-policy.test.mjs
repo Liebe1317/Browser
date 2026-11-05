@@ -45,6 +45,7 @@ ok(!isBlockedAdOrTracker('https://notgoogle-analytics.com/'), 'lookalike domains
 ok(isPrivateOrLocalUrl('http://127.0.0.1:3000/'), 'loopback IP URLs are recognized as local');
 ok(isPrivateOrLocalUrl('http://10.0.0.8/'), 'RFC1918 IPv4 URLs are recognized as private');
 ok(isPrivateOrLocalUrl('http://[fd00::1]/'), 'IPv6 unique-local URLs are recognized as private');
+ok(isPrivateOrLocalUrl('http://[::ffff:7f00:1]/'), 'IPv4-mapped IPv6 loopback URLs are recognized as private');
 ok(isPrivateOrLocalUrl('http://printer.local/'), 'local mDNS hostnames are recognized as local');
 ok(!isPrivateOrLocalUrl('https://video.example/watch'), 'public web URLs are not classified as local');
 
@@ -52,6 +53,10 @@ const adResult = await regular.triggerBefore({ url: 'https://doubleclick.net/ad.
 ok(adResult.cancel === true, 'ad and tracker requests are blocked in each registered session');
 const allowedResult = await privateSession.triggerBefore({ url: 'https://video.example/player' });
 ok(!allowedResult.cancel, 'ordinary requests are allowed when VPN is disabled');
+const trustedLocalApi = await regular.triggerBefore({ url: 'http://127.0.0.1:3000/api/health' });
+ok(!trustedLocalApi.cancel, 'the trusted app session can reach its exact local application origin');
+const trustedPrivateNetwork = await regular.triggerBefore({ url: 'http://192.168.1.1/' });
+ok(trustedPrivateNetwork.cancel === true, 'even the trusted app session cannot bypass into unrelated private network hosts');
 const localWhenVpnOff = await privateSession.triggerBefore({ url: 'http://192.168.1.1/' });
 ok(localWhenVpnOff.cancel === true, 'untrusted sites cannot reach private network addresses even when VPN is disabled');
 
