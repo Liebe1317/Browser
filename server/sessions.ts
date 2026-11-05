@@ -163,7 +163,7 @@ function getOrMintToken(sid: string, contextId: string, site: string, origin: st
     const oldest = tokens.keys().next().value;
     if (oldest !== undefined) {
       const record = tokens.get(oldest);
-      if (record) tokenIndex.delete(`${record.sid}|${record.contextId}|${record.site}`);
+      if (record) tokenIndex.delete(`${record.sid}|${record.contextId}|${record.site}|${record.origin}`);
       tokens.delete(oldest);
     }
   }
