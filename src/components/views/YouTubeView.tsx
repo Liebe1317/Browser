@@ -115,12 +115,12 @@ export const YouTubeView: React.FC<YouTubeViewProps> = ({
     } else {
       try {
         const parsed = new URL(query);
-        const host = parsed.hostname.toLowerCase().replace(/^www\\./, '');
+        const host = parsed.hostname.toLowerCase().replace(/^www[.]/, '');
         if (host === 'youtu.be') {
           extractedId = parsed.pathname.split('/').filter(Boolean)[0] || null;
         } else if (host === 'youtube.com' || host === 'm.youtube.com') {
           if (parsed.pathname === '/watch') extractedId = parsed.searchParams.get('v');
-          else extractedId = parsed.pathname.match(/^\\/(?:embed|shorts|live)\\/([A-Za-z0-9_-]{11})/)?.[1] || null;
+          else { const segments = parsed.pathname.split('/').filter(Boolean); if (['embed', 'shorts', 'live'].includes(segments[0])) extractedId = segments[1] || null; }
         }
       } catch {
         // A plain search query is not a URL.
@@ -171,7 +171,7 @@ export const YouTubeView: React.FC<YouTubeViewProps> = ({
         {/* Left: YouTube Brand */}
         <div className="flex items-center gap-3 shrink-0">
           <div 
-            onClick={() => { setCurrentVideoId(null); setActiveVideo(null); }}
+            onClick={() => {
             className="flex items-center gap-1.5 cursor-pointer group"
           >
             <div className="w-8 h-6 rounded-[7px] bg-[#ff0000] flex items-center justify-center shadow-md shadow-red-600/20 group-hover:scale-105 transition-transform">
@@ -191,7 +191,7 @@ export const YouTubeView: React.FC<YouTubeViewProps> = ({
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder=""
+              placeholder="ابحث في YouTube أو الصق رابط فيديو"
               className="flex-1 px-4 bg-transparent border-none outline-none text-xs text-white placeholder-[#888888]"
             />
             {searchQuery && (
@@ -242,6 +242,7 @@ export const YouTubeView: React.FC<YouTubeViewProps> = ({
             key={cat.id}
             onClick={() => {
               setActiveCategory(cat.id);
+              setSearchQuery('');
               setCurrentVideoId(null);
             }}
             className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors ${
@@ -257,7 +258,7 @@ export const YouTubeView: React.FC<YouTubeViewProps> = ({
 
       {/* Main Content Area */}
       <main className="flex-1 p-4 sm:p-6 max-w-[1700px] mx-auto w-full">
-        {/* WATCH PAGE: Video + Comments next to Recommended Videos */}
+{/* WATCH PAGE: official embed with verified search metadata */}
         {currentVideoId ? (
           <div className="space-y-4">
             {/* If Theater Mode is on, full width player at the top */}
@@ -273,9 +274,9 @@ export const YouTubeView: React.FC<YouTubeViewProps> = ({
               </div>
             )}
 
-            {/* Desktop Two-Column Layout: Main Column (Player/Comments) + Side Column (Recommended Videos) */}
+{/* Player and related real search results */}
             <div className="flex flex-col lg:flex-row gap-6 items-start">
-              {/* Primary Column: Video Player (if not theater) + Video Info + Comments Section */}
+{/* Primary video column */}
               <div className="flex-1 w-full min-w-0 space-y-4">
                 {!isTheaterMode && (
                   <div className="relative w-full aspect-video rounded-2xl overflow-hidden bg-black shadow-2xl border border-[#272727]">
@@ -316,6 +317,15 @@ export const YouTubeView: React.FC<YouTubeViewProps> = ({
                   </div>
 
                   <div className="flex items-center gap-2 flex-wrap text-xs">
+                    <button
+                      onClick={() => onNavigate(`https://www.youtube.com/watch?v=${currentVideoId}`)}
+                      className="flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-[#272727] hover:bg-[#383838] text-white transition-colors"
+                      title="فتح صفحة الفيديو الأصلية على YouTube"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" />
+                      <span>فتح على YouTube</span>
+                    </button>
+
                     {/* Share button */}
                     <button
                       onClick={handleShare}
@@ -351,7 +361,7 @@ export const YouTubeView: React.FC<YouTubeViewProps> = ({
 
               </div>
 
-              {/* Secondary Column: Recommended Videos (Right beside the player & comments!) */}
+{/* Secondary column: related videos */}
               <aside className="w-full lg:w-[380px] xl:w-[420px] shrink-0 space-y-3">
                 <div className="flex items-center justify-between pb-1">
                   <h3 className="text-sm font-bold text-white">فيديوهات مقترحة</h3>
