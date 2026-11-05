@@ -21,7 +21,7 @@ const sessionFor = (partition) => {
   if (!sessions.has(partition)) {
     sessions.set(partition, {
       clearStorage: 0, clearCacheCount: 0, clearAuthCount: 0, clearDnsCount: 0,
-      clearStorageData: async (options) => { sessions.get(partition).clearStorage += 1; sessions.get(partition).storageOptions = options; },
+      clearStorageData: async (options) => { sessions.get(partition).clearStorage += 1; sessions.get(partition).storageOptions = options; if (sessions.get(partition).failStorageClear) throw new Error('simulated private cleanup failure'); },
       clearCache: async () => { sessions.get(partition).clearCacheCount += 1; },
       clearAuthCache: async () => { sessions.get(partition).clearAuthCount += 1; },
       clearHostResolverCache: async () => { sessions.get(partition).clearDnsCount += 1; },
@@ -140,3 +140,14 @@ await manager.close('tab-b');
 ok(sessionFor('aegis-private-main').clearStorage === 1, 'private profile storage is cleared after its last tab closes');
 ok(sessionFor('aegis-private-main').clearCacheCount === 1 && sessionFor('aegis-private-main').clearAuthCount === 1, 'private cache and authentication state are cleared on final close');
 ok(windows.children.length === 0 && manager.getCount() === 0, 'closed site views are removed and destroyed');
+
+const privateSession = sessionFor('aegis-private-main');
+privateSession.failStorageClear = true;
+await manager.create({ tabId: 'tab-c', profileKind: 'private', profileId: 'main', url: 'https://video.example/private' });
+let cleanupFailed = false;
+try { await manager.close('tab-c'); } catch { cleanupFailed = true; }
+ok(cleanupFailed, 'private close reports storage cleanup failures');
+const beforeBlockedReuse = createdViews.length;
+let reuseBlocked = false;
+try { await manager.create({ tabId: 'tab-d', profileKind: 'private', profileId: 'main', url: 'https://video.example/private-again' }); } catch { reuseBlocked = true; }
+ok(reuseBlocked && createdViews.length === beforeBlockedReuse, 'a private partition cannot be reused after incomplete cleanup');
