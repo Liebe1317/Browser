@@ -65,6 +65,11 @@ function createBrowserSessionPolicy({ getVpnState, isAppRequest }) {
     browserSession.setPermissionCheckHandler((_contents, permission, _origin, details) => {
       return permission === 'fullscreen';
     });
+    // Downloads are denied until a separate, user-confirmed download flow is implemented.
+    browserSession.on('will-download', (event, item) => {
+      event.preventDefault();
+      item.cancel();
+    });
     return browserSession;
   }
 
