@@ -24,6 +24,7 @@ import { fetchWithAegisCsrf } from './utils/sessionSecurity';
 import { Tab, Bookmark, HistoryItem, DownloadItem, BrowserSettings, ShieldSettings, NetworkRequest, BrowserPageType, VaultState } from './types/browser';
 import { DEFAULT_SETTINGS, DEFAULT_SHIELD_SETTINGS, DEFAULT_BOOKMARKS, SEARCH_ENGINES } from './data/initialData';
 import { THEME_PRESETS, applyCustomTheme, getSavedTheme } from './utils/theme';
+import { decideNavigation } from './core/browserPolicy';
 
 export default function App() {
   // Initial default tab
@@ -411,6 +412,13 @@ export default function App() {
       pageType = 'webpage';
     }
 
+    // Reject credential-bearing or unsupported URLs before they enter tab state or history.
+    if (pageType === 'webpage' || pageType === 'youtube') {
+      const decision = decideNavigation({ url: targetUrl, source: 'site' });
+      if (decision.action === 'deny') return;
+      targetUrl = decision.url;
+    }
+
     const newHistory = [...activeTab.history.slice(0, activeTab.historyIndex + 1), targetUrl];
     const newHistoryIndex = newHistory.length - 1;
 
@@ -463,6 +471,7 @@ export default function App() {
       else if (targetUrl.startsWith('chrome://shields')) pageType = 'shields';
       else if (targetUrl.startsWith('chrome://downloads')) pageType = 'downloads';
 
+      if (pageType === 'webpage' && decideNavigation({ url: targetUrl, source: 'site' }).action === 'deny') return;
       handleUpdateTab(activeTab.id, {
         url: targetUrl,
         displayUrl: pageType === 'newtab' ? '' : targetUrl,
@@ -491,6 +500,7 @@ export default function App() {
       else if (targetUrl.startsWith('chrome://shields')) pageType = 'shields';
       else if (targetUrl.startsWith('chrome://downloads')) pageType = 'downloads';
 
+      if (pageType === 'webpage' && decideNavigation({ url: targetUrl, source: 'site' }).action === 'deny') return;
       handleUpdateTab(activeTab.id, {
         url: targetUrl,
         displayUrl: pageType === 'newtab' ? '' : targetUrl,
@@ -582,8 +592,10 @@ export default function App() {
   };
 
   const handleOpenReader = (url: string) => {
+    const decision = decideNavigation({ url, source: 'site' });
+    if (decision.action === 'deny') return;
     handleUpdateTab(activeTab.id, {
-      url,
+      url: decision.url,
       readerMode: true,
     });
   };
