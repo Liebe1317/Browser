@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   Play, Search, Lock, 
   Share2, Maximize2, ExternalLink, Flame, Film,
@@ -46,6 +46,8 @@ export const YouTubeView: React.FC<YouTubeViewProps> = ({
   const [videos, setVideos] = useState<YouTubeVideo[]>([]);
   const [relatedVideos, setRelatedVideos] = useState<YouTubeVideo[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [feedError, setFeedError] = useState('');
+  const requestControllerRef = useRef<AbortController | null>(null);
   const [isTheaterMode, setIsTheaterMode] = useState(false);
   const [isSubscribed, setIsSubscribed] = useState(false);
   const [likesCount, setLikesCount] = useState(48200);
@@ -89,102 +91,41 @@ export const YouTubeView: React.FC<YouTubeViewProps> = ({
   ]);
   const [newCommentText, setNewCommentText] = useState('');
 
-  // Fallback videos in case network or rate limit happens
-  const fallbackFeed: YouTubeVideo[] = [
-    {
-      id: 'JfVOs4VSpmA',
-      title: 'Lofi Hip Hop Radio - Beats to relax/study to',
-      channel: 'Lofi Girl',
-      views: '54M مشاهدة',
-      time: 'بث مباشر الآن',
-      duration: 'مباشر',
-      thumbnail: 'https://img.youtube.com/vi/JfVOs4VSpmA/hqdefault.jpg',
-      verified: true,
-    },
-    {
-      id: 'z9bZufPHFLU',
-      title: 'وثائقي: كيف تحمي خصوصيتك وبياناتك الرقمية من كبرى شركات التتبع؟',
-      channel: 'وثائقيات المعرفة',
-      views: '580K مشاهدة',
-      time: 'قبل 3 أسابيع',
-      duration: '22:15',
-      thumbnail: 'https://img.youtube.com/vi/z9bZufPHFLU/hqdefault.jpg',
-      verified: true,
-    },
-    {
-      id: 'aircAruvnKk',
-      title: 'Amazing Nature Scenery & Wildlife in 4K UHD (Relaxing Music)',
-      channel: 'Nature Relaxation',
-      views: '19M مشاهدة',
-      time: 'قبل 4 أشهر',
-      duration: '45:30',
-      thumbnail: 'https://img.youtube.com/vi/aircAruvnKk/hqdefault.jpg',
-      verified: true,
-    },
-    {
-      id: '8ndhydkyP0Q',
-      title: 'تعلم لغة البرمجة بايثون في فيديو واحد شامل للمبتدئين من الصفر',
-      channel: 'أكاديمية البرمجة',
-      views: '920K مشاهدة',
-      time: 'قبل 5 أشهر',
-      duration: '1:45:00',
-      thumbnail: 'https://img.youtube.com/vi/8ndhydkyP0Q/hqdefault.jpg',
-      verified: true,
-    },
-    {
-      id: 'kJQP7kiw5Fk',
-      title: 'Luis Fonsi - Despacito ft. Daddy Yankee',
-      channel: 'Luis Fonsi',
-      views: '8.4B مشاهدة',
-      time: 'قبل 6 سنوات',
-      duration: '4:42',
-      thumbnail: 'https://img.youtube.com/vi/kJQP7kiw5Fk/hqdefault.jpg',
-      verified: true,
-    },
-    {
-      id: 'LXb3EKWsInQ',
-      title: 'COSTA RICA IN 4K 60fps HDR (ULTRA HD)',
-      channel: 'Jacob + Katie Schwarz',
-      views: '112M مشاهدة',
-      time: 'قبل سنتين',
-      duration: '5:24',
-      thumbnail: 'https://img.youtube.com/vi/LXb3EKWsInQ/hqdefault.jpg',
-      verified: true,
-    },
-  ];
-
-  // Fetch feed by category or search
+  // Fetch only real results from the server. Never disguise stale/demo data as live YouTube content.
   const loadVideos = async (cat: string, query?: string) => {
+    requestControllerRef.current?.abort();
+    const controller = new AbortController();
+    requestControllerRef.current = controller;
     setIsLoading(true);
+    setFeedError('');
     try {
-      const endpoint = query 
+      const endpoint = query
         ? `/api/youtube/search?q=${encodeURIComponent(query)}`
         : `/api/youtube/feed?category=${encodeURIComponent(cat)}`;
-      const res = await fetch(endpoint);
-      if (res.ok) {
-        const data = await res.json();
-        if (data.results && data.results.length > 0) {
-          setVideos(data.results);
-          setRelatedVideos(data.results.slice(0, 15));
-          if (!currentVideoId && initialVideoId) {
-            setCurrentVideoId(initialVideoId);
-          }
-          setIsLoading(false);
-          return;
-        }
+      const res = await fetch(endpoint, { signal: controller.signal, headers: { Accept: 'application/json' } });
+      if (!res.ok) throw new Error(res.status === 502 ? 'تعذر الوصول إلى خدمة YouTube حالياً.' : 'تعذر تحميل نتائج YouTube.');
+      const data: unknown = await res.json();
+      if (!data || typeof data !== 'object' || !Array.isArray((data as { results?: unknown }).results)) {
+        throw new Error('استجابة YouTube غير صالحة.');
       }
-      setVideos(fallbackFeed);
-      setRelatedVideos(fallbackFeed);
-    } catch {
-      setVideos(fallbackFeed);
-      setRelatedVideos(fallbackFeed);
+      const results = (data as { results: YouTubeVideo[] }).results;
+      setVideos(results);
+      setRelatedVideos(results.slice(0, 15));
+      if (!currentVideoId && initialVideoId) setCurrentVideoId(initialVideoId);
+      if (results.length === 0) setFeedError('لم يتم العثور على فيديوهات في هذه النتيجة.');
+    } catch (error) {
+      if (controller.signal.aborted) return;
+      setVideos([]);
+      setRelatedVideos([]);
+      setFeedError(error instanceof Error ? error.message : 'تعذر تحميل YouTube.');
     } finally {
-      setIsLoading(false);
+      if (!controller.signal.aborted) setIsLoading(false);
     }
   };
 
   useEffect(() => {
-    loadVideos(activeCategory);
+    void loadVideos(activeCategory);
+    return () => requestControllerRef.current?.abort();
   }, [activeCategory]);
 
   useEffect(() => {
@@ -196,8 +137,7 @@ export const YouTubeView: React.FC<YouTubeViewProps> = ({
   useEffect(() => {
     if (currentVideoId) {
       const found = videos.find((v) => v.id === currentVideoId) || 
-                    relatedVideos.find((v) => v.id === currentVideoId) ||
-                    fallbackFeed.find((v) => v.id === currentVideoId);
+                    relatedVideos.find((v) => v.id === currentVideoId);
       if (found) {
         setActiveVideo(found);
       } else {
@@ -221,20 +161,31 @@ export const YouTubeView: React.FC<YouTubeViewProps> = ({
     if (!query) return;
 
     let extractedId: string | null = null;
-    if (query.includes('youtube.com/watch?v=')) {
-      extractedId = query.split('watch?v=')[1]?.split('&')[0] || null;
-    } else if (query.includes('youtu.be/')) {
-      extractedId = query.split('youtu.be/')[1]?.split('?')[0] || null;
-    } else if (query.includes('youtube.com/embed/')) {
-      extractedId = query.split('embed/')[1]?.split('?')[0] || null;
+    if (/^[A-Za-z0-9_-]{11}$/.test(query)) {
+      extractedId = query;
+    } else {
+      try {
+        const parsed = new URL(query);
+        const host = parsed.hostname.toLowerCase().replace(/^www\\./, '');
+        if (host === 'youtu.be') {
+          extractedId = parsed.pathname.split('/').filter(Boolean)[0] || null;
+        } else if (host === 'youtube.com' || host === 'm.youtube.com') {
+          if (parsed.pathname === '/watch') extractedId = parsed.searchParams.get('v');
+          else extractedId = parsed.pathname.match(/^\\/(?:embed|shorts|live)\\/([A-Za-z0-9_-]{11})/)?.[1] || null;
+        }
+      } catch {
+        // A plain search query is not a URL.
+      }
     }
 
-    if (extractedId) {
+    if (extractedId && /^[A-Za-z0-9_-]{11}$/.test(extractedId)) {
       setCurrentVideoId(extractedId);
+      setSearchQuery(query);
       return;
     }
 
-    loadVideos(activeCategory, query);
+    setCurrentVideoId(null);
+    void loadVideos(activeCategory, query);
   };
 
   const handleSelectVideo = (video: YouTubeVideo) => {
@@ -515,6 +466,15 @@ export const YouTubeView: React.FC<YouTubeViewProps> = ({
                       </button>
                     </div>
 
+                    <button
+                      onClick={() => onNavigate(`https://www.youtube.com/watch?v=${currentVideoId}`)}
+                      className="flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-[#272727] hover:bg-[#383838] text-white transition-colors"
+                      title="فتح صفحة الفيديو الأصلية على YouTube"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" />
+                      <span>فتح على YouTube</span>
+                    </button>
+
                     {/* Share button */}
                     <button
                       onClick={handleShare}
@@ -702,6 +662,17 @@ export const YouTubeView: React.FC<YouTubeViewProps> = ({
               <div className="py-24 text-center space-y-3">
                 <div className="w-8 h-8 border-2 border-white border-t-transparent rounded-full animate-spin mx-auto" />
                 <p className="text-xs text-[#888888]">جاري استرجاع فيديوهات YouTube المباشرة...</p>
+              </div>
+            ) : videos.length === 0 ? (
+              <div className="py-20 text-center space-y-4">
+                <p className="text-sm text-[#aaaaaa]">{feedError || 'لا توجد نتائج لعرضها حالياً.'}</p>
+                <button
+                  type="button"
+                  onClick={() => void loadVideos(activeCategory, searchQuery.trim() || undefined)}
+                  className="px-4 py-2 rounded-full bg-[#272727] hover:bg-[#383838] text-white text-xs"
+                >
+                  إعادة المحاولة
+                </button>
               </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
