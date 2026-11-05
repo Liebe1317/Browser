@@ -214,6 +214,7 @@ export default function App() {
   // Vault & Cryptographic Handlers
   const handleLockVault = () => {
     if (!vaultState.isSetUp) return; // nothing to unlock with yet
+    tabs.forEach((tab) => { void window.aegisDesktop?.browser?.closeSiteView(tab.id); });
     lockVault();
     clearServerSessionCookies(); // log out of proxied sites too
     // Clear decrypted data and open pages from memory while locked
@@ -256,6 +257,7 @@ export default function App() {
   };
 
   const handleEmergencyPurge = () => {
+    tabs.forEach((tab) => { void window.aegisDesktop?.browser?.closeSiteView(tab.id); });
     try {
       localStorage.clear();
       sessionStorage.clear();
@@ -284,6 +286,7 @@ export default function App() {
 
   const handleCloseTab = (id: string, e?: React.MouseEvent) => {
     e?.stopPropagation();
+    void window.aegisDesktop?.browser?.closeSiteView(id);
     setPageTexts((previous) => {
       const next = { ...previous };
       delete next[id];
@@ -444,6 +447,10 @@ export default function App() {
   };
 
   const handleGoBack = () => {
+    if (activeTab.pageType === 'webpage' && window.aegisDesktop?.browser) {
+      void window.aegisDesktop.browser.goBackSiteView(activeTab.id);
+      return;
+    }
     if (activeTab.historyIndex > 0) {
       const newIndex = activeTab.historyIndex - 1;
       const targetUrl = activeTab.history[newIndex];
@@ -468,6 +475,10 @@ export default function App() {
   };
 
   const handleGoForward = () => {
+    if (activeTab.pageType === 'webpage' && window.aegisDesktop?.browser) {
+      void window.aegisDesktop.browser.goForwardSiteView(activeTab.id);
+      return;
+    }
     if (activeTab.historyIndex < activeTab.history.length - 1) {
       const newIndex = activeTab.historyIndex + 1;
       const targetUrl = activeTab.history[newIndex];
@@ -497,6 +508,11 @@ export default function App() {
       delete next[activeTab.id];
       return next;
     });
+    if (activeTab.pageType === 'webpage' && window.aegisDesktop?.browser) {
+      void window.aegisDesktop.browser.reloadSiteView(activeTab.id);
+      handleUpdateTab(activeTab.id, { isLoading: true });
+      return;
+    }
     setReloadNonce((value) => value + 1);
     handleUpdateTab(activeTab.id, { isLoading: true });
   };
@@ -775,8 +791,9 @@ export default function App() {
           />
         ) : activeTab.pageType === 'webpage' ? (
           <WebPageView
-            key={`${activeTab.id}-${reloadNonce}`}
+            key={window.aegisDesktop?.browser ? activeTab.id : `${activeTab.id}-${reloadNonce}`}
             tab={activeTab}
+            reloadNonce={reloadNonce}
             shieldSettings={shieldSettings}
             sendDoNotTrack={settings.doNotTrack}
             onUpdateTabInfo={handleUpdateTab}
