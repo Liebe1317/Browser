@@ -1354,16 +1354,22 @@ ${safePageContext}`
         clearTimeout(timeout);
         controller.abort();
       });
+      const safeRequestHeader = (name: string, fallback: string): string => {
+        const value = req.headers[name];
+        return typeof value === 'string' && value.length <= 512 && !/[\r\n]/.test(value)
+          ? value
+          : fallback;
+      };
       const forwardHeaders: Record<string, string> = {
-        'User-Agent':
-          (typeof req.headers['user-agent'] === 'string' && req.headers['user-agent'].length <= 512 && !/[\r\n]/.test(req.headers['user-agent']))
-            ? req.headers['user-agent']
-            : 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
-        'Accept': req.headers.accept || 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
-        'Accept-Language': (req.headers['accept-language'] as string) || 'ar,en;q=0.9',
-        'Sec-Ch-Ua': req.headers['sec-ch-ua'] || '"Google Chrome";v="131", "Chromium";v="131"',
-        'Sec-Ch-Ua-Mobile': req.headers['sec-ch-ua-mobile'] || '?0',
-        'Sec-Ch-Ua-Platform': req.headers['sec-ch-ua-platform'] || '"Windows"',
+        'User-Agent': safeRequestHeader(
+          'user-agent',
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36'
+        ),
+        'Accept': safeRequestHeader('accept', 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8'),
+        'Accept-Language': safeRequestHeader('accept-language', 'ar,en;q=0.9'),
+        'Sec-Ch-Ua': safeRequestHeader('sec-ch-ua', '"Google Chrome";v="131", "Chromium";v="131"'),
+        'Sec-Ch-Ua-Mobile': safeRequestHeader('sec-ch-ua-mobile', '?0'),
+        'Sec-Ch-Ua-Platform': safeRequestHeader('sec-ch-ua-platform', '"Windows"'),
         'Upgrade-Insecure-Requests': '1',
       };
       // Preserve browser-generated Client Hints so the upstream sees a consistent Chromium
