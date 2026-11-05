@@ -150,9 +150,12 @@ try {
   r = await req(proxy('https://ad.doubleclick.net/p.gif', `t=${tokA}&`), { headers: page });
   ok(r.status === 204, 'a page cannot switch the privacy shield off (the "s" flags are ignored on token requests)');
 
-  r = await req(proxy(A + '/whoami'), { headers: page }); ok(r.status === 403, 'cross-site request without a token -> 403 (not an open proxy)');
+  r = await req(proxy(A + '/whoami'), { headers: page });
+  ok(r.status === 403 && !r.headers['x-aegis-proxy-error'], 'cross-site requests without a token are rejected without a recovery signal');
   r = await req(proxy(A + '/whoami'), { headers: { ...app, 'Sec-Fetch-Site': 'same-site' } }); ok(r.status === 403, 'same-site request without a token -> 403');
-  r = await req(proxy(A + '/whoami', 't=' + 'f'.repeat(48) + '&'), { headers: page }); ok(r.status === 403, 'forged token -> 403');
+  r = await req(proxy(A + '/whoami', 't=' + 'f'.repeat(48) + '&'), { headers: page });
+  ok(r.status === 403 && r.headers['x-aegis-proxy-error'] === 'capability-expired', 'invalid or expired page capabilities return a bounded recovery signal');
+  ok(r.headers['access-control-allow-origin'] === '*' && /X-Aegis-Proxy-Error/i.test(r.headers['access-control-expose-headers'] || ''), 'the page can read only the proxy recovery header on capability errors');
   r = await req(proxy('http://127.0.0.1:1/', `t=${tokA}&`), { headers: page }); ok(r.status === 403, 'a valid token does not bypass the SSRF check');
 
   r = await req('/api/health', { headers: page }); ok(r.status === 403, 'other /api routes refuse cross-site callers');
