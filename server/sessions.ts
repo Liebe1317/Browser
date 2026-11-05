@@ -39,6 +39,7 @@ interface TokenRecord {
   contextId: string;
   site: string;
   origin: string;
+  referer: string;
   expires: number;
 }
 
@@ -121,7 +122,7 @@ function createSession(req: Request, res: Response): string {
       for (const [token, record] of tokens) {
         if (record.sid === oldestId) {
           tokens.delete(token);
-          tokenIndex.delete(`${record.sid}|${record.contextId}|${record.site}|${record.origin}`);
+          tokenIndex.delete(`${record.sid}|${record.contextId}|${record.site}|${record.origin}|${record.referer}`);
         }
       }
     }
@@ -151,8 +152,8 @@ export function jarFor(session: Session, contextId: string, site: string): Cooki
   return jar;
 }
 
-function getOrMintToken(sid: string, contextId: string, site: string, origin: string): string {
-  const key = `${sid}|${contextId}|${site}|${origin}`;
+function getOrMintToken(sid: string, contextId: string, site: string, origin: string, referer: string): string {
+  const key = `${sid}|${contextId}|${site}|${origin}|${referer}`;
   const existing = tokenIndex.get(key);
   if (existing) {
     const record = tokens.get(existing);
@@ -163,13 +164,13 @@ function getOrMintToken(sid: string, contextId: string, site: string, origin: st
     const oldest = tokens.keys().next().value;
     if (oldest !== undefined) {
       const record = tokens.get(oldest);
-      if (record) tokenIndex.delete(`${record.sid}|${record.contextId}|${record.site}|${record.origin}`);
+      if (record) tokenIndex.delete(`${record.sid}|${record.contextId}|${record.site}|${record.origin}|${record.referer}`);
       tokens.delete(oldest);
     }
   }
 
   const token = crypto.randomBytes(24).toString('hex');
-  tokens.set(token, { sid, contextId, site, origin, expires: Date.now() + TOKEN_TTL_MS });
+  tokens.set(token, { sid, contextId, site, origin, referer, expires: Date.now() + TOKEN_TTL_MS });
   tokenIndex.set(key, token);
   return token;
 }
@@ -181,6 +182,8 @@ export interface ProxyAuth {
   site: string;
   /** Original top-level origin, retained for same-origin upstream request semantics. */
   origin: string;
+  /** Sanitized top-level page URL used only as a same-origin upstream Referer. */
+  referer: string;
   token: string;
   shield: ShieldFlags;
   isPageLoad: boolean;
@@ -215,6 +218,7 @@ export function authorizeProxyRequest(req: Request, res: Response, target: URL):
       contextId: record.contextId,
       site: record.site,
       origin: record.origin,
+      referer: record.referer,
       token,
       shield: session.shield,
       isPageLoad: false,
@@ -247,8 +251,9 @@ export function authorizeProxyRequest(req: Request, res: Response, target: URL):
     session,
     contextId,
     site,
-    token: getOrMintToken(sid, contextId, site, target.origin),
+    token: getOrMintToken(sid, contextId, site, target.origin, `${target.origin}${target.pathname}`),
     origin: target.origin,
+    referer: `${target.origin}${target.pathname}`,
     shield: session.shield,
     isPageLoad: true,
   };
@@ -279,7 +284,7 @@ export function destroyPrivateContext(req: Request, contextId: string): boolean 
   for (const [token, record] of tokens) {
     if (record.sid === sid && record.contextId === contextId) {
       tokens.delete(token);
-      const indexKey = `${record.sid}|${record.contextId}|${record.site}|${record.origin}`;
+      const indexKey = `${record.sid}|${record.contextId}|${record.site}|${record.origin}|${record.referer}`;
       if (tokenIndex.get(indexKey) === token) tokenIndex.delete(indexKey);
     }
   }
@@ -297,7 +302,7 @@ const sweeper = setInterval(() => {
   for (const [token, record] of tokens) {
     if (record.expires <= now || !sessions.has(record.sid)) {
       tokens.delete(token);
-      const key = `${record.sid}|${record.contextId}|${record.site}|${record.origin}`;
+      const key = `${record.sid}|${record.contextId}|${record.site}|${record.origin}|${record.referer}`;
       if (tokenIndex.get(key) === token) tokenIndex.delete(key);
     }
   }
