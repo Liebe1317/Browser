@@ -90,12 +90,12 @@ export function decideSitePermission(permission: SitePermission, userGesture = f
   return permission === 'fullscreen' && userGesture;
 }
 
-/** Chromium partition names: private partitions intentionally omit the persist: prefix. */
-export function getElectronPartition(kind: BrowserProfileKind, contextId: string): string | null {
-  if (!SAFE_CONTEXT_ID.test(contextId)) return null;
+/** Chromium partition names are profile-scoped and shared by that profile's tabs. Private partitions omit the persist: prefix. */
+export function getElectronPartition(kind: BrowserProfileKind, profileId: string): string | null {
+  if (!SAFE_CONTEXT_ID.test(profileId)) return null;
   return kind === 'regular'
-    ? `persist:aegis-regular-${contextId}`
-    : `aegis-private-${contextId}`;
+    ? `persist:aegis-regular-${profileId}`
+    : `aegis-private-${profileId}`;
 }
 
 export interface ProfileStoragePolicy {
