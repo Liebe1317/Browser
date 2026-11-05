@@ -86,6 +86,8 @@ r = await f(base + '/cross-origin', {
     'Authorization': 'Bearer site-secret',
     'Content-Type': 'application/json',
     'Accept': 'application/json',
+    'Range': 'bytes=1048576-2097151',
+    'If-Range': '"media-etag-123"',
   },
 });
 await r.response.text();
@@ -93,6 +95,8 @@ ok(!receivedRedirectHeaders['x-csrf-token'], 'CSRF headers are stripped on cross
 ok(!receivedRedirectHeaders['x-requested-with'], 'custom request headers are stripped on cross-origin redirects');
 ok(!receivedRedirectHeaders.authorization && !receivedRedirectHeaders.cookie, 'authorization and cookies are never leaked to the redirected origin');
 ok(receivedRedirectHeaders.accept === 'application/json', 'safe presentation headers survive a cross-origin redirect');
+ok(receivedRedirectHeaders.range === 'bytes=1048576-2097151', 'byte Range survives a cross-origin CDN redirect for video seeking');
+ok(receivedRedirectHeaders['if-range'] === '"media-etag-123"', 'If-Range validator survives a cross-origin CDN redirect');
 second.close();
 
 // 4. The default fetcher refuses the loopback server outright
