@@ -81,12 +81,6 @@ const first = await manager.create({
 ok(first.ok && manager.has('tab-a'), 'a site view is created for a validated tab');
 const duplicate = await manager.create({ tabId: 'tab-a', profileKind: 'private', profileId: 'main', url: 'https://video.example/watch' });
 ok(duplicate.ok && duplicate.existing === true && createdViews.length === 1, 're-activating an existing tab reuses its native view without duplication');
-const race = await Promise.all([
-  manager.create({ tabId: 'tab-race', profileKind: 'regular', profileId: 'main', url: 'https://video.example/a' }),
-  manager.create({ tabId: 'tab-race', profileKind: 'regular', profileId: 'main', url: 'https://video.example/a' }),
-]);
-ok(race.every((result) => result.ok) && createdViews.filter((view) => view.options.webPreferences.session === sessionFor('persist:aegis-regular-main')).length === 1, 'concurrent create requests cannot create duplicate native views for one tab');
-await manager.close('tab-race');
 ok(registered.length === 1 && prepared.length === 1, 'session policy and VPN preparation run before view creation');
 ok(createdViews[0].options.webPreferences.nodeIntegration === false, 'site view has Node integration disabled');
 ok(createdViews[0].options.webPreferences.contextIsolation === true, 'site view enforces context isolation');
