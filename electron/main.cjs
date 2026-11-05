@@ -223,7 +223,7 @@ function createWindow() {
 
   // Register the application session before loading the UI. Every future profile
   // partition must pass through this same policy before creating its WebContents.
-  browserSessionPolicy.register(session.defaultSession);
+  browserSessionPolicy.register(session.defaultSession, { trustedAppSession: true });
 
   mainWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   mainWindow.webContents.on('will-navigate', (event, targetUrl) => {
