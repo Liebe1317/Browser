@@ -885,7 +885,7 @@ export default function App() {
       )}
 
       {/* 8. Floating Libi AI Assistant Button (Bottom Left) */}
-      {!showLibi && !vaultState.isLocked && (
+      {!showLibi && !vaultState.isLocked && !window.aegisDesktop?.browser && (
         <button
           type="button"
           onClick={() => setShowLibi(true)}
