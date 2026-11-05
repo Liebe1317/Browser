@@ -1386,6 +1386,12 @@ ${safePageContext}`
       if (!['GET', 'HEAD'].includes(req.method.toUpperCase()) && parsedTarget.origin === auth.origin) {
         forwardHeaders.Origin = auth.origin;
       }
+      // Reconstruct the top-level document Referer only for requests back to that exact origin.
+      // The capability stores origin + pathname (never query/fragment); safeFetch strips Referer
+      // automatically if any redirect crosses to another origin.
+      if (parsedTarget.origin === auth.origin) {
+        forwardHeaders.Referer = auth.referer;
+      }
       if (shield.doNotTrack) {
         forwardHeaders['Sec-GPC'] = '1';
         forwardHeaders['DNT'] = '1';
