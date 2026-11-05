@@ -28,7 +28,7 @@ jobs:
       - name: Install locked dependencies
         run: npm ci
       - name: Run native Electron Chromium smoke test
-        run: npx --yes electron@45.2.2 tests/electron-smoke --no-sandbox --disable-gpu
+        run: npx --yes electron@45.2.2 --no-sandbox --disable-gpu tests/electron-smoke
 
   validate:
     runs-on: ubuntu-latest
