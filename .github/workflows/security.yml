@@ -7,7 +7,7 @@ on:
       - 'security/**'
 
 concurrency:
-  group: aegis-security-${{ github.ref }}
+  group: aegis-security-v2-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:
@@ -16,7 +16,7 @@ permissions:
 jobs:
   electron-windows-smoke:
     runs-on: windows-latest
-    timeout-minutes: 15
+    timeout-minutes: 5
     steps:
       - name: Checkout
         uses: actions/checkout@v4
