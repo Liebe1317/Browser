@@ -56,10 +56,10 @@ const privateLocalResult = await privateSession.triggerBefore({ url: 'http://127
 ok(privateLocalResult.cancel === true, 'untrusted site sessions cannot use the application-origin VPN bypass');
 
 let fullscreenGranted = null;
-regular.state.permissionRequest(null, 'fullscreen', (value) => { fullscreenGranted = value; }, { userGesture: false });
-ok(fullscreenGranted === false, 'fullscreen is denied without a direct user gesture');
-regular.state.permissionRequest(null, 'fullscreen', (value) => { fullscreenGranted = value; }, { userGesture: true });
-ok(fullscreenGranted === true, 'fullscreen is allowed only with a direct user gesture');
+regular.state.permissionRequest(null, 'automatic-fullscreen', (value) => { fullscreenGranted = value; }, {});
+ok(fullscreenGranted === false, 'automatic fullscreen without a gesture is denied');
+regular.state.permissionRequest(null, 'fullscreen', (value) => { fullscreenGranted = value; }, {});
+ok(fullscreenGranted === true, 'the standard fullscreen permission is delegated to Chromium user-activation enforcement');
 ok(regular.state.permissionCheck(null, 'camera', 'https://video.example', { userGesture: true }) === false, 'camera permission remains denied');
 ok(regular.state.permissionCheck(null, 'fullscreen', 'https://video.example', {}) === true, 'fullscreen permission checks are separate from the gesture-gated request decision');
 
