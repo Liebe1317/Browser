@@ -1,14 +1,16 @@
 'use strict';
 
-const { app, BrowserWindow, session, ipcMain, Menu, dialog } = require('electron');
+const { app, BrowserWindow, WebContentsView, session, ipcMain, Menu, dialog } = require('electron');
 const path = require('path');
 const { pathToFileURL } = require('url');
 const { parseAksaLocalProxy, getAegisUserDataPath } = require('./aksa-config.cjs');
 const { AksaSidecar } = require('./aksa-sidecar.cjs');
 const { installWireproxy } = require('./aksa-installer.cjs');
 const { createBrowserSessionPolicy } = require('./session-policy.cjs');
+const { createSiteViewManager } = require('./site-view-manager.cjs');
 
 let mainWindow = null;
+let siteViewManager = null;
 const userDataPath = getAegisUserDataPath();
 app.setPath('userData', userDataPath);
 const aksaProxy = parseAksaLocalProxy(process.env.AKSA_VPN_PROXY || 'http://127.0.0.1:19090');
@@ -207,6 +209,36 @@ function createWindow() {
   // partition must pass through this same policy before creating its WebContents.
   browserSessionPolicy.register(session.defaultSession, { trustedAppSession: true });
 
+  siteViewManager = createSiteViewManager({
+    WebContentsView,
+    getWindow: () => mainWindow,
+    getSession: (partition) => session.fromPartition(partition),
+    registerSession: (browserSession) => browserSessionPolicy.register(browserSession),
+    prepareSession: async (browserSession) => {
+      if (!aksaEnabled) return;
+      if (aksaConnected && aksaProxy) {
+        await browserSession.setProxy({
+          mode: 'fixed_servers',
+          proxyRules: aksaProxy.proxyRules,
+          proxyBypassRules: aksaProxy.proxyBypassRules,
+        });
+      } else {
+        await browserSession.setProxy({
+          mode: 'fixed_servers',
+          proxyRules: 'http=127.0.0.1:1;https=127.0.0.1:1',
+          proxyBypassRules: aksaProxy ? aksaProxy.proxyBypassRules : 'localhost;127.0.0.1;[::1]',
+        });
+      }
+      await browserSession.closeAllConnections();
+    },
+    getTrustedAppOrigin: () => trustedAppOrigin,
+    onEvent: (payload) => {
+      if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.webContents.isDestroyed()) {
+        mainWindow.webContents.send('aegis:site:event', payload);
+      }
+    },
+  });
+
   mainWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   mainWindow.webContents.on('will-navigate', (event, targetUrl) => {
     let allowed = false;
@@ -226,7 +258,12 @@ function createWindow() {
   mainWindow.loadURL(startUrl).catch(() => {
     console.error('[Aegis Desktop] Unable to load the configured Aegis app URL.');
   });
-  mainWindow.on('closed', () => { mainWindow = null; });
+  mainWindow.on('closed', () => {
+    const manager = siteViewManager;
+    siteViewManager = null;
+    mainWindow = null;
+    void manager?.closeAll();
+  });
 }
 
 app.whenReady().then(() => {
@@ -277,6 +314,28 @@ app.whenReady().then(() => {
     return setAksaEnabled(enabled);
   });
 
+  ipcMain.handle('aegis:site:create', async (event, payload) => {
+    if (!isTrustedUi(event) || !siteViewManager) return { ok: false, error: 'untrusted-or-unavailable' };
+    try { return await siteViewManager.create(payload); } catch { return { ok: false, error: 'site-view-unavailable' }; }
+  });
+  ipcMain.handle('aegis:site:set-bounds', (event, tabId, bounds) => {
+    if (!isTrustedUi(event) || !siteViewManager) return false;
+    return siteViewManager.setBounds(tabId, bounds);
+  });
+  ipcMain.handle('aegis:site:set-visible', (event, tabId, visible) => {
+    if (!isTrustedUi(event) || !siteViewManager || typeof visible !== 'boolean') return false;
+    return siteViewManager.setVisible(tabId, visible);
+  });
+  ipcMain.handle('aegis:site:navigate', async (event, tabId, url) => {
+    if (!isTrustedUi(event) || !siteViewManager) return { ok: false, error: 'untrusted-or-unavailable' };
+    return siteViewManager.navigate(tabId, url);
+  });
+  ipcMain.handle('aegis:site:back', (event, tabId) => isTrustedUi(event) && !!siteViewManager?.goBack(tabId));
+  ipcMain.handle('aegis:site:forward', (event, tabId) => isTrustedUi(event) && !!siteViewManager?.goForward(tabId));
+  ipcMain.handle('aegis:site:reload', (event, tabId) => isTrustedUi(event) && !!siteViewManager?.reload(tabId));
+  ipcMain.handle('aegis:site:set-zoom', (event, tabId, zoomLevel) => isTrustedUi(event) && !!siteViewManager?.setZoom(tabId, zoomLevel));
+  ipcMain.handle('aegis:site:close', async (event, tabId) => isTrustedUi(event) && !!(await siteViewManager?.close(tabId)));
+
   createWindow();
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
@@ -289,7 +348,7 @@ app.on('before-quit', (event) => {
   if (!finalQuitStarted && aksaSidecar) {
     finalQuitStarted = true;
     event.preventDefault();
-    void aksaSidecar.stop().finally(() => app.quit());
+    void Promise.allSettled([siteViewManager?.closeAll(), aksaSidecar.stop()]).finally(() => app.quit());
   }
 });
 app.on('window-all-closed', () => {
