@@ -1650,7 +1650,7 @@ ${safePageContext}`
               }
               const origFetch = window.fetch;
               window.fetch = function(resource, init) {
-                var rawUrl = typeof resource === 'string' ? resource : (resource && resource.url ? resource.url : '');
+                var rawUrl = typeof resource === 'string' ? resource : (resource && resource.url ? resource.url : (typeof URL !== 'undefined' && resource instanceof URL ? resource.href : ''));
                 if (!rawUrl || String(rawUrl).includes('/api/proxy')) return aegisWatchFetch(origFetch(resource, init));
                 var absoluteUrl = aegisResolveUrl(rawUrl);
                 if (!absoluteUrl) return aegisWatchFetch(origFetch(resource, init));
