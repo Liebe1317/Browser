@@ -44,6 +44,13 @@ function isPrivateOrLocalUrl(rawUrl) {
       if (ipv6.startsWith('::ffff:')) {
         const mapped = ipv6.slice('::ffff:'.length);
         if (isPrivateIpv4(mapped)) return true;
+        const words = mapped.split(':');
+        if (words.length === 2 && words.every((word) => /^[0-9a-f]{1,4}$/.test(word))) {
+          const high = parseInt(words[0], 16);
+          const low = parseInt(words[1], 16);
+          const mappedIpv4 = [high >> 8, high & 255, low >> 8, low & 255].join('.');
+          if (isPrivateIpv4(mappedIpv4)) return true;
+        }
       }
     }
     return false;
@@ -84,7 +91,7 @@ function createBrowserSessionPolicy({ getVpnState, isAppRequest }) {
       { urls: ['*://*/*', 'ws://*/*', 'wss://*/*'] },
       (details, callback) => {
         if (isBlockedAdOrTracker(details.url)) return callback({ cancel: true });
-        if (!trustedAppSession && isPrivateOrLocalUrl(details.url)) return callback({ cancel: true });
+        if (isPrivateOrLocalUrl(details.url) && !(trustedAppSession && isAppRequest(details.url))) return callback({ cancel: true });
         const vpn = getVpnState();
         if (vpn.enabled && !vpn.connected && !(trustedAppSession && isAppRequest(details.url))) {
           return callback({ cancel: true });
