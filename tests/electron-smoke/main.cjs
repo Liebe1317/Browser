@@ -10,6 +10,7 @@ app.disableHardwareAcceleration();
 let server;
 let browserWindow;
 let manager;
+const sessionPartitionByInstance = new WeakMap();
 
 function waitForServer(serverInstance) {
   return new Promise((resolve, reject) => {
@@ -44,7 +45,7 @@ async function openTab(profileKind, tabId, url) {
     ? 'persist:aegis-regular-main'
     : 'aegis-private-main';
   assert.equal(
-    view.webContents.session.getPartition(),
+    sessionPartitionByInstance.get(view.webContents.session),
     expectedPartition,
     profileKind + ' WebContentsView must use its designated Chromium partition',
   );
@@ -82,7 +83,11 @@ async function run() {
   manager = createSiteViewManager({
     WebContentsView: require('electron').WebContentsView,
     getWindow: () => browserWindow,
-    getSession: (partition) => session.fromPartition(partition),
+    getSession: (partition) => {
+      const browserSession = session.fromPartition(partition);
+      sessionPartitionByInstance.set(browserSession, partition);
+      return browserSession;
+    },
     registerSession: () => {},
     prepareSession: async () => {},
     getTrustedAppOrigin: () => null,
