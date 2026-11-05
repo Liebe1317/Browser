@@ -14,6 +14,10 @@ assert.ok(!injected.includes('${parsedTarget.origin}') && !injected.includes('${
 assert.ok(injected.includes("new URL(String(raw || ''), AEGIS_BASE_URL)"), 'relative page requests resolve against the real upstream page URL');
 assert.ok(injected.includes('aegisProxyUrl(absoluteUrl)'), 'fetch requests receive the page-scoped proxy capability');
 assert.ok(injected.includes('aegisProxyUrl(resolved)'), 'XHR and dynamically created frames use the page-scoped proxy capability');
+assert.ok(injected.includes('patchSrcProperty(HTMLMediaElement.prototype)'), 'dynamically assigned video and audio sources use the scoped proxy');
+assert.ok(injected.includes('patchSrcProperty(HTMLSourceElement.prototype)'), 'dynamically assigned source elements use the scoped proxy');
+assert.ok(injected.includes('patchSrcProperty(HTMLImageElement.prototype)'), 'dynamically assigned image sources use the scoped proxy');
+assert.ok(injected.includes('patchSrcProperty(HTMLScriptElement.prototype)'), 'dynamically assigned scripts use the scoped proxy');
 assert.ok(injected.includes("response.headers.get('X-Aegis-Proxy-Error') === 'capability-expired'"), 'fetch exposes only a bounded capability-expiry signal');
 assert.ok(injected.includes("xhr.getResponseHeader('X-Aegis-Proxy-Error') === 'capability-expired'"), 'XHR exposes the same bounded capability-expiry signal');
 assert.ok(injected.includes("withCredentialsDescriptor.set.call(this, false)"), 'browser credentials stay out of proxy requests while upstream cookies remain server-managed');
