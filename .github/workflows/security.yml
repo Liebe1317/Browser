@@ -14,6 +14,22 @@ permissions:
   contents: read
 
 jobs:
+  electron-windows-smoke:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Run native Electron Chromium smoke test
+        run: npx --yes electron@45.2.2 tests/electron-smoke --no-sandbox --disable-gpu
+
   validate:
     runs-on: ubuntu-latest
     timeout-minutes: 20
