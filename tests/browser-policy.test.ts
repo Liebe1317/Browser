@@ -53,11 +53,11 @@ ok(!decideSitePermission('fullscreen', false), 'fullscreen is denied without a u
 ok(decideSitePermission('fullscreen', true), 'fullscreen is allowed only with a direct user gesture');
 
 ok(
-  getElectronPartition('regular', 'tab-01') === 'persist:aegis-regular-tab-01',
+  getElectronPartition('regular', 'profile-main') === 'persist:aegis-regular-tab-01',
   'regular profile uses a persistent, namespaced Chromium partition',
 );
 ok(
-  getElectronPartition('private', 'tab-01') === 'aegis-private-tab-01',
+  getElectronPartition('private', 'profile-main') === 'aegis-private-tab-01',
   'private profile uses a non-persistent Chromium partition',
 );
 ok(getElectronPartition('private', '../escape') === null, 'partition context IDs reject path-like input');
