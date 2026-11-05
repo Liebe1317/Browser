@@ -39,6 +39,11 @@ async function openTab(profileKind, tabId, url) {
   return view;
 }
 
+const watchdog = setTimeout(() => {
+  console.error('[Electron smoke test] Timed out waiting for Chromium.');
+  app.exit(1);
+}, 90_000);
+
 async function run() {
   server = http.createServer((_request, response) => {
     response.writeHead(200, {
@@ -126,8 +131,10 @@ async function run() {
 }
 
 app.whenReady().then(run).then(() => {
+  clearTimeout(watchdog);
   app.quit();
 }).catch((error) => {
+  clearTimeout(watchdog);
   console.error('[Electron smoke test failed]', error && error.stack ? error.stack : String(error));
   try { manager?.closeAll(); } catch {}
   try { browserWindow?.destroy(); } catch {}
