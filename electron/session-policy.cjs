@@ -25,7 +25,7 @@ function isPrivateIpv4(host) {
 
 function isPrivateOrLocalUrl(rawUrl) {
   try {
-    const host = new URL(rawUrl).hostname.toLowerCase().replace(/\\.$/, '').replace(/^\\[|\\]$/g, '');
+    const host = new URL(rawUrl).hostname.toLowerCase().replace(/\.$/, '').replace(/^\[|\]$/g, '');
     if (!host) return true;
     if (
       host === 'localhost'
