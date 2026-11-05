@@ -1366,11 +1366,11 @@ ${safePageContext}`
       if (req.headers['x-requested-with']) forwardHeaders['X-Requested-With'] = req.headers['x-requested-with'] as string;
       if (req.headers['content-type']) forwardHeaders['Content-Type'] = req.headers['content-type'] as string;
       const rangeHeader = req.headers.range;
-      if (typeof rangeHeader === 'string' && rangeHeader.length <= 256 && /^bytes=(?:\\d+-\\d*|-\\d+)(?:,\\s*(?:\\d+-\\d*|-\\d+))*$/.test(rangeHeader)) {
+      if (typeof rangeHeader === 'string' && rangeHeader.length <= 256 && /^bytes=(?:\d+-\d*|-\d+)(?:,\s*(?:\d+-\d*|-\d+))*$/.test(rangeHeader)) {
         forwardHeaders.Range = rangeHeader;
       }
       const ifRangeHeader = req.headers['if-range'];
-      if (typeof ifRangeHeader === 'string' && ifRangeHeader.length <= 256 && !/[\\r\\n]/.test(ifRangeHeader)) {
+      if (typeof ifRangeHeader === 'string' && ifRangeHeader.length <= 256 && !/[\r\n]/.test(ifRangeHeader)) {
         forwardHeaders['If-Range'] = ifRangeHeader;
       }
       let fetchBody: string | Uint8Array | undefined;
