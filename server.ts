@@ -1637,21 +1637,32 @@ ${safePageContext}`
               function aegisProxyUrl(url) {
                 return '/api/proxy?t=' + encodeURIComponent(AEGIS_PROXY_TOKEN) + '&url=' + encodeURIComponent(url);
               }
+              function aegisNotifyProxyError(response) {
+                try {
+                  if (response && response.headers && response.headers.get('X-Aegis-Proxy-Error') === 'capability-expired') {
+                    window.parent.postMessage({ type: 'AEGIS_PROXY_ERROR', code: 'capability-expired' }, '*');
+                  }
+                } catch (e) {}
+                return response;
+              }
+              function aegisWatchFetch(promise) {
+                return promise.then(aegisNotifyProxyError);
+              }
               const origFetch = window.fetch;
               window.fetch = function(resource, init) {
                 var rawUrl = typeof resource === 'string' ? resource : (resource && resource.url ? resource.url : '');
-                if (!rawUrl || String(rawUrl).includes('/api/proxy')) return origFetch(resource, init);
+                if (!rawUrl || String(rawUrl).includes('/api/proxy')) return aegisWatchFetch(origFetch(resource, init));
                 var absoluteUrl = aegisResolveUrl(rawUrl);
-                if (!absoluteUrl) return origFetch(resource, init);
+                if (!absoluteUrl) return aegisWatchFetch(origFetch(resource, init));
                 var proxied = aegisProxyUrl(absoluteUrl);
                 if (typeof Request !== 'undefined' && resource instanceof Request) {
                   try {
-                    return origFetch(new Request(proxied, resource), { mode: 'cors', credentials: 'omit' });
+                    return aegisWatchFetch(origFetch(new Request(proxied, resource), { mode: 'cors', credentials: 'omit' }));
                   } catch (e) {
-                    return origFetch(proxied, Object.assign({}, init || {}, { mode: 'cors', credentials: 'omit' }));
+                    return aegisWatchFetch(origFetch(proxied, Object.assign({}, init || {}, { mode: 'cors', credentials: 'omit' })));
                   }
                 }
-                return origFetch(proxied, Object.assign({}, init || {}, { mode: 'cors', credentials: 'omit' }));
+                return aegisWatchFetch(origFetch(proxied, Object.assign({}, init || {}, { mode: 'cors', credentials: 'omit' })));
               };
               // 2b. Dynamically-created iframe URLs use the same scoped capability as static resources.
               (function() {
@@ -1683,6 +1694,17 @@ ${safePageContext}`
                   var resolved = aegisResolveUrl(rawUrl);
                   if (resolved) rawUrl = aegisProxyUrl(resolved);
                 }
+                if (this._aegisExpiryListener) this.removeEventListener('readystatechange', this._aegisExpiryListener);
+                var xhr = this;
+                this._aegisExpiryListener = function() {
+                  if (xhr.readyState !== 4) return;
+                  try {
+                    if (xhr.getResponseHeader('X-Aegis-Proxy-Error') === 'capability-expired') {
+                      window.parent.postMessage({ type: 'AEGIS_PROXY_ERROR', code: 'capability-expired' }, '*');
+                    }
+                  } catch (e) {}
+                };
+                this.addEventListener('readystatechange', this._aegisExpiryListener);
                 return originalXhrOpen.call(this, method, rawUrl, ...rest);
               };
               // 3. Auto-Heal Images with Hotlink Protection
