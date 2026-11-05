@@ -15,6 +15,7 @@ interface WebPageViewProps {
   pageScrollCommand?: { id: number; direction: 'top' | 'bottom' } | null;
   requestPageText?: boolean;
   reloadNonce?: number;
+  occluded?: boolean;
 }
 
 export const WebPageView: React.FC<WebPageViewProps> = ({
@@ -29,6 +30,7 @@ export const WebPageView: React.FC<WebPageViewProps> = ({
   pageScrollCommand,
   requestPageText = false,
   reloadNonce = 0,
+  occluded = false,
 }) => {
   const nativeBrowser = window.aegisDesktop?.browser;
   const nativeViewportRef = useRef<HTMLDivElement>(null);
@@ -43,8 +45,10 @@ export const WebPageView: React.FC<WebPageViewProps> = ({
   const openReaderRef = useRef(onOpenReader);
   const lastNativeUrlRef = useRef(tab.url);
   const lastReloadNonceRef = useRef(reloadNonce);
+  const occludedRef = useRef(occluded);
 
   tabRef.current = tab;
+  occludedRef.current = occluded;
   updateTabRef.current = onUpdateTabInfo;
   navigateRef.current = onNavigate;
   openReaderRef.current = onOpenReader;
@@ -123,7 +127,7 @@ export const WebPageView: React.FC<WebPageViewProps> = ({
         return;
       }
       setNativeReady(true);
-      void nativeBrowser.setSiteViewVisible(tab.id, true);
+      void nativeBrowser.setSiteViewVisible(tab.id, !occludedRef.current);
     }).catch(() => {
       if (!mounted) return;
       setHasLoadError(true);
@@ -140,7 +144,12 @@ export const WebPageView: React.FC<WebPageViewProps> = ({
 
   // Keep the native Chromium child view aligned with the visible React viewport.
   useEffect(() => {
-    if (!nativeBrowser || !nativeReady || !nativeViewportRef.current) return;
+    if (!nativeBrowser || !nativeReady) return;
+    if (occluded) {
+      void nativeBrowser.setSiteViewVisible(tab.id, false);
+      return;
+    }
+    if (!nativeViewportRef.current) return;
     const element = nativeViewportRef.current;
     const updateBounds = () => {
       const rect = element.getBoundingClientRect();
@@ -166,7 +175,7 @@ export const WebPageView: React.FC<WebPageViewProps> = ({
       window.removeEventListener('resize', updateBounds);
       window.removeEventListener('scroll', updateBounds, true);
     };
-  }, [nativeBrowser, nativeReady, tab.id]);
+  }, [nativeBrowser, nativeReady, tab.id, occluded]);
 
   // App-driven address-bar navigation is routed through the main-process owner.
   useEffect(() => {
