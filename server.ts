@@ -1356,7 +1356,7 @@ ${safePageContext}`
       });
       const forwardHeaders: Record<string, string> = {
         'User-Agent':
-          (typeof req.headers['user-agent'] === 'string' && req.headers['user-agent'].length <= 512 && !/[\\r\\n]/.test(req.headers['user-agent']))
+          (typeof req.headers['user-agent'] === 'string' && req.headers['user-agent'].length <= 512 && !/[\r\n]/.test(req.headers['user-agent']))
             ? req.headers['user-agent']
             : 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
         'Accept': req.headers.accept || 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
@@ -1370,7 +1370,7 @@ ${safePageContext}`
       // version instead of a hard-coded, contradictory fingerprint. Never accept multiline values.
       for (const name of ['sec-ch-ua-arch', 'sec-ch-ua-bitness', 'sec-ch-ua-full-version', 'sec-ch-ua-full-version-list', 'sec-ch-ua-model', 'sec-ch-ua-platform-version', 'sec-ch-ua-wow64']) {
         const value = req.headers[name];
-        if (typeof value === 'string' && value.length <= 512 && !/[\\r\\n]/.test(value)) {
+        if (typeof value === 'string' && value.length <= 512 && !/[\r\n]/.test(value)) {
           forwardHeaders[name.replace(/(^|-)([a-z])/g, (_m, sep, ch) => sep + ch.toUpperCase())] = value;
         }
       }
