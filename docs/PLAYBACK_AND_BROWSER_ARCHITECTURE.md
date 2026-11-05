@@ -123,7 +123,7 @@ Use native Chromium site surfaces by default in Electron. Keep proxy rendering o
 - **Phase A:** platform-neutral browser policy and unit tests are present.
 - **Phase B:** Electron uses a main-process-owned `WebContentsView` per web tab. Site views use profile-scoped Chromium sessions, no preload, strict webPreferences, bounded native-view geometry, popup denial, and HTTP(S)-only navigation. The app shell controls them through narrow sender-validated IPC.
 - **Phase C (partial):** every registered Chromium session receives the same tracker, permission, and VPN health policy. The trusted app session alone retains its local API proxy bypass. Site sessions block local/private-address requests and use Chromium's `<-loopback>` proxy rule while VPN routing is active. Downloads remain denied until an explicit user-confirmed download workflow exists. Private session data is cleared after the last private tab closes.
-- **Phase D:** playback diagnostics and media-format fixtures are not implemented yet.
+- **Phase D (partial):** the native adapter observes Chromium's `media-started-playing`, `media-paused`, and `audio-state-changed` events and exposes only playing/paused/audible booleans to the trusted tab UI. It does not inject page scripts or collect media URLs/content. Codec/MSE/EME failure classification and real-media fixtures remain unimplemented.
 - **Phase E (partial):** Electron web tabs now use native Chromium views; web-only deployments retain the proxy fallback. Runtime smoke tests across real sites and operating systems are still required.
 
 ## 8. Release gates
