@@ -119,7 +119,7 @@ const second = await manager.create({
   tabId: 'tab-b', profileKind: 'private', profileId: 'main',
   url: 'https://video.example/another',
 });
-ok(second.ok && registered.length === 1, 'private tabs share one profile session and register its policy once');
+ok(second.ok && registered.length === 2 && registered[0] === registered[1], 'private tabs share one profile session and reuse the registered session policy');
 await manager.close('tab-a');
 ok(sessionFor('aegis-private-main').clearStorage === 0, 'private profile data is retained while another private tab remains open');
 await manager.close('tab-b');
