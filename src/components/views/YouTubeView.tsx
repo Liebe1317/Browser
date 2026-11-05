@@ -93,11 +93,11 @@ export const YouTubeView: React.FC<YouTubeViewProps> = ({
           id: currentVideoId,
           title: 'تشغيل فيديو YouTube',
           channel: 'قناة YouTube',
-          views: 'مشاهدة مباشرة',
-          time: 'الآن',
-          duration: 'تشغيل',
+          views: '',
+          time: '',
+          duration: '',
           thumbnail: `https://img.youtube.com/vi/${currentVideoId}/hqdefault.jpg`,
-          verified: true,
+          verified: false,
         });
       }
     }
@@ -142,13 +142,19 @@ export const YouTubeView: React.FC<YouTubeViewProps> = ({
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const handleShare = () => {
-    const url = currentVideoId 
+  const handleShare = async () => {
+    const url = currentVideoId
       ? `https://www.youtube.com/watch?v=${currentVideoId}`
       : 'https://youtube.com';
-    navigator.clipboard?.writeText(url);
-    setCopiedLink(true);
-    setTimeout(() => setCopiedLink(false), 2500);
+    try {
+      if (!navigator.clipboard?.writeText) throw new Error('Clipboard unavailable');
+      await navigator.clipboard.writeText(url);
+      setCopiedLink(true);
+      window.setTimeout(() => setCopiedLink(false), 2500);
+    } catch {
+      setCopiedLink(false);
+      onNavigate(url);
+    }
   };
 
   const categories = [
