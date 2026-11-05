@@ -14,6 +14,8 @@ assert.ok(!injected.includes('${parsedTarget.origin}') && !injected.includes('${
 assert.ok(injected.includes("new URL(String(raw || ''), AEGIS_BASE_URL)"), 'relative page requests resolve against the real upstream page URL');
 assert.ok(injected.includes('aegisProxyUrl(absoluteUrl)'), 'fetch requests receive the page-scoped proxy capability');
 assert.ok(injected.includes('aegisProxyUrl(resolved)'), 'XHR and dynamically created frames use the page-scoped proxy capability');
+assert.ok(injected.includes("response.headers.get('X-Aegis-Proxy-Error') === 'capability-expired'"), 'fetch exposes only a bounded capability-expiry signal');
+assert.ok(injected.includes("xhr.getResponseHeader('X-Aegis-Proxy-Error') === 'capability-expired'"), 'XHR exposes the same bounded capability-expiry signal');
 assert.doesNotMatch(injected, /healVideoServers|aegis-srv-btn|dQw4w9WgXcQ/, 'the proxy must not fabricate player servers or replace site players');
 
 console.log('PASS - proxy page scripts preserve relative URLs, scoped capabilities, and real player markup');
