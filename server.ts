@@ -1365,6 +1365,14 @@ ${safePageContext}`
       if (req.headers['x-csrf-token']) forwardHeaders['X-CSRF-TOKEN'] = req.headers['x-csrf-token'] as string;
       if (req.headers['x-requested-with']) forwardHeaders['X-Requested-With'] = req.headers['x-requested-with'] as string;
       if (req.headers['content-type']) forwardHeaders['Content-Type'] = req.headers['content-type'] as string;
+      const rangeHeader = req.headers.range;
+      if (typeof rangeHeader === 'string' && rangeHeader.length <= 256 && /^bytes=(?:\\d+-\\d*|-\\d+)(?:,\\s*(?:\\d+-\\d*|-\\d+))*$/.test(rangeHeader)) {
+        forwardHeaders.Range = rangeHeader;
+      }
+      const ifRangeHeader = req.headers['if-range'];
+      if (typeof ifRangeHeader === 'string' && ifRangeHeader.length <= 256 && !/[\\r\\n]/.test(ifRangeHeader)) {
+        forwardHeaders['If-Range'] = ifRangeHeader;
+      }
       let fetchBody: string | Uint8Array | undefined;
       if (req.method !== 'GET' && req.method !== 'HEAD') {
         if (typeof req.body === 'string') {
@@ -1433,6 +1441,15 @@ ${safePageContext}`
       // If not HTML (e.g. image, video, font, js, json), stream directly with CORS and caching
       if (!contentType.includes('text/html')) {
         res.setHeader('Content-Type', contentType);
+        for (const [upstreamName, responseName] of [
+          ['content-range', 'Content-Range'],
+          ['accept-ranges', 'Accept-Ranges'],
+          ['etag', 'ETag'],
+          ['last-modified', 'Last-Modified'],
+        ]) {
+          const value = upstream.headers.get(upstreamName);
+          if (value) res.setHeader(responseName, value);
+        }
         res.setHeader('X-Frame-Options', 'ALLOWALL');
         res.setHeader('Access-Control-Allow-Origin', '*');
         res.setHeader('Access-Control-Allow-Headers', '*');
