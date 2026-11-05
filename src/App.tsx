@@ -437,6 +437,8 @@ export default function App() {
       canGoBack: newHistoryIndex > 0,
       canGoForward: false,
       isLoading: pageType === 'webpage',
+      mediaState: 'paused',
+      isAudible: false,
       securityStatus: targetUrl.startsWith('https://') || pageType !== 'webpage' ? 'secure' : 'warning',
     });
 
