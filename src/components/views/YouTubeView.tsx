@@ -26,7 +26,6 @@ interface YouTubeVideo {
 export const YouTubeView: React.FC<YouTubeViewProps> = ({
   initialVideoId,
   onNavigate,
-  onAddBlockedCount,
 }) => {
   const [currentVideoId, setCurrentVideoId] = useState<string | null>(initialVideoId || null);
   const [activeVideo, setActiveVideo] = useState<YouTubeVideo | null>(null);
@@ -171,7 +170,7 @@ export const YouTubeView: React.FC<YouTubeViewProps> = ({
         {/* Left: YouTube Brand */}
         <div className="flex items-center gap-3 shrink-0">
           <div 
-            onClick={() => {
+            onClick={() => { setCurrentVideoId(null); setActiveVideo(null); }}
             className="flex items-center gap-1.5 cursor-pointer group"
           >
             <div className="w-8 h-6 rounded-[7px] bg-[#ff0000] flex items-center justify-center shadow-md shadow-red-600/20 group-hover:scale-105 transition-transform">
