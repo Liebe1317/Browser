@@ -94,7 +94,7 @@ function createSiteViewManager({
     const { tabId, profileKind, profileId, url } = input || {};
     if (typeof tabId !== 'string' || !SAFE_ID.test(tabId)) return { ok: false, error: 'invalid-tab-id' };
     if (profileKind !== 'regular' && profileKind !== 'private') return { ok: false, error: 'invalid-profile-kind' };
-    if (typeof profileId !== 'string' || !SAFE_ID.test(profileId)) return { ok: false, error: 'invalid-profile-id' };
+    if (profileId !== 'main') return { ok: false, error: 'unknown-profile' };
     const partition = profileKind === 'regular'
       ? 'persist:aegis-regular-' + profileId
       : 'aegis-private-' + profileId;
