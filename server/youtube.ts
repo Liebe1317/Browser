@@ -37,7 +37,7 @@ function textValue(value: unknown): string {
 
 /** Parse ytInitialData without eval and without assuming the JSON is on one line. */
 export function parseYouTubeInitialData(html: string): unknown | null {
-  const marker = /ytInitialData\\s*=\\s*/g;
+  const marker = /ytInitialData\s*=\s*/g;
   const match = marker.exec(html);
   if (!match) return null;
 
