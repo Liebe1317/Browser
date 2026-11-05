@@ -219,7 +219,8 @@ function createSiteViewManager({
   }
 
   async function clearPrivateSession(browserSession) {
-    await Promise.allSettled([
+    // Fail closed: never reuse a private partition if any cleanup operation fails.
+    await Promise.all([
       browserSession.clearStorageData({ storages: PRIVATE_STORAGE_TYPES }),
       browserSession.clearCache(),
       browserSession.clearAuthCache(),
