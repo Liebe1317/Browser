@@ -4,7 +4,7 @@ import { extractYouTubeVideos, parseYouTubeInitialData } from '../server/youtube
 const video = {
   videoRenderer: {
     videoId: 'abcdefghijk',
-    title: { runs: [{ text: 'A title with } braces and \\"quotes\\"' }] },
+    title: { runs: [{ text: 'A title with } braces and "quotes"' }] },
     ownerText: { runs: [{ text: 'Example channel' }] },
     shortViewCountText: { simpleText: '12K views' },
     publishedTimeText: { simpleText: '2 days ago' },
