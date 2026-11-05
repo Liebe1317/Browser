@@ -220,13 +220,13 @@ function createWindow() {
         await browserSession.setProxy({
           mode: 'fixed_servers',
           proxyRules: aksaProxy.proxyRules,
-          proxyBypassRules: aksaProxy.proxyBypassRules,
+          proxyBypassRules: '<-loopback>',
         });
       } else {
         await browserSession.setProxy({
           mode: 'fixed_servers',
           proxyRules: 'http=127.0.0.1:1;https=127.0.0.1:1',
-          proxyBypassRules: aksaProxy ? aksaProxy.proxyBypassRules : 'localhost;127.0.0.1;[::1]',
+          proxyBypassRules: '<-loopback>',
         });
       }
       await browserSession.closeAllConnections();
