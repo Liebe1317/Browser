@@ -44,6 +44,9 @@ function createSiteViewManager({
   function attachEvents(tabId, webContents) {
     webContents.on('did-start-loading', () => send(tabId, 'loading', { isLoading: true }));
     webContents.on('did-stop-loading', () => send(tabId, 'loading', { isLoading: false }));
+    webContents.on('media-started-playing', () => send(tabId, 'media-state', { state: 'playing' }));
+    webContents.on('media-paused', () => send(tabId, 'media-state', { state: 'paused' }));
+    webContents.on('audio-state-changed', (_event, audible) => send(tabId, 'audio-state', { audible: audible === true }));
     webContents.on('page-title-updated', (event, title) => {
       event.preventDefault?.();
       send(tabId, 'title', { title: typeof title === 'string' ? title.slice(0, 200) : '' });
