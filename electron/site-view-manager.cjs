@@ -94,7 +94,7 @@ function createSiteViewManager({
     if (typeof tabId !== 'string' || !SAFE_ID.test(tabId)) return { ok: false, error: 'invalid-tab-id' };
     if (profileKind !== 'regular' && profileKind !== 'private') return { ok: false, error: 'invalid-profile-kind' };
     if (typeof profileId !== 'string' || !SAFE_ID.test(profileId)) return { ok: false, error: 'invalid-profile-id' };
-    if (views.has(tabId)) return { ok: false, error: 'tab-already-exists' };
+    if (views.has(tabId)) return { ok: true, tabId, existing: true };
 
     const initialUrl = safeSiteUrl(url, getTrustedAppOrigin());
     if (!initialUrl) return { ok: false, error: 'navigation-denied' };
@@ -195,6 +195,14 @@ function createSiteViewManager({
     return true;
   }
 
+  function setZoom(tabId, zoomLevel) {
+    const contents = getEntry(tabId)?.view.webContents;
+    const level = Number(zoomLevel);
+    if (!contents || !Number.isFinite(level) || level < 50 || level > 200) return false;
+    contents.setZoomFactor(level / 100);
+    return true;
+  }
+
   async function clearPrivateSession(browserSession) {
     await Promise.allSettled([
       browserSession.clearStorageData({ storages: PRIVATE_STORAGE_TYPES }),
@@ -232,7 +240,7 @@ function createSiteViewManager({
   }
 
   return Object.freeze({
-    create, setBounds, setVisible, navigate, goBack, goForward, reload, close, closeAll,
+    create, setBounds, setVisible, navigate, goBack, goForward, reload, setZoom, close, closeAll,
     has: (tabId) => views.has(tabId),
     getCount: () => views.size,
   });
