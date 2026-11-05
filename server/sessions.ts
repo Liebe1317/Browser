@@ -186,6 +186,7 @@ export interface ProxyAuthError {
   error: true;
   status: number;
   message: string;
+  code: 'capability-expired' | 'invalid-page-request';
 }
 
 /**
@@ -203,7 +204,7 @@ export function authorizeProxyRequest(req: Request, res: Response, target: URL):
     const record = TOKEN_FORMAT.test(token) ? tokens.get(token) : undefined;
     const session = record ? sessions.get(record.sid) : undefined;
     if (!record || !session || record.expires <= now) {
-      return { error: true, status: 403, message: 'Aegis Shield: invalid or expired page capability.' };
+      return { error: true, status: 403, code: 'capability-expired', message: 'Aegis Shield: page capability expired or is invalid.' };
     }
     session.lastUsed = now;
     return {
@@ -227,7 +228,7 @@ export function authorizeProxyRequest(req: Request, res: Response, target: URL):
     fetchDest !== 'iframe' ||
     !CONTEXT_FORMAT.test(contextId)
   ) {
-    return { error: true, status: 403, message: 'Aegis Shield: only the Aegis UI may open a proxied page.' };
+    return { error: true, status: 403, code: 'invalid-page-request', message: 'Aegis Shield: only the Aegis UI may open a proxied page.' };
   }
 
   const sid = lookupSessionFromCookie(req) ?? createSession(req, res);
