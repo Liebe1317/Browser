@@ -126,6 +126,10 @@ function createSiteViewManager({
 
     const view = new WebContentsView({
       webPreferences: {
+        // Pin Chromium's storage partition explicitly on the WebContentsView itself.
+        // Keep the preconfigured Session object too, so session policy is applied to
+        // exactly the same partition used by the renderer.
+        partition,
         session: browserSession,
         nodeIntegration: false,
         contextIsolation: true,
