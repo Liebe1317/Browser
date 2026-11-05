@@ -1,6 +1,6 @@
 # Aegis Browser — Secure Native Browsing & Media Architecture
 
-Status: proposed implementation architecture
+Status: implementation in progress; Electron native browsing is primary, proxy mode is a constrained fallback
 Target branch: security/hardening-foundation
 Decision: use the Chromium engine already shipped by Electron for desktop site rendering. Do not build a second browser engine or a site-specific video extractor.
 
@@ -14,7 +14,7 @@ Aegis must not weaken isolation to make a player work. The following are release
 - Site tabs use isolated Chromium sessions/partitions. Regular and private profiles are separate; private storage is in-memory and destroyed when the private context closes.
 - Permission requests default-deny. Camera, microphone, geolocation, notifications, USB, serial, Bluetooth, clipboard-read, and MIDI remain denied unless a narrowly scoped permission UX is designed and tested.
 - Navigation, popups, downloads, protocol handlers, and IPC are mediated by the trusted main process.
-- No secrets, session capabilities, or credentials are placed in URLs, page source, console output, or telemetry.
+- Native desktop site views never receive the application session cookie or privileged IPC capabilities. The web-only proxy currently places a short-lived, page-scoped capability in proxy query URLs because its sandboxed opaque-origin requests need a same-origin transport. This is a documented security limitation: the page can see and replay its own capability within its exact context and top-level hostname until expiry; do not claim that proxy mode meets the no-capability-in-URL target.
 - No DRM circumvention, authentication bypass, anti-bot evasion, or forced cross-origin access. A site that requires unsupported DRM or denies access is reported as unsupported.
 - Aksa/VPN fail-closed behavior must cover every site session, not only the app shell.
 
@@ -92,10 +92,14 @@ Diagnostics must not collect media URLs with query strings, cookies, authorizati
 
 The current Express HTML-rewriting proxy is not equivalent to a full browser engine. Keep it isolated as a compatibility fallback:
 - loopback-only binding and authenticated app bootstrap
-- exact context-bound, short-lived, revocable capabilities
-- strict SSRF checks on every redirect and DNS connection
-- bounded response sizes, deadlines, concurrency, and cancellation
-- no token in URLs; use a same-origin header/capability channel where technically possible
+- in-memory app sessions currently expire after 24 hours; page capabilities expire after 1 hour
+- page capabilities are 24-byte random tokens encoded as 48 hexadecimal characters, bound to one app session, one browsing context, and one exact top-level hostname; closing a private context revokes its tokens
+- **Known limitation:** page capabilities are currently carried in proxy query parameters so sandboxed opaque-origin pages can issue same-origin proxy requests. The page can read its own token. This is narrower than an app credential, but it is still a bearer capability in a URL and must be migrated to a non-URL transport or explicitly risk-accepted before release-grade web-only claims
+- strict SSRF checks apply to every target, redirect hop, and guarded DNS connection
+- response caps are 10 MiB for HTML/CSS and 50 MiB for other proxied bodies; deadlines and cancellation remain enforced
+- relative fetch/XHR URLs resolve against the actual upstream page URL; dynamic fetch, XHR, iframe, image, script, and media sources use the scoped page capability
+- validated HTTP byte ranges and Content-Range / Accept-Ranges metadata are preserved for media requests; response bodies are still buffered and capped, so this is not a full streaming proxy
+- capability-expiry errors expose only a fixed recovery code/header; the trusted UI can reload the frame to mint a fresh page capability
 - restrictive CSP remains fail-closed; unsupported sites are reported rather than weakening it
 - never claim that proxy mode provides the same compatibility or privacy guarantees as native Chromium mode
 
@@ -122,9 +126,9 @@ Use native Chromium site surfaces by default in Electron. Keep proxy rendering o
 
 - **Phase A:** platform-neutral browser policy and unit tests are present.
 - **Phase B:** Electron uses a main-process-owned `WebContentsView` per web tab. Site views use profile-scoped Chromium sessions, no preload, strict webPreferences, bounded native-view geometry, popup denial, and HTTP(S)-only navigation. The app shell controls them through narrow sender-validated IPC.
-- **Phase C (partial):** every registered Chromium session receives the same tracker, permission, and VPN health policy. The trusted app session alone retains its local API proxy bypass. Site sessions block local/private-address requests and use Chromium's `<-loopback>` proxy rule while VPN routing is active. Downloads remain denied until an explicit user-confirmed download workflow exists. Private session data is cleared after the last private tab closes.
-- **Phase D (partial):** the native adapter observes Chromium's `media-started-playing`, `media-paused`, and `audio-state-changed` events and exposes only playing/paused/audible booleans to the trusted tab UI. It does not inject page scripts or collect media URLs/content. Codec/MSE/EME failure classification and real-media fixtures remain unimplemented.
-- **Phase E (partial):** Electron web tabs now use native Chromium views; web-only deployments retain the proxy fallback. Runtime smoke tests across real sites and operating systems are still required.
+- **Phase C (partial):** every registered Chromium session receives the same tracker, permission, and VPN health policy. The trusted app session alone retains its local API proxy bypass. Site sessions block local/private-address requests and use Chromium's <-loopback> proxy rule while VPN routing is active. Downloads remain denied until an explicit user-confirmed download workflow exists. Private session data is cleared after the last private tab closes. The web-only proxy now signals expired page capabilities and supports a trusted reload to create a fresh one.
+- **Phase D (partial):** the native adapter observes Chromium's media-started-playing, media-paused, and audio-state-changed events and exposes only playing/paused/audible booleans to the trusted tab UI. It does not inject page scripts or collect media URLs/content. Codec/MSE/EME failure classification and real-media fixtures remain unimplemented.
+- **Phase E (partial):** Electron web tabs use native Chromium views. The web-only fallback now resolves relative page API URLs against the upstream document, routes dynamic media/resource URLs through its scoped proxy capability, and preserves validated byte-range metadata. It still buffers bounded responses and is not equivalent to native Chromium. CI includes a Windows Electron smoke test for regular/private partition isolation and private-data cleanup.
 
 ## 8. Release gates
 
@@ -133,6 +137,7 @@ A phase cannot be considered complete until:
 - Remote content cannot access Node, preload secrets, vault APIs, or privileged IPC.
 - Cross-tab and cross-profile cookie/storage isolation is proven by tests.
 - Private browsing data is removed after close.
+- The web-only proxy capability must move out of query URLs, or its residual bearer-capability risk must be explicitly accepted and documented before claiming release-grade security for proxy mode.
 - External navigation, popups, downloads, permissions, and protocol handlers are mediated.
 - VPN failure cannot silently fall back to direct traffic when VPN mode is enabled.
 - Media diagnostics contain no credentials, cookies, full query strings, or page content.
