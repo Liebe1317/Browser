@@ -22,7 +22,7 @@ const tls = makeCert();
 const seen = [];
 const upstream = https.createServer(tls, (req, res) => {
   const host = (req.headers.host || '').split(':')[0];
-  seen.push({ host, url: req.url, cookie: req.headers.cookie || '', range: req.headers.range || '', origin: req.headers.origin || '', userAgent: req.headers['user-agent'] || '', clientHints: req.headers['sec-ch-ua'] || '' });
+  seen.push({ host, url: req.url, cookie: req.headers.cookie || '', range: req.headers.range || '', origin: req.headers.origin || '', referer: req.headers.referer || '', userAgent: req.headers['user-agent'] || '', clientHints: req.headers['sec-ch-ua'] || '' });
   if (host === 'evil.example.test' && req.url === '/?mode=private') {
     res.setHeader('Set-Cookie', 'login=PRIVATE; Path=/; HttpOnly; Secure; SameSite=Lax');
     res.setHeader('Content-Type', 'text/html');
@@ -39,7 +39,7 @@ const upstream = https.createServer(tls, (req, res) => {
   if (host === 'bank.example.test' && req.url === '/') { res.setHeader('Set-Cookie', 'loginB=1; Path=/'); res.setHeader('Content-Type', 'text/html'); return res.end('<html><head></head><body>B home</body></html>'); }
   if (host === 'evil.example.test' && req.url === '/same-origin-context') {
     res.setHeader('Content-Type', 'application/json');
-    return res.end(JSON.stringify({ origin: req.headers.origin || '', userAgent: req.headers['user-agent'] || '', clientHints: req.headers['sec-ch-ua'] || '' }));
+    return res.end(JSON.stringify({ origin: req.headers.origin || '', referer: req.headers.referer || '', userAgent: req.headers['user-agent'] || '', clientHints: req.headers['sec-ch-ua'] || '' }));
   }
   if (host === 'evil.example.test' && req.url === '/redirect-to-bank') {
     res.statusCode = 302;
@@ -48,7 +48,7 @@ const upstream = https.createServer(tls, (req, res) => {
   }
   if (host === 'bank.example.test' && req.url === '/origin-check') {
     res.setHeader('Content-Type', 'application/json');
-    return res.end(JSON.stringify({ origin: req.headers.origin || '' }));
+    return res.end(JSON.stringify({ origin: req.headers.origin || '', referer: req.headers.referer || '' }));
   }
   if (host === 'evil.example.test' && req.url === '/media-range') {
     if (req.headers.range === 'bytes=2-4') {
@@ -116,10 +116,11 @@ try {
   r = await req(proxy(A + '/same-origin-context', `t=${tokA}&`), { method: 'POST', headers: { ...page, Origin: 'null', 'User-Agent': 'Mozilla/5.0 Chrome/134.0.0.0 Safari/537.36', 'Sec-CH-UA': '"Chromium";v="134", "Google Chrome";v="134"' } });
   const sameOriginContext = JSON.parse(r.body);
   ok(r.status === 200 && sameOriginContext.origin === A, 'same-origin POST receives the capability-bound upstream Origin');
+  ok(sameOriginContext.referer === A + '/', 'same-origin POST receives only the sanitized top-level page Referer');
   ok(sameOriginContext.userAgent.includes('Chrome/134') && sameOriginContext.clientHints.includes('134'), 'upstream receives consistent browser User-Agent and Client Hints');
   r = await req(proxy(A + '/redirect-to-bank', `t=${tokA}&`), { method: 'POST', headers: { ...page, Origin: 'null' } });
   const redirectedOrigin = JSON.parse(r.body);
-  ok(r.status === 200 && redirectedOrigin.origin === '', 'same-origin Origin is stripped on cross-origin redirects');
+  ok(r.status === 200 && redirectedOrigin.origin === '' && redirectedOrigin.referer === '', 'Origin and Referer are stripped on cross-origin redirects');
 
   r = await req(proxy(A + '/media-range', `t=${tokA}&`), { headers: { ...page, Range: 'bytes=2-4' } });
   ok(r.status === 206 && r.body === '234', 'media byte-range response is preserved through the proxy');
