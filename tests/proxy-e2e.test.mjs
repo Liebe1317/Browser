@@ -22,7 +22,7 @@ const tls = makeCert();
 const seen = [];
 const upstream = https.createServer(tls, (req, res) => {
   const host = (req.headers.host || '').split(':')[0];
-  seen.push({ host, url: req.url, cookie: req.headers.cookie || '' });
+  seen.push({ host, url: req.url, cookie: req.headers.cookie || '', range: req.headers.range || '' });
   if (host === 'evil.example.test' && req.url === '/?mode=private') {
     res.setHeader('Set-Cookie', 'login=PRIVATE; Path=/; HttpOnly; Secure; SameSite=Lax');
     res.setHeader('Content-Type', 'text/html');
@@ -37,6 +37,18 @@ const upstream = https.createServer(tls, (req, res) => {
   if (req.url === '/pixel.png') { res.setHeader('Set-Cookie', 'track=B; Path=/'); res.setHeader('Content-Type', 'image/png'); return res.end('PNG'); }
   if (req.url === '/lib.js') { res.setHeader('Content-Type', 'application/javascript'); return res.end('window.lib=1'); }
   if (host === 'bank.example.test' && req.url === '/') { res.setHeader('Set-Cookie', 'loginB=1; Path=/'); res.setHeader('Content-Type', 'text/html'); return res.end('<html><head></head><body>B home</body></html>'); }
+  if (host === 'evil.example.test' && req.url === '/media-range') {
+    if (req.headers.range === 'bytes=2-4') {
+      res.statusCode = 206;
+      res.setHeader('Content-Type', 'video/mp4');
+      res.setHeader('Content-Range', 'bytes 2-4/10');
+      res.setHeader('Accept-Ranges', 'bytes');
+      return res.end('234');
+    }
+    res.statusCode = 200;
+    res.setHeader('Content-Type', 'video/mp4');
+    return res.end('0123456789');
+  }
   if (req.url === '/whoami') { res.setHeader('Content-Type', 'text/plain'); return res.end('cookie=' + (req.headers.cookie || '')); }
   res.statusCode = 404;
   res.end('nf');
@@ -88,6 +100,11 @@ try {
 
   r = await req(proxy(A + '/style.css', `t=${tokA}&`), { headers: page });
   ok(r.status === 200 && r.body.includes('/api/proxy?t=' + tokA + '&url='), 'CSS loads via the token and its urls get the same token');
+  r = await req(proxy(A + '/media-range', `t=${tokA}&`), { headers: { ...page, Range: 'bytes=2-4' } });
+  ok(r.status === 206 && r.body === '234', 'media byte-range response is preserved through the proxy');
+  ok(r.headers['content-range'] === 'bytes 2-4/10' && r.headers['accept-ranges'] === 'bytes', 'media range metadata reaches Chromium');
+  ok(seen.some((entry) => entry.url === '/media-range' && entry.range === 'bytes=2-4'), 'validated Range header reaches the upstream media host');
+
   r = await req(proxy(A + '/whoami', `t=${tokA}&`), { headers: page });
   ok(r.body.includes('login=A') && r.body.includes('pref=dark'), "the page's own cookies reach its own site");
   ok(r.headers['access-control-allow-origin'] === '*', 'CORS header present for opaque-origin fetches');
