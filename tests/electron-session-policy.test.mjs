@@ -61,7 +61,7 @@ ok(fullscreenGranted === false, 'fullscreen is denied without a direct user gest
 regular.state.permissionRequest(null, 'fullscreen', (value) => { fullscreenGranted = value; }, { userGesture: true });
 ok(fullscreenGranted === true, 'fullscreen is allowed only with a direct user gesture');
 ok(regular.state.permissionCheck(null, 'camera', 'https://video.example', { userGesture: true }) === false, 'camera permission remains denied');
-ok(regular.state.permissionCheck(null, 'fullscreen', 'https://video.example', { userGesture: true }) === true, 'fullscreen permission checks also require a gesture');
+ok(regular.state.permissionCheck(null, 'fullscreen', 'https://video.example', {}) === true, 'fullscreen permission checks are separate from the gesture-gated request decision');
 
 await policy.applyProxyToAll({ mode: 'fixed_servers', proxyRules: 'http=127.0.0.1:19090;https=127.0.0.1:19090' });
 ok(regular.state.proxies.length === 1 && privateSession.state.proxies.length === 1, 'VPN proxy is applied to regular and private sessions');
