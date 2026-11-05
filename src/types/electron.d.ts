@@ -63,6 +63,28 @@ declare global {
           error?: string;
         }>;
       };
+      browser: {
+        createSiteView(options: { tabId: string; profileKind: 'regular' | 'private'; profileId: string; url: string }): Promise<{ ok: boolean; tabId?: string; existing?: boolean; error?: string }>;
+        setSiteViewBounds(tabId: string, bounds: { x: number; y: number; width: number; height: number }): Promise<boolean>;
+        setSiteViewVisible(tabId: string, visible: boolean): Promise<boolean>;
+        navigateSiteView(tabId: string, url: string): Promise<{ ok: boolean; error?: string }>;
+        goBackSiteView(tabId: string): Promise<boolean>;
+        goForwardSiteView(tabId: string): Promise<boolean>;
+        reloadSiteView(tabId: string): Promise<boolean>;
+        setSiteViewZoom(tabId: string, zoomLevel: number): Promise<boolean>;
+        closeSiteView(tabId: string): Promise<boolean>;
+        onSiteViewEvent(callback: (event: {
+          tabId: string;
+          type: 'loading' | 'title' | 'navigation' | 'error' | 'process-gone';
+          isLoading?: boolean;
+          title?: string;
+          url?: string;
+          canGoBack?: boolean;
+          canGoForward?: boolean;
+          code?: number;
+          reason?: string;
+        }) => void): () => void;
+      };
     };
   }
 }
