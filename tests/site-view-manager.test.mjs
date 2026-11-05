@@ -53,6 +53,7 @@ class FakeWebContentsView {
     this.webContents.goBack = () => { this.webContents.wentBack = true; };
     this.webContents.goForward = () => { this.webContents.wentForward = true; };
     this.webContents.reload = () => { this.webContents.reloaded = true; };
+    this.webContents.setZoomFactor = (factor) => { this.webContents.zoomFactor = factor; };
     this.webContents.destroy = () => { this.webContents.destroyed = true; };
     this.webContents.setWindowOpenHandler = (handler) => { this.webContents.openHandler = handler; };
     this.webContents.loadURL = async (url) => { this.webContents.loadedUrl = url; };
@@ -78,6 +79,8 @@ const first = await manager.create({
   url: 'https://video.example/watch',
 });
 ok(first.ok && manager.has('tab-a'), 'a site view is created for a validated tab');
+const duplicate = await manager.create({ tabId: 'tab-a', profileKind: 'private', profileId: 'main', url: 'https://video.example/watch' });
+ok(duplicate.ok && duplicate.existing === true && createdViews.length === 1, 're-activating an existing tab reuses its native view without duplication');
 ok(registered.length === 1 && prepared.length === 1, 'session policy and VPN preparation run before view creation');
 ok(createdViews[0].options.webPreferences.nodeIntegration === false, 'site view has Node integration disabled');
 ok(createdViews[0].options.webPreferences.contextIsolation === true, 'site view enforces context isolation');
@@ -106,6 +109,8 @@ ok((await manager.navigate('tab-a', 'javascript:alert(1)')).ok === false, 'IPC n
 ok((await manager.navigate('tab-a', 'https://video.example/next')).ok, 'valid web navigation is accepted');
 ok(manager.goBack('tab-a') && createdViews[0].webContents.wentBack, 'back navigation is routed to the owned WebContents');
 ok(manager.reload('tab-a') && createdViews[0].webContents.reloaded, 'reload is routed to the owned WebContents');
+ok(manager.setZoom('tab-a', 125) && createdViews[0].webContents.zoomFactor === 1.25, 'zoom is applied through Chromium without transforming the native view');
+ok(!manager.setZoom('tab-a', 500), 'out-of-range zoom values are rejected');
 
 const titleHandler = createdViews[0].webContents.listeners('page-title-updated')[0];
 let titlePrevented = false;
