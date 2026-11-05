@@ -6,6 +6,7 @@ const { pathToFileURL } = require('url');
 const { parseAksaLocalProxy, getAegisUserDataPath } = require('./aksa-config.cjs');
 const { AksaSidecar } = require('./aksa-sidecar.cjs');
 const { installWireproxy } = require('./aksa-installer.cjs');
+const { createBrowserSessionPolicy } = require('./session-policy.cjs');
 
 let mainWindow = null;
 const userDataPath = getAegisUserDataPath();
@@ -16,6 +17,19 @@ let aksaEnabled = false;
 let aksaConnected = false;
 let aksaMonitor = null;
 let aksaCheckInFlight = false;
+
+const browserSessionPolicy = createBrowserSessionPolicy({
+  getVpnState: () => ({
+    enabled: aksaEnabled,
+    connected: aksaConnected,
+    onProxyFailure: () => {
+      if (!aksaEnabled) return;
+      aksaConnected = false;
+      void applyAksaFailClosedProxy().catch(() => {});
+    },
+  }),
+  isAppRequest,
+});
 
 // The browser UI needs the local Express/Vite API; a file:// renderer cannot use same-origin /api.
 const localPort = Number(process.env.PORT || 3000);
@@ -62,23 +76,17 @@ async function probeAksaTunnel() {
 
 async function applyAksaProxy() {
   if (!aksaProxy) throw new Error('Aksa local gateway is not configured');
-  await session.defaultSession.setProxy({
+  await browserSessionPolicy.applyProxyToAll({
     mode: 'fixed_servers',
     proxyRules: aksaProxy.proxyRules,
     proxyBypassRules: aksaProxy.proxyBypassRules,
   });
-  // Do not let pooled sockets continue through the previous route after a VPN switch.
-  await session.defaultSession.closeAllConnections();
 }
 
 async function applyAksaFailClosedProxy() {
-  const rules = 'http=127.0.0.1:1;https=127.0.0.1:1';
-  await session.defaultSession.setProxy({
-    mode: 'fixed_servers',
-    proxyRules: rules,
-    proxyBypassRules: aksaProxy ? aksaProxy.proxyBypassRules : 'localhost;127.0.0.1;[::1]',
-  });
-  await session.defaultSession.closeAllConnections();
+  await browserSessionPolicy.applyFailClosedToAll(
+    aksaProxy ? aksaProxy.proxyBypassRules : 'localhost;127.0.0.1;[::1]',
+  );
 }
 
 function getAksaStatus() {
@@ -93,7 +101,7 @@ function getAksaStatus() {
     connected: aksaEnabled && aksaConnected,
     gateway: configured ? 'configured-local' : 'not-configured',
     version: sidecarStatus.version || null,
-    scope: 'electron-session',
+    scope: 'all-electron-sessions',
   };
 }
 
@@ -131,8 +139,7 @@ async function setAksaEnabled(next) {
     aksaConnected = false;
     if (aksaMonitor) clearInterval(aksaMonitor);
     aksaMonitor = null;
-    await session.defaultSession.setProxy({ mode: 'system' });
-    await session.defaultSession.closeAllConnections();
+    await browserSessionPolicy.restoreSystemProxyToAll();
     await aksaSidecar?.stop();
     return { ok: true, status: getAksaStatus() };
   }
@@ -214,27 +221,9 @@ function createWindow() {
 
   Menu.setApplicationMenu(null);
 
-  // One handler owns this event: combine ad blocking and Aksa's fail-closed kill switch.
-  session.defaultSession.webRequest.onBeforeRequest({ urls: ['*://*/*', 'ws://*/*', 'wss://*/*'] }, (details, callback) => {
-    if (isBlockedAdOrTracker(details.url)) return callback({ cancel: true });
-    if (aksaEnabled && !aksaConnected && !isAppRequest(details.url)) {
-      return callback({ cancel: true });
-    }
-    callback({});
-  });
-
-  session.defaultSession.webRequest.onErrorOccurred({ urls: ['*://*/*', 'ws://*/*', 'wss://*/*'] }, (details) => {
-    if (aksaEnabled && /ERR_PROXY|ERR_TUNNEL_CONNECTION_FAILED/i.test(details.error || '')) {
-      aksaConnected = false;
-      void applyAksaFailClosedProxy().catch(() => {});
-    }
-  });
-
-  // Default-deny sensitive browser permissions. Fullscreen remains usable.
-  session.defaultSession.setPermissionRequestHandler((_contents, permission, callback) => {
-    callback(permission === 'fullscreen');
-  });
-  session.defaultSession.setPermissionCheckHandler((_contents, permission) => permission === 'fullscreen');
+  // Register the application session before loading the UI. Every future profile
+  // partition must pass through this same policy before creating its WebContents.
+  browserSessionPolicy.register(session.defaultSession);
 
   mainWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   mainWindow.webContents.on('will-navigate', (event, targetUrl) => {
