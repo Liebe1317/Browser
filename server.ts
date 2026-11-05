@@ -1568,7 +1568,9 @@ ${safePageContext}`
       // Serialize URL-derived values as JavaScript string literals. Never interpolate raw URLs
       // inside executable script: URL query text is attacker-controlled.
       const jsTargetOrigin = jsStringLiteral(parsedTarget.origin);
+      const jsTargetHref = jsStringLiteral(parsedTarget.href);
       const jsTargetHostname = jsStringLiteral(parsedTarget.hostname);
+      const jsProxyToken = jsStringLiteral(auth.token);
 
       // 7. Injected Aegis Shield Protection Script + Video Server Auto-Healer
       const aegisProtectionHead = `
@@ -1599,63 +1601,67 @@ ${safePageContext}`
                 window.parent.postMessage({ type: 'AEGIS_POPUP_BLOCKED', url: url || 'about:blank' }, '*');
                 return null;
               };` : ''}
-              // 2. Intercept fetch & XMLHttpRequest to route relative/same-origin calls through /api/proxy
+              // 2. Route page fetch/XHR/iframe traffic through the scoped proxy capability.
+              // Resolve relative paths against the real upstream document URL, not the local iframe URL.
+              var AEGIS_BASE_URL = ${jsTargetHref};
+              var AEGIS_PROXY_TOKEN = ${jsProxyToken};
+              function aegisResolveUrl(raw) {
+                try {
+                  var resolved = new URL(String(raw || ''), AEGIS_BASE_URL);
+                  if (resolved.protocol === 'http:' || resolved.protocol === 'https:') return resolved.href;
+                } catch (e) {}
+                return null;
+              }
+              function aegisProxyUrl(url) {
+                return '/api/proxy?t=' + encodeURIComponent(AEGIS_PROXY_TOKEN) + '&url=' + encodeURIComponent(url);
+              }
               const origFetch = window.fetch;
-              window.fetch = async function(resource, init) {
+              window.fetch = function(resource, init) {
                 var rawUrl = typeof resource === 'string' ? resource : (resource && resource.url ? resource.url : '');
-                if (rawUrl) {
-                  var absoluteUrl = rawUrl;
-                  if (rawUrl.startsWith('/')) {
-                    absoluteUrl = ${jsTargetOrigin} + rawUrl;
-                  }
-                  if (absoluteUrl.startsWith(${jsTargetOrigin}) && !absoluteUrl.includes('/api/proxy')) {
-                    var proxied = '/api/proxy?url=' + encodeURIComponent(absoluteUrl);
-                    if (typeof resource === 'string') {
-                      return origFetch(proxied, init);
-                    } else {
-                      return origFetch(new Request(proxied, resource), init);
-                    }
-                  }
-                }
-                return origFetch(resource, init);
-              };
-              // 2b. Route iframe sources through /api/proxy (a relative src would hit this server directly)
-              (function() {
-                var ORIGIN = ${jsTargetOrigin};
-                function fixSrc(v) {
+                if (!rawUrl || String(rawUrl).includes('/api/proxy')) return origFetch(resource, init);
+                var absoluteUrl = aegisResolveUrl(rawUrl);
+                if (!absoluteUrl) return origFetch(resource, init);
+                var proxied = aegisProxyUrl(absoluteUrl);
+                if (typeof Request !== 'undefined' && resource instanceof Request) {
                   try {
-                    var s = String(v || '');
-                    if (!s || s.startsWith('data:') || s.startsWith('blob:') || s.startsWith('about:') || s.startsWith('javascript:') || s.includes('/api/proxy')) return v;
-                    var abs = (s.startsWith('/') && !s.startsWith('//')) ? ORIGIN + s : s;
-                    if (abs.startsWith(ORIGIN)) return '/api/proxy?url=' + encodeURIComponent(abs);
-                  } catch (e) {}
-                  return v;
+                    return origFetch(new Request(proxied, resource), { mode: 'cors', credentials: 'omit' });
+                  } catch (e) {
+                    return origFetch(proxied, Object.assign({}, init || {}, { mode: 'cors', credentials: 'omit' }));
+                  }
                 }
-                var d = Object.getOwnPropertyDescriptor(HTMLIFrameElement.prototype, 'src');
-                if (d && d.set) {
+                return origFetch(proxied, Object.assign({}, init || {}, { mode: 'cors', credentials: 'omit' }));
+              };
+              // 2b. Dynamically-created iframe URLs use the same scoped capability as static resources.
+              (function() {
+                function fixSrc(value) {
+                  var raw = String(value || '');
+                  if (!raw || raw.includes('/api/proxy') || /^(data:|blob:|about:|javascript:)/i.test(raw)) return value;
+                  var resolved = aegisResolveUrl(raw);
+                  return resolved ? aegisProxyUrl(resolved) : value;
+                }
+                var descriptor = Object.getOwnPropertyDescriptor(HTMLIFrameElement.prototype, 'src');
+                if (descriptor && descriptor.set) {
                   Object.defineProperty(HTMLIFrameElement.prototype, 'src', {
                     configurable: true,
-                    enumerable: d.enumerable,
-                    get: d.get,
-                    set: function(v) { d.set.call(this, fixSrc(v)); }
+                    enumerable: descriptor.enumerable,
+                    get: descriptor.get,
+                    set: function(value) { descriptor.set.call(this, fixSrc(value)); }
                   });
                 }
-                var origSetAttr = Element.prototype.setAttribute;
-                Element.prototype.setAttribute = function(n, v) {
-                  if (this instanceof HTMLIFrameElement && String(n).toLowerCase() === 'src') v = fixSrc(v);
-                  return origSetAttr.call(this, n, v);
+                var originalSetAttribute = Element.prototype.setAttribute;
+                Element.prototype.setAttribute = function(name, value) {
+                  if (this instanceof HTMLIFrameElement && String(name).toLowerCase() === 'src') value = fixSrc(value);
+                  return originalSetAttribute.call(this, name, value);
                 };
               })();
-              const origXHR = XMLHttpRequest.prototype.open;
+              const originalXhrOpen = XMLHttpRequest.prototype.open;
               XMLHttpRequest.prototype.open = function(method, url, ...rest) {
                 var rawUrl = String(url || '');
-                if (rawUrl.startsWith('/')) {
-                  rawUrl = ${jsTargetOrigin} + rawUrl;
+                if (!rawUrl.includes('/api/proxy')) {
+                  var resolved = aegisResolveUrl(rawUrl);
+                  if (resolved) rawUrl = aegisProxyUrl(resolved);
                 }
-                if (rawUrl.startsWith(${jsTargetOrigin}) && !rawUrl.includes('/api/proxy')) {
-                  rawUrl = '/api/proxy?url=' + encodeURIComponent(rawUrl);
-                }
-                return origXHR.call(this, method, rawUrl, ...rest);
+                return originalXhrOpen.call(this, method, rawUrl, ...rest);
               };
               // 3. Auto-Heal Images with Hotlink Protection
               function healImages() {
@@ -1677,86 +1683,6 @@ ${safePageContext}`
                 });
               }
               // 4. Auto-Heal Video Streaming Servers on Anime/Movie Pages (WitAnime, Okanime, etc.)
-              function healVideoServers() {
-                var watchServersEl = document.getElementById('watch-servers') || document.querySelector('.watch-servers');
-                var playerFrameEl = document.querySelector('[data-player-frame]') || document.querySelector('.player-container');
-                if (watchServersEl && !watchServersEl._aegisHealed) {
-                  var buttons = watchServersEl.querySelectorAll('button:not([data-go-back])');
-                  var isSkeleton = watchServersEl.querySelector('.animate-pulse') !== null;
-                  if (buttons.length === 0 || isSkeleton) {
-                    watchServersEl._aegisHealed = true;
-                    watchServersEl.innerHTML = \`
-                      <div class="aegis-servers-wrapper" style="direction:rtl; font-family:'Cairo',system-ui,sans-serif; background:#18181b; border:1px solid #27272a; border-radius:12px; padding:16px; margin:16px 0; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.5);">
-                        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; border-bottom:1px solid #27272a; padding-bottom:10px;">
-                          <div style="display:flex; align-items:center; gap:8px;">
-                            <span style="font-size:18px;">🛡️</span>
-                            <strong style="color:#ffffff; font-size:14px;">سيرفرات المشاهدة المباشرة (Aegis Fast Stream)</strong>
-                          </div>
-                          <span style="background:rgba(16,185,129,0.15); color:#10b981; font-size:11px; font-weight:700; padding:4px 10px; border-radius:6px; border:1px solid rgba(16,185,129,0.3);">
-                            ✓ خالية تماماً من الإعلانات والنوافذ المنبثقة
-                          </span>
-                        </div>
-                        
-                        <div style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:12px;" id="aegis-server-buttons">
-                          <button class="aegis-srv-btn" data-server="1" style="cursor:pointer; background:#10b981; color:#022c22; font-weight:700; border:none; padding:8px 14px; border-radius:8px; font-size:13px; display:inline-flex; align-items:center; gap:6px;">
-                            ⚡ سيرفر 1 (FHD 1080p - مباشر وسريع)
-                          </button>
-                          <button class="aegis-srv-btn" data-server="2" style="cursor:pointer; background:#27272a; color:#e4e4e7; font-weight:600; border:1px solid #3f3f46; padding:8px 14px; border-radius:8px; font-size:13px; display:inline-flex; align-items:center; gap:6px;">
-                            ▶ سيرفر 2 (Ok.ru HD)
-                          </button>
-                          <button class="aegis-srv-btn" data-server="3" style="cursor:pointer; background:#27272a; color:#e4e4e7; font-weight:600; border:1px solid #3f3f46; padding:8px 14px; border-radius:8px; font-size:13px; display:inline-flex; align-items:center; gap:6px;">
-                            🚀 سيرفر 3 (StreamWish)
-                          </button>
-                          <button class="aegis-srv-btn" data-server="4" style="cursor:pointer; background:#27272a; color:#e4e4e7; font-weight:600; border:1px solid #3f3f46; padding:8px 14px; border-radius:8px; font-size:13px; display:inline-flex; align-items:center; gap:6px;">
-                            ☁️ سيرفر 4 (VidMoly)
-                          </button>
-                          <button class="aegis-srv-btn" data-server="5" style="cursor:pointer; background:#27272a; color:#e4e4e7; font-weight:600; border:1px solid #3f3f46; padding:8px 14px; border-radius:8px; font-size:13px; display:inline-flex; align-items:center; gap:6px;">
-                            💾 سيرفر 5 (Mp4Upload)
-                          </button>
-                          <button class="aegis-srv-btn" data-server="6" style="cursor:pointer; background:#27272a; color:#e4e4e7; font-weight:600; border:1px solid #3f3f46; padding:8px 14px; border-radius:8px; font-size:13px; display:inline-flex; align-items:center; gap:6px;">
-                            📥 سيرفر التحميل المباشر
-                          </button>
-                        </div>
-                        <div style="display:flex; align-items:center; justify-content:space-between; font-size:12px; color:#a1a1aa; padding-top:4px;">
-                          <span>الجودة: 1080p Full HD • الترجمة: عربية رسمية</span>
-                          <span style="color:#10b981;">● السيرفرات جاهزة للتشغيل الفوري</span>
-                        </div>
-                      </div>
-                    \`;
-                    var srvBtns = watchServersEl.querySelectorAll('.aegis-srv-btn');
-                    srvBtns.forEach(function(btn) {
-                      btn.addEventListener('click', function() {
-                        srvBtns.forEach(function(b) {
-                          b.style.background = '#27272a';
-                          b.style.color = '#e4e4e7';
-                          b.style.fontWeight = '600';
-                          b.style.border = '1px solid #3f3f46';
-                        });
-                        btn.style.background = '#10b981';
-                        btn.style.color = '#022c22';
-                        btn.style.fontWeight = '700';
-                        btn.style.border = 'none';
-                        if (playerFrameEl) {
-                          var skeletons = playerFrameEl.querySelectorAll('.animate-spin, .animate-pulse');
-                          skeletons.forEach(function(s) { s.remove(); });
-                          var playerContainer = playerFrameEl.querySelector('[x-ref="playerContainer"]') || playerFrameEl;
-                          playerContainer.style.display = 'block';
-                          playerContainer.removeAttribute('x-cloak');
-                          playerContainer.innerHTML = \`
-                            <div style="width:100%; height:100%; min-height:440px; background:#000000; display:flex; align-items:center; justify-content:center;">
-                              <iframe src="https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ?autoplay=0" 
-                                      title="مشغل الفيديو" 
-                                      style="width:100%; height:100%; min-height:440px; border:none;" 
-                                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
-                                      allowfullscreen></iframe>
-                            </div>
-                          \`;
-                        }
-                      });
-                    });
-                  }
-                }
-              }
               if (document.readyState === 'loading') {
                 document.addEventListener('DOMContentLoaded', function() {
                   healImages();
