@@ -75,7 +75,9 @@ declare global {
         closeSiteView(tabId: string): Promise<boolean>;
         onSiteViewEvent(callback: (event: {
           tabId: string;
-          type: 'loading' | 'title' | 'navigation' | 'error' | 'process-gone';
+          type: 'loading' | 'title' | 'navigation' | 'error' | 'process-gone' | 'media-state' | 'audio-state';
+          state?: 'playing' | 'paused';
+          audible?: boolean;
           isLoading?: boolean;
           title?: string;
           url?: string;
