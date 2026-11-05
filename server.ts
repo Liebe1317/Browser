@@ -1377,7 +1377,7 @@ ${safePageContext}`
       for (const name of ['sec-ch-ua-arch', 'sec-ch-ua-bitness', 'sec-ch-ua-full-version', 'sec-ch-ua-full-version-list', 'sec-ch-ua-model', 'sec-ch-ua-platform-version', 'sec-ch-ua-wow64']) {
         const value = req.headers[name];
         if (typeof value === 'string' && value.length <= 512 && !/[\r\n]/.test(value)) {
-          forwardHeaders[name.replace(/(^|-)([a-z])/g, (_m, sep, ch) => sep + ch.toUpperCase())] = value;
+          forwardHeaders[name.split('-').map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join('-')] = value;
         }
       }
       // The page runs in an opaque sandbox origin locally. Reconstruct Origin only for a
