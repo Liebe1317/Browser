@@ -1669,7 +1669,7 @@ ${safePageContext}`
                 }
                 return aegisWatchFetch(origFetch(proxied, Object.assign({}, init || {}, { mode: 'cors', credentials: 'omit' })));
               };
-              // 2b. Dynamically-created iframe URLs use the same scoped capability as static resources.
+              // 2b. Dynamic frame, image, script, and media sources share the page-scoped proxy capability.
               (function() {
                 function fixSrc(value) {
                   var raw = String(value || '');
@@ -1677,18 +1677,36 @@ ${safePageContext}`
                   var resolved = aegisResolveUrl(raw);
                   return resolved ? aegisProxyUrl(resolved) : value;
                 }
-                var descriptor = Object.getOwnPropertyDescriptor(HTMLIFrameElement.prototype, 'src');
-                if (descriptor && descriptor.set) {
-                  Object.defineProperty(HTMLIFrameElement.prototype, 'src', {
-                    configurable: true,
-                    enumerable: descriptor.enumerable,
-                    get: descriptor.get,
-                    set: function(value) { descriptor.set.call(this, fixSrc(value)); }
-                  });
+                function patchSrcProperty(proto) {
+                  if (!proto) return;
+                  var descriptor = Object.getOwnPropertyDescriptor(proto, 'src');
+                  if (!descriptor || !descriptor.set) return;
+                  try {
+                    Object.defineProperty(proto, 'src', {
+                      configurable: true,
+                      enumerable: descriptor.enumerable,
+                      get: descriptor.get,
+                      set: function(value) { descriptor.set.call(this, fixSrc(value)); }
+                    });
+                  } catch (e) {}
                 }
+                patchSrcProperty(HTMLIFrameElement.prototype);
+                patchSrcProperty(HTMLImageElement.prototype);
+                patchSrcProperty(HTMLScriptElement.prototype);
+                if (typeof HTMLMediaElement !== 'undefined') patchSrcProperty(HTMLMediaElement.prototype);
+                if (typeof HTMLSourceElement !== 'undefined') patchSrcProperty(HTMLSourceElement.prototype);
+                if (typeof HTMLTrackElement !== 'undefined') patchSrcProperty(HTMLTrackElement.prototype);
+
                 var originalSetAttribute = Element.prototype.setAttribute;
                 Element.prototype.setAttribute = function(name, value) {
-                  if (this instanceof HTMLIFrameElement && String(name).toLowerCase() === 'src') value = fixSrc(value);
+                  var attr = String(name).toLowerCase();
+                  var isRemoteResource = this instanceof HTMLIFrameElement ||
+                    this instanceof HTMLImageElement ||
+                    this instanceof HTMLScriptElement ||
+                    (typeof HTMLMediaElement !== 'undefined' && this instanceof HTMLMediaElement) ||
+                    (typeof HTMLSourceElement !== 'undefined' && this instanceof HTMLSourceElement) ||
+                    (typeof HTMLTrackElement !== 'undefined' && this instanceof HTMLTrackElement);
+                  if (isRemoteResource && attr === 'src') value = fixSrc(value);
                   return originalSetAttribute.call(this, name, value);
                 };
               })();
