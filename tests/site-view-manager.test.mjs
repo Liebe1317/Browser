@@ -74,6 +74,9 @@ const manager = createSiteViewManager({
   onEvent: (event) => events.push(event),
 });
 
+const unknownProfile = await manager.create({ tabId: 'tab-unknown', profileKind: 'regular', profileId: 'another-profile', url: 'https://video.example/' });
+ok(unknownProfile.ok === false && unknownProfile.error === 'unknown-profile', 'renderer cannot select an unregistered profile partition');
+
 const first = await manager.create({
   tabId: 'tab-a', profileKind: 'private', profileId: 'main',
   url: 'https://video.example/watch',
