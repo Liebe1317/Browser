@@ -22,6 +22,9 @@ function waitForServer(serverInstance) {
 }
 
 async function openTab(profileKind, tabId, url) {
+  // Several tabs intentionally load the same URL. Identify the newly attached
+  // WebContentsView by object identity instead of matching its URL.
+  const previousViews = new Set(browserWindow.contentView.children);
   const result = await manager.create({
     tabId,
     profileKind,
@@ -33,9 +36,18 @@ async function openTab(profileKind, tabId, url) {
   assert.equal(manager.setVisible(tabId, true), true);
 
   const view = browserWindow.contentView.children.find((child) => {
-    return child.webContents && child.webContents.getURL() === url;
+    return !previousViews.has(child) && child.webContents;
   });
-  assert.ok(view, 'WebContentsView should be attached to the BrowserWindow');
+  assert.ok(view, 'new WebContentsView should be attached to the BrowserWindow');
+
+  const expectedPartition = profileKind === 'regular'
+    ? 'persist:aegis-regular-main'
+    : 'aegis-private-main';
+  assert.equal(
+    view.webContents.session.getPartition(),
+    expectedPartition,
+    profileKind + ' WebContentsView must use its designated Chromium partition',
+  );
   return view;
 }
 
@@ -125,6 +137,7 @@ async function run() {
   server = null;
   console.log('PASS - native WebContentsView loads a real local HTTP page');
   console.log('PASS - remote view has no Node, preload, or privileged desktop bridge');
+  console.log('PASS - regular and private views use their exact Chromium partitions');
   console.log('PASS - regular profile storage persists and remains separate');
   console.log('PASS - private profile storage is cleared after last tab closes');
   console.log('PASS - file and javascript navigation are denied');
