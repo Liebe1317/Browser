@@ -1648,6 +1648,11 @@ ${safePageContext}`
               function aegisWatchFetch(promise) {
                 return promise.then(aegisNotifyProxyError);
               }
+              // Nested proxied frames relay the same bounded signal to the top-level Aegis iframe.
+              window.addEventListener('message', function(event) {
+                if (event.source === window.parent || !event.data || event.data.type !== 'AEGIS_PROXY_ERROR' || event.data.code !== 'capability-expired') return;
+                window.parent.postMessage({ type: 'AEGIS_PROXY_ERROR', code: 'capability-expired' }, '*');
+              });
               const origFetch = window.fetch;
               window.fetch = function(resource, init) {
                 var rawUrl = typeof resource === 'string' ? resource : (resource && resource.url ? resource.url : (typeof URL !== 'undefined' && resource instanceof URL ? resource.href : ''));
@@ -1687,6 +1692,15 @@ ${safePageContext}`
                   return originalSetAttribute.call(this, name, value);
                 };
               })();
+              const withCredentialsDescriptor = Object.getOwnPropertyDescriptor(XMLHttpRequest.prototype, 'withCredentials');
+              if (withCredentialsDescriptor && withCredentialsDescriptor.set && withCredentialsDescriptor.get) {
+                Object.defineProperty(XMLHttpRequest.prototype, 'withCredentials', {
+                  configurable: true,
+                  enumerable: withCredentialsDescriptor.enumerable,
+                  get: function() { return false; },
+                  set: function() { withCredentialsDescriptor.set.call(this, false); }
+                });
+              }
               const originalXhrOpen = XMLHttpRequest.prototype.open;
               XMLHttpRequest.prototype.open = function(method, url, ...rest) {
                 var rawUrl = String(url || '');
