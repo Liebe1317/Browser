@@ -5,6 +5,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
 import { escapeHtml, renderSearchResultCard, jsStringLiteral, safeHttpUrl } from './server/html.ts';
+import { extractYouTubeVideos, parseYouTubeInitialData } from './server/youtube.ts';
 import { GoogleGenAI } from '@google/genai';
 import { authorizeProxyRequest, jarFor, addTokenToProxyUrls, clearSessionCookies, bootstrapAppSession, appSessionId, verifyAppCsrf, destroyPrivateContext } from './server/sessions.ts';
 import { detectLibiAction, describeLibiAction, parseLibiSearchQuery } from './server/libi.ts';
@@ -1013,64 +1014,48 @@ async function startServer() {
     clearSessionCookies(req);
     res.json({ ok: true });
   });
-  // YouTube Live Search & Trending Feed API
-  app.get('/api/youtube/search', async (req, res) => {
-    const query = (req.query.q as string || '').trim().slice(0, 200);
-    if (!query) {
-      return res.json({ results: [] });
-    }
-    try {
-      const { response } = await safeFetch(
-        `https://www.youtube.com/results?search_query=${encodeURIComponent(query.slice(0, 200))}`,
-        {
-          signal: AbortSignal.timeout(10_000),
-          headers: {
-            'User-Agent':
-              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
-            'Accept-Language': 'ar,en;q=0.9',
-            'Sec-Ch-Ua': '"Google Chrome";v="131", "Chromium";v="131"',
-          },
+  // YouTube search/feed metadata only. Playback remains in the official YouTube embed/player.
+  async function fetchYouTubeResults(searchQuery: string, category?: string) {
+    const { response } = await safeFetch(
+      `https://www.youtube.com/results?search_query=${encodeURIComponent(searchQuery.slice(0, 200))}`,
+      {
+        signal: AbortSignal.timeout(10_000),
+        headers: {
+          'User-Agent':
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+          'Accept-Language': 'ar,en;q=0.9',
         },
-        { maxRedirects: 3, upgradeHttp: true }
-      );
-      if (!response.ok) return res.json({ results: [] });
-      const html = (await readBodyCapped(response, 3_000_000)).toString('utf8');
-      const match = html.match(/ytInitialData\s*=\s*({.+?});<\/script>/);
-      if (!match) {
-        return res.json({ results: [] });
+      },
+      { maxRedirects: 3, upgradeHttp: true }
+    );
+    if (!response.ok) return { ok: false as const, reason: 'upstream' as const };
+    const html = (await readBodyCapped(response, 3_000_000)).toString('utf8');
+    if (!parseYouTubeInitialData(html)) return { ok: false as const, reason: 'format' as const };
+    return { ok: true as const, results: extractYouTubeVideos(html, category) };
+  }
+
+  app.get('/api/youtube/search', async (req, res) => {
+    const query = typeof req.query.q === 'string' ? req.query.q.trim().slice(0, 200) : '';
+    res.setHeader('Cache-Control', 'no-store');
+    if (!query) return res.json({ results: [], count: 0 });
+    try {
+      const result = await fetchYouTubeResults(query);
+      if (!result.ok) {
+        return res.status(502).json({
+          results: [],
+          error: result.reason === 'format' ? 'youtube_response_unavailable' : 'youtube_upstream_unavailable',
+        });
       }
-      const data = JSON.parse(match[1]);
-      const contents =
-        data.contents?.twoColumnSearchResultsRenderer?.primaryContents?.sectionListRenderer?.contents?.[0]
-          ?.itemSectionRenderer?.contents || [];
-      const results = contents
-        .filter((c: any) => c.videoRenderer)
-        .map((c: any) => {
-          const v = c.videoRenderer;
-          const thumbs = v.thumbnail?.thumbnails || [];
-          const bestThumb = thumbs[thumbs.length - 1]?.url || `https://i.ytimg.com/vi/${v.videoId}/hqdefault.jpg`;
-          return {
-            id: v.videoId,
-            title: v.title?.runs?.[0]?.text || 'فيديو بدون عنوان',
-            channel: v.ownerText?.runs?.[0]?.text || 'قناة غير معروفة',
-            channelAvatar:
-              v.channelThumbnailSupportedRendered?.channelThumbnailWithLinkRenderer?.thumbnail?.thumbnails?.[0]?.url,
-            views: v.shortViewCountText?.simpleText || 'مشاهدات',
-            time: v.publishedTimeText?.simpleText || '',
-            duration: v.lengthText?.simpleText || '10:00',
-            thumbnail: bestThumb,
-            verified: !!v.ownerBadges,
-          };
-        })
-        .slice(0, 24);
-      res.json({ results, count: results.length });
-    } catch (err: any) {
-      console.warn('YouTube search failed; request details withheld.');
-      res.json({ results: [], error: err.message });
+      return res.json({ results: result.results, count: result.results.length });
+    } catch {
+      console.warn('[Aegis YouTube] Search request failed; upstream details withheld.');
+      return res.status(502).json({ results: [], error: 'youtube_upstream_unavailable' });
     }
   });
+
   app.get('/api/youtube/feed', async (req, res) => {
-    const category = (req.query.category as string || 'all').trim().toLowerCase().slice(0, 40);
+    const category = (typeof req.query.category === 'string' ? req.query.category : 'all')
+      .trim().toLowerCase().slice(0, 40);
     const queryMap: Record<string, string> = {
       all: 'trending arabic',
       anime: 'anime episodes recap مترجم',
@@ -1082,55 +1067,20 @@ async function startServer() {
       comedy: 'كوميديا ومقالب',
       education: 'شروحات وتعليم',
     };
-    const searchQuery = queryMap[category] || `${category} trending`;
+    const searchQuery = queryMap[category] || queryMap.all;
+    res.setHeader('Cache-Control', 'no-store');
     try {
-      const { response } = await safeFetch(
-        `https://www.youtube.com/results?search_query=${encodeURIComponent(searchQuery.slice(0, 200))}`,
-        {
-          signal: AbortSignal.timeout(10_000),
-          headers: {
-            'User-Agent':
-              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
-            'Accept-Language': 'ar,en;q=0.9',
-          },
-        },
-        { maxRedirects: 3, upgradeHttp: true }
-      );
-      if (!response.ok) return res.json({ results: [] });
-      const html = (await readBodyCapped(response, 3_000_000)).toString('utf8');
-      const match = html.match(/ytInitialData\s*=\s*({.+?});<\/script>/);
-      if (!match) {
-        return res.json({ results: [] });
+      const result = await fetchYouTubeResults(searchQuery, category);
+      if (!result.ok) {
+        return res.status(502).json({
+          results: [],
+          error: result.reason === 'format' ? 'youtube_response_unavailable' : 'youtube_upstream_unavailable',
+        });
       }
-      const data = JSON.parse(match[1]);
-      const contents =
-        data.contents?.twoColumnSearchResultsRenderer?.primaryContents?.sectionListRenderer?.contents?.[0]
-          ?.itemSectionRenderer?.contents || [];
-      const results = contents
-        .filter((c: any) => c.videoRenderer)
-        .map((c: any) => {
-          const v = c.videoRenderer;
-          const thumbs = v.thumbnail?.thumbnails || [];
-          const bestThumb = thumbs[thumbs.length - 1]?.url || `https://i.ytimg.com/vi/${v.videoId}/hqdefault.jpg`;
-          return {
-            id: v.videoId,
-            title: v.title?.runs?.[0]?.text || 'فيديو يوتيوب',
-            channel: v.ownerText?.runs?.[0]?.text || 'قناة يوتيوب',
-            channelAvatar:
-              v.channelThumbnailSupportedRendered?.channelThumbnailWithLinkRenderer?.thumbnail?.thumbnails?.[0]?.url,
-            views: v.shortViewCountText?.simpleText || 'مشاهدات',
-            time: v.publishedTimeText?.simpleText || '',
-            duration: v.lengthText?.simpleText || '10:00',
-            thumbnail: bestThumb,
-            category,
-            verified: !!v.ownerBadges,
-          };
-        })
-        .slice(0, 24);
-      res.json({ results, category });
-    } catch (err: any) {
-      console.warn('YouTube feed failed; request details withheld.');
-      res.json({ results: [] });
+      return res.json({ results: result.results, category });
+    } catch {
+      console.warn('[Aegis YouTube] Feed request failed; upstream details withheld.');
+      return res.status(502).json({ results: [], error: 'youtube_upstream_unavailable' });
     }
   });
   // Search API (Live web results)
