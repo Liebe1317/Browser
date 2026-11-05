@@ -1284,6 +1284,12 @@ ${safePageContext}`
     // Who is calling, and which per-site cookie partition applies? (see server/sessions.ts)
     const auth = authorizeProxyRequest(req, res, parsedTarget);
     if ('error' in auth) {
+      if (auth.code === 'capability-expired') {
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.setHeader('Access-Control-Expose-Headers', 'X-Aegis-Proxy-Error');
+        res.setHeader('X-Aegis-Proxy-Error', 'capability-expired');
+        res.setHeader('Cache-Control', 'no-store');
+      }
       return res.status(auth.status).send(auth.message);
     }
     const jar = jarFor(auth.session, auth.contextId, auth.site);
