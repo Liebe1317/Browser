@@ -94,17 +94,26 @@ function createSiteViewManager({
     if (typeof tabId !== 'string' || !SAFE_ID.test(tabId)) return { ok: false, error: 'invalid-tab-id' };
     if (profileKind !== 'regular' && profileKind !== 'private') return { ok: false, error: 'invalid-profile-kind' };
     if (typeof profileId !== 'string' || !SAFE_ID.test(profileId)) return { ok: false, error: 'invalid-profile-id' };
-    if (views.has(tabId)) return { ok: true, tabId, existing: true };
+    const partition = profileKind === 'regular'
+      ? 'persist:aegis-regular-' + profileId
+      : 'aegis-private-' + profileId;
+    const existing = views.get(tabId);
+    if (existing) return existing.partition === partition
+      ? { ok: true, tabId, existing: true }
+      : { ok: false, error: 'tab-profile-mismatch' };
 
     const initialUrl = safeSiteUrl(url, getTrustedAppOrigin());
     if (!initialUrl) return { ok: false, error: 'navigation-denied' };
 
-    const partition = profileKind === 'regular'
-      ? 'persist:aegis-regular-' + profileId
-      : 'aegis-private-' + profileId;
     const browserSession = getSession(partition);
     registerSession(browserSession);
     await prepareSession(browserSession);
+
+    // A second create request may have completed while session preparation was pending.
+    const createdDuringPreparation = views.get(tabId);
+    if (createdDuringPreparation) return createdDuringPreparation.partition === partition
+      ? { ok: true, tabId, existing: true }
+      : { ok: false, error: 'tab-profile-mismatch' };
 
     const window = getWindow();
     if (!window || window.isDestroyed()) return { ok: false, error: 'window-unavailable' };
