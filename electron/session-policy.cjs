@@ -27,12 +27,13 @@ function createBrowserSessionPolicy({ getVpnState, isAppRequest }) {
   const sessions = new Set();
   const installed = new WeakSet();
 
-  function register(browserSession) {
+  function register(browserSession, options = {}) {
     if (!browserSession || typeof browserSession.setProxy !== 'function') {
       throw new TypeError('A valid Electron Session is required.');
     }
     sessions.add(browserSession);
     if (installed.has(browserSession)) return browserSession;
+    const trustedAppSession = options.trustedAppSession === true;
     installed.add(browserSession);
 
     browserSession.webRequest.onBeforeRequest(
@@ -40,7 +41,7 @@ function createBrowserSessionPolicy({ getVpnState, isAppRequest }) {
       (details, callback) => {
         if (isBlockedAdOrTracker(details.url)) return callback({ cancel: true });
         const vpn = getVpnState();
-        if (vpn.enabled && !vpn.connected && !isAppRequest(details.url)) {
+        if (vpn.enabled && !vpn.connected && !(trustedAppSession && isAppRequest(details.url))) {
           return callback({ cancel: true });
         }
         callback({});
