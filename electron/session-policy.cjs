@@ -12,7 +12,7 @@ function hostMatches(host, domain) {
 
 function isBlockedAdOrTracker(rawUrl) {
   try {
-    const host = new URL(rawUrl).hostname.toLowerCase().replace(/\\.$/, '');
+    const host = new URL(rawUrl).hostname.toLowerCase().replace(/\.$/, '');
     return blockedDomains.some((domain) => hostMatches(host, domain));
   } catch {
     return false;
