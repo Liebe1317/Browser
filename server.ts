@@ -1674,9 +1674,8 @@ ${safePageContext}`
                       this._healed = true;
                       var s = this.getAttribute('data-aegis-src') || this.getAttribute('src') || this.src;
                       if (s && !s.includes('/api/proxy') && !s.startsWith('data:')) {
-                        var abs = s;
-                        if (s.startsWith('/')) abs = ${jsTargetOrigin} + s;
-                        this.src = '/api/proxy?url=' + encodeURIComponent(abs);
+                        var abs = aegisResolveUrl(s);
+                        if (abs) this.src = aegisProxyUrl(abs);
                       }
                     });
                   }
