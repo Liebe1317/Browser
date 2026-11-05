@@ -57,11 +57,11 @@ function createBrowserSessionPolicy({ getVpnState, isAppRequest }) {
     );
 
     browserSession.setPermissionRequestHandler((_contents, permission, callback, details) => {
-      callback(permission === 'fullscreen' && details?.requestingUrl
-        ? isAppRequest(details.requestingUrl) === false
-        : false);
+      callback(permission === 'fullscreen' && details?.userGesture === true);
     });
-    browserSession.setPermissionCheckHandler((_contents, permission) => permission === 'fullscreen');
+    browserSession.setPermissionCheckHandler((_contents, permission, _origin, details) => {
+      return permission === 'fullscreen' && details?.userGesture === true;
+    });
     return browserSession;
   }
 
