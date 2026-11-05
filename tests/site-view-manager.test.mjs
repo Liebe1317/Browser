@@ -93,6 +93,12 @@ ok(!('preload' in createdViews[0].options.webPreferences), 'untrusted site view 
 ok(createdViews[0].options.webPreferences.session === sessionFor('aegis-private-main'), 'private tabs use an ephemeral profile partition');
 ok(createdViews[0].visible === false, 'new native views start hidden until layout activates them');
 ok(createdViews[0].webContents.openHandler().action === 'deny', 'site popups are denied by default');
+createdViews[0].webContents.listeners('media-started-playing')[0]();
+ok(events.at(-1).type === 'media-state' && events.at(-1).state === 'playing', 'Chromium media-started events are forwarded without page script injection');
+createdViews[0].webContents.listeners('media-paused')[0]();
+ok(events.at(-1).type === 'media-state' && events.at(-1).state === 'paused', 'Chromium media-paused events are forwarded');
+createdViews[0].webContents.listeners('audio-state-changed')[0]({}, true);
+ok(events.at(-1).type === 'audio-state' && events.at(-1).audible === true, 'Chromium audio state is exposed as a boolean only');
 
 let blockedNavigation = false;
 const navigationHandler = createdViews[0].webContents.listeners('will-navigate')[0];
