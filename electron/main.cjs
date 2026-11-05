@@ -101,7 +101,7 @@ function getAksaStatus() {
     connected: aksaEnabled && aksaConnected,
     gateway: configured ? 'configured-local' : 'not-configured',
     version: sidecarStatus.version || null,
-    scope: 'all-electron-sessions',
+    scope: 'registered-electron-sessions',
   };
 }
 
@@ -267,7 +267,7 @@ app.whenReady().then(() => {
   });
 
   ipcMain.handle('aegis:vpn:get-status', (event) => {
-    if (!isTrustedUi(event)) return { configured: false, enabled: false, connected: false, gateway: 'not-configured', scope: 'all-electron-sessions' };
+    if (!isTrustedUi(event)) return { configured: false, enabled: false, connected: false, gateway: 'not-configured', scope: 'registered-electron-sessions' };
     return getAksaStatus();
   });
   ipcMain.handle('aegis:vpn:set-enabled', async (event, enabled) => {
