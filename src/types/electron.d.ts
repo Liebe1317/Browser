@@ -13,7 +13,7 @@ declare global {
           connected: boolean;
           gateway: string;
           version: string | null;
-          scope: 'all-electron-sessions';
+          scope: 'registered-electron-sessions';
         }>;
         install(): Promise<{
           ok: boolean;
@@ -27,7 +27,7 @@ declare global {
             connected: boolean;
             gateway: string;
             version: string | null;
-            scope: 'all-electron-sessions';
+            scope: 'registered-electron-sessions';
           };
           error?: string;
         }>;
@@ -43,7 +43,7 @@ declare global {
             connected: boolean;
             gateway: string;
             version: string | null;
-            scope: 'all-electron-sessions';
+            scope: 'registered-electron-sessions';
           };
           error?: string;
         }>;
@@ -58,7 +58,7 @@ declare global {
             connected: boolean;
             gateway: string;
             version: string | null;
-            scope: 'all-electron-sessions';
+            scope: 'registered-electron-sessions';
           };
           error?: string;
         }>;
