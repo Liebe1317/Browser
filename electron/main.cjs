@@ -179,24 +179,6 @@ async function setAksaEnabled(next) {
   }
 }
 
-function hostMatches(host, domain) {
-  return host === domain || host.endsWith('.' + domain);
-}
-
-const blockedDomains = [
-  'doubleclick.net', 'google-analytics.com', 'googletagmanager.com',
-  'googleadservices.com', 'googlesyndication.com', 'criteo.com',
-  'taboola.com', 'outbrain.com', 'hotjar.com', 'clarity.ms',
-];
-
-function isBlockedAdOrTracker(rawUrl) {
-  try {
-    const host = new URL(rawUrl).hostname.toLowerCase().replace(/\.$/, '');
-    return blockedDomains.some((domain) => hostMatches(host, domain));
-  } catch {
-    return false;
-  }
-}
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -285,7 +267,7 @@ app.whenReady().then(() => {
   });
 
   ipcMain.handle('aegis:vpn:get-status', (event) => {
-    if (!isTrustedUi(event)) return { configured: false, enabled: false, connected: false, gateway: 'not-configured', scope: 'electron-session' };
+    if (!isTrustedUi(event)) return { configured: false, enabled: false, connected: false, gateway: 'not-configured', scope: 'all-electron-sessions' };
     return getAksaStatus();
   });
   ipcMain.handle('aegis:vpn:set-enabled', async (event, enabled) => {
