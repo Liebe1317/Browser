@@ -26,7 +26,7 @@ export interface LebeRequest {
   readonly timestamp?: number;
 }
 
-export type ShieldReason = "ad-or-tracker" | "popup" | "user-rule";
+export type ShieldReason = "ad-or-tracker" | "network-filter" | "filter-exception" | "unsupported-url" | "popup" | "user-rule";
 
 export interface ShieldDecision {
   readonly action: "allow" | "block";
