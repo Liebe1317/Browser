@@ -30,6 +30,7 @@ function createSiteViewManager({
 }) {
   if (typeof WebContentsView !== 'function') throw new TypeError('WebContentsView constructor is required.');
   const views = new Map();
+  const webContentsToTab = new Map();
   const partitions = new Map();
   const partitionCleanup = new Map();
 
@@ -143,6 +144,7 @@ function createSiteViewManager({
 
     const entry = { view, browserSession, partition, profileKind, profileId };
     views.set(tabId, entry);
+    webContentsToTab.set(view.webContents.id, tabId);
     const partitionEntry = partitions.get(partition) || { browserSession, profileKind, count: 0 };
     partitionEntry.count += 1;
     partitions.set(partition, partitionEntry);
@@ -236,6 +238,7 @@ function createSiteViewManager({
     const entry = getEntry(tabId);
     if (!entry) return false;
     views.delete(tabId);
+    webContentsToTab.delete(entry.view.webContents.id);
     const window = getWindow();
     if (window && !window.isDestroyed()) {
       try { window.contentView.removeChildView(entry.view); } catch {}
@@ -267,6 +270,12 @@ function createSiteViewManager({
   return Object.freeze({
     create, setBounds, setVisible, navigate, goBack, goForward, reload, setZoom, close, closeAll,
     has: (tabId) => views.has(tabId),
+    recordNetworkEvent: (payload) => {
+      const tabId = webContentsToTab.get(payload?.webContentsId);
+      if (!tabId) return false;
+      send(tabId, 'network-request', payload);
+      return true;
+    },
     getCount: () => views.size,
   });
 }
