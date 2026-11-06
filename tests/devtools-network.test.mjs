@@ -65,6 +65,23 @@ assert.equal(events[2].phase, 'completed');
 assert.equal(events[2].statusCode, 200);
 assert.equal(typeof events[2].duration, 'number');
 
+// Electron's real WebRequestDetails.id is numeric. Normalize it before it
+// reaches site-view-manager, whose renderer boundary accepts string IDs only.
+let numericBeforeResult;
+listeners.before({
+  id: 314159,
+  webContentsId: 17,
+  url: 'https://example.com/api/data',
+  method: 'GET',
+  resourceType: 'fetch',
+}, (result) => { numericBeforeResult = result; });
+assert.deepEqual(numericBeforeResult, {});
+assert.equal(events.at(-1).requestId, '314159');
+listeners.completed({ id: 314159, statusCode: 204 });
+assert.equal(events.at(-1).phase, 'completed');
+assert.equal(events.at(-1).requestId, '314159');
+assert.equal(events.at(-1).statusCode, 204);
+
 let blockedResult;
 listeners.before({
   id: 'request-2',
@@ -75,8 +92,8 @@ listeners.before({
 }, (result) => { blockedResult = result; });
 
 assert.deepEqual(blockedResult, { cancel: true });
-assert.equal(events[3].phase, 'blocked');
-assert.equal(events[3].blockedReason, 'shield');
-assert.equal(events[3].url, 'https://doubleclick.net/track.js');
+assert.equal(events[5].phase, 'blocked');
+assert.equal(events[5].blockedReason, 'shield');
+assert.equal(events[5].url, 'https://doubleclick.net/track.js');
 
 console.log('PASS native network request lifecycle and URL redaction');
