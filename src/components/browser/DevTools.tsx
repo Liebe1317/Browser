@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import {
   Activity, Terminal, ShieldCheck, Database, X, Trash2, Filter,
-  ChevronDown, Search, MoreVertical, CircleHelp, PanelTop, Columns3,
+  Search, MoreVertical, CircleHelp, Columns3,
 } from 'lucide-react';
 import { NetworkRequest } from '../../types/browser';
 
@@ -37,7 +37,6 @@ export const DevTools: React.FC<DevToolsProps> = ({
   }), [networkRequests, networkFilter, filterText]);
 
   const tabs: { id: DevToolsTab; label: string; icon: React.ReactNode }[] = [
-    { id: 'elements' as DevToolsTab, label: 'Elements', icon: <PanelTop size={13} /> },
     { id: 'console', label: 'Console', icon: <Terminal size={13} /> },
     { id: 'network', label: 'Network', icon: <Activity size={13} /> },
     { id: 'security', label: 'Security', icon: <ShieldCheck size={13} /> },
@@ -57,7 +56,7 @@ export const DevTools: React.FC<DevToolsProps> = ({
             DevTools
           </span>
           <div className="flex h-full min-w-0 items-center gap-0.5 overflow-x-auto">
-            {tabs.filter(tab => tab.id !== ('elements' as DevToolsTab)).map((tab) => (
+            {tabs.map((tab) => (
               <button
                 key={tab.id}
                 type="button"
