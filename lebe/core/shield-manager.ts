@@ -66,7 +66,7 @@ export class LebeShieldManager {
   }
 
   evaluateRequest(request: LebeRequest): ShieldDecision {
-    return this.#runtime.evaluateRequest(request) as ShieldDecision;
+    return this.#runtime.evaluateRequest(request as unknown as Record<string, unknown>) as ShieldDecision;
   }
 
   getCosmeticCss(rawUrl: string): string {
