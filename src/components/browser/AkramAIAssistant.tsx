@@ -162,7 +162,7 @@ export const AkramAIAssistant: React.FC<AkramAIAssistantProps> = ({
         <div className="flex items-center gap-3">
           <div className="relative w-10 h-10 rounded-full overflow-hidden border-2 border-indigo-400/60 bg-purple-950/80 shrink-0 shadow-md">
             <img 
-              src="/assets/libi.png" 
+              src="/assets/akram-ai.png" 
               alt="أكرم بالكوفية الفلسطينية" 
               className="w-full h-full object-cover"
             />
@@ -241,7 +241,7 @@ export const AkramAIAssistant: React.FC<AkramAIAssistantProps> = ({
                 >
                   {!isUser && (
                     <div className="w-7 h-7 rounded-full overflow-hidden border border-indigo-400/40 shrink-0 self-end mb-1">
-                      <img src="/assets/libi.png" alt="أكرم" className="w-full h-full object-cover" />
+                      <img src="/assets/akram-ai.png" alt="أكرم" className="w-full h-full object-cover" />
                     </div>
                   )}
 
@@ -275,7 +275,7 @@ export const AkramAIAssistant: React.FC<AkramAIAssistantProps> = ({
             {isLoading && (
               <div className="flex gap-2.5 items-end">
                 <div className="w-7 h-7 rounded-full overflow-hidden border border-indigo-400/40 shrink-0">
-                  <img src="/assets/libi.png" alt="أكرم" className="w-full h-full object-cover" />
+                  <img src="/assets/akram-ai.png" alt="أكرم" className="w-full h-full object-cover" />
                 </div>
                 <div className="bg-slate-800/90 border border-slate-700/60 rounded-2xl rounded-bl-none px-3.5 py-2.5 text-slate-300 flex items-center gap-1.5">
                   <div className="w-2 h-2 rounded-full bg-indigo-400 animate-bounce" style={{ animationDelay: '0ms' }} />
