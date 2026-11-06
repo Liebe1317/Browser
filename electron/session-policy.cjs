@@ -1,7 +1,7 @@
 'use strict';
 
 const { isIP } = require('node:net');
-const { createChromiumShieldsAdapter } = require('../lebe/adapters/chromium/session-policy-adapter.cjs');
+const { createChromiumShieldsAdapter } = require('../akram/adapters/chromium/session-policy-adapter.cjs');
 
 // Protection rules are owned by Akram Shield core; Electron only adapts engine callbacks.
 
