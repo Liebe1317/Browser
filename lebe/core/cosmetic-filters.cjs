@@ -52,10 +52,10 @@ function isSafeCosmeticSelector(rawSelector) {
   if (!selector || selector.length > 512 || /[{};]/.test(selector)) return false;
   if (YOUTUBE_AD_ALLOWLIST.has(selector)) return true;
   if (!/[.#[:]/.test(selector)) return false;
-  if (/(^|[\\s>+~,(])(?:html|body|video|audio|canvas|iframe|button|input|select|textarea)(?=$|[\\s>+~.#:[,)])/i.test(selector)) return false;
+  if (/(^|[\s>+~,(])(?:html|body|video|audio|canvas|iframe|button|input|select|textarea)(?=$|[\s>+~.#:[,)])/i.test(selector)) return false;
   const lower = selector.toLowerCase();
   if (PROTECTED_SELECTOR_PARTS.some((part) => lower.includes(part))) return false;
-  if (/(?:^|[\\s>+~])\\*(?:$|[\\s>+~])/i.test(selector)) return false;
+  if (/(?:^|[\s>+~])\*(?:$|[\s>+~])/i.test(selector)) return false;
   return true;
 }
 
@@ -64,7 +64,7 @@ class LebeCosmeticFilters {
 
   addFilterList(text, source = 'custom') {
     let added = 0;
-    for (const rawLine of String(text || '').split(/\\r?\\n/)) {
+    for (const rawLine of String(text || '').split(/\r?\n/)) {
       const line = rawLine.trim();
       if (!line || line.startsWith('!') || line.startsWith('[')) continue;
       const exceptionIndex = line.indexOf('#@#');
@@ -119,7 +119,7 @@ class LebeCosmeticFilters {
     }
     return [...selectors].map((selector) =>
       selector + '{display:none!important;visibility:hidden!important;pointer-events:none!important;}',
-    ).join('\\n');
+    ).join('\n');
   }
 
   get ruleCount() { return this.#rules.length; }
