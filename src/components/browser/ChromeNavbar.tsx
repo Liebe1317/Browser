@@ -357,9 +357,9 @@ export const ChromeNavbar: React.FC<ChromeNavbarProps> = ({
             title="أكرم (Akram) - مساعد الذكاء الاصطناعي الخاص بك 🇵🇸"
           >
             <div className="w-5 h-5 rounded-full overflow-hidden border border-indigo-300/60 shrink-0">
-              <img src="/assets/akramAI.png" alt="ليبي" className="w-full h-full object-cover" />
+              <img src="/assets/akramAI.png" alt="أكرم" className="w-full h-full object-cover" />
             </div>
-            <span className="hidden sm:inline font-bold">ليبي</span>
+            <span className="hidden sm:inline font-bold">أكرم</span>
           </button>
         )}
 
