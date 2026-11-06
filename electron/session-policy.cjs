@@ -111,7 +111,9 @@ function createBrowserSessionPolicy({ getVpnState, isAppRequest, onNetworkEvent 
         : (getVpnState().enabled && !getVpnState().connected && !isApp) ? 'vpn-disconnected' : '';
       const base = {
         webContentsId: details.webContentsId,
-        requestId: details.id,
+        // Electron exposes WebRequestDetails.id as a number; the renderer pipeline
+        // deliberately accepts a bounded string identifier only.
+        requestId: String(details.id),
         url: safeRequestUrl(details.url),
         method: typeof details.method === 'string' ? details.method : 'GET',
         resourceType: typeof details.resourceType === 'string' ? details.resourceType : 'other',
