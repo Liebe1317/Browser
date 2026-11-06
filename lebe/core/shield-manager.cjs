@@ -34,7 +34,7 @@ function countCandidateLines(content) {
 }
 
 /**
- * Central, engine-neutral authority for deterministic Lebe Shield decisions.
+ * Central, engine-neutral authority for deterministic Akram Shield decisions.
  * Engine adapters should consume this API rather than maintain their own rules.
  */
 class LebeShieldManager {
