@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import {
   Activity, Terminal, ShieldCheck, Database, X, Trash2, Filter,
-  Search, Columns3, ChevronDown, ExternalLink, Clock3,
+  Search, Columns3, ChevronDown,
 } from 'lucide-react';
 import { NetworkRequest } from '../../types/browser';
 
