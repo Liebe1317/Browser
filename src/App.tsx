@@ -38,16 +38,7 @@ export default function App() {
     else if (initialUrl === 'chrome://shields') pageType = 'shields';
     else if (initialUrl === 'chrome://downloads') pageType = 'downloads';
     else if (initialUrl === 'chrome://security' || initialUrl === 'chrome://vault') pageType = 'security';
-    else if (initialUrl.includes('youtube.com') || initialUrl.includes('youtu.be')) {
-      try {
-        const initial = new URL(initialUrl);
-        const host = initial.hostname.toLowerCase();
-        pageType = (host === 'youtube.com' || host === 'www.youtube.com')
-          && initial.pathname === '/' && !initial.searchParams.has('v') ? 'youtube' : 'webpage';
-      } catch {
-        pageType = 'webpage';
-      }
-    }
+    else if (initialUrl.includes('youtube.com') || initialUrl.includes('youtu.be')) pageType = 'webpage';
     else if (!isInternal) pageType = 'webpage';
 
     return {
@@ -502,20 +493,14 @@ export default function App() {
       else if (trimmed === 'chrome://shields') pageType = 'shields';
       else if (trimmed === 'chrome://downloads') pageType = 'downloads';
       else if (trimmed === 'chrome://security' || trimmed === 'chrome://vault') pageType = 'security';
-      else if (trimmed === 'chrome://youtube') pageType = 'youtube';
-    } else if (trimmed.includes('youtube.com') || trimmed.includes('youtu.be')) {
-      targetUrl = trimmed.startsWith('http') ? trimmed : `https://${trimmed}`;
-      try {
-        const youtubeUrl = new URL(targetUrl);
-        const host = youtubeUrl.hostname.toLowerCase();
-        const isYouTubeHome = (host === 'youtube.com' || host === 'www.youtube.com')
-          && youtubeUrl.pathname === '/' && !youtubeUrl.searchParams.has('v');
-        // Keep the Aegis YouTube discovery page for the homepage only.
-        // Real video/watch/shorts URLs must use the isolated native Chromium site view.
-        pageType = isYouTubeHome ? 'youtube' : 'webpage';
-      } catch {
+      else if (trimmed === 'chrome://youtube') {
+        targetUrl = 'https://www.youtube.com/';
         pageType = 'webpage';
       }
+    } else if (trimmed.includes('youtube.com') || trimmed.includes('youtu.be')) {
+      targetUrl = trimmed.startsWith('http') ? trimmed : `https://${trimmed}`;
+      // YouTube is a normal first-party website. Never replace it with an Aegis imitation page.
+      pageType = 'webpage';
     } else if (trimmed.includes('google.com/search') || trimmed.includes('google.com/?q=')) {
       targetUrl = trimmed.startsWith('http') ? trimmed : `https://${trimmed}`;
       pageType = 'webpage';
