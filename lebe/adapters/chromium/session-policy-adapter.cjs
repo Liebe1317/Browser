@@ -1,26 +1,70 @@
 'use strict';
 
-const { LebeShields } = require('../../core/shields.cjs');
+const { LebeShieldManager } = require('../../core/shield-manager.cjs');
 
 function createChromiumShieldsAdapter(rules, options = {}) {
-  const shields = new LebeShields(rules);
-  for (const list of options.filterLists || []) shields.addFilterList(list.content, list.source || 'subscription');
+  const manager = options.manager || new LebeShieldManager({
+    legacyRules: rules || [],
+    limits: options.limits,
+  });
+  let generatedListId = 0;
+
+  for (const [index, list] of (options.filterLists || []).entries()) {
+    manager.addFilterList({
+      id: list.id || 'initial-' + index,
+      source: list.source || 'subscription',
+      content: list.content,
+    });
+  }
+
   return Object.freeze({
     evaluateRequest(details = {}) {
-      return shields.evaluate({
+      return manager.evaluateRequest({
         url: details.url,
         method: details.method || 'GET',
-        resourceType: ({ xhr: 'xmlhttprequest', mainFrame: 'document', subFrame: 'subdocument' })[details.resourceType] || details.resourceType || 'other',
-        isMainFrame: details.resourceType === 'mainFrame',
+        resourceType: ({ xhr: 'xmlhttprequest', mainFrame: 'main-frame', subFrame: 'sub-frame' })[details.resourceType] || details.resourceType || 'other',
+        isMainFrame: details.resourceType === 'mainFrame' || details.resourceType === 'main-frame',
         documentUrl: details.initiator || details.referrer || details.documentUrl || '',
       });
     },
     evaluateUrl(rawUrl) {
       return this.evaluateRequest({ url: rawUrl, method: 'GET', resourceType: 'other' });
     },
-    addFilterList(content, source) { return shields.addFilterList(content, source); },
-    get ruleCount() { return shields.ruleCount; },
-    get networkRuleCount() { return shields.networkRuleCount; },
+    addFilterList(content, source = 'custom') {
+      const id = 'runtime-' + (++generatedListId);
+      return manager.addFilterList({ id, content, source }).networkRuleCount;
+    },
+    addManagedFilterList(list) {
+      return manager.addFilterList(list);
+    },
+    updateFilterList(list) {
+      return manager.updateFilterList(list);
+    },
+    removeFilterList(id) {
+      return manager.removeFilterList(id);
+    },
+    getCosmeticCss(rawUrl) {
+      return manager.getCosmeticCss(rawUrl);
+    },
+    setModuleEnabled(module, enabled) {
+      return manager.setModuleEnabled(module, enabled);
+    },
+    getFilterLists() {
+      return manager.listFilterLists();
+    },
+    getStats() {
+      return manager.getStats();
+    },
+    get manager() {
+      return manager;
+    },
+    get ruleCount() {
+      return manager.getStats().legacyRuleCount + manager.getStats().networkRuleCount;
+    },
+    get networkRuleCount() {
+      return manager.getStats().networkRuleCount;
+    },
   });
 }
+
 module.exports = { createChromiumShieldsAdapter };
