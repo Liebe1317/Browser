@@ -88,6 +88,8 @@ function validateFilterText(text, limits) {
     return line && !line.startsWith('!') && !line.startsWith('[') &&
       (line.includes('##') || line.includes('#@#') || !/\s/.test(line));
   }).join('\n');
+  // Comments and whitespace alone must not qualify as a valid downloaded list.
+  if (!candidate.trim()) throw new Error('Filter list contains no rules.');
   const network = new AkramShields([]);
   const cosmetic = new AkramCosmeticFilters();
   const networkRuleCount = network.addFilterList(candidate, 'validation');
