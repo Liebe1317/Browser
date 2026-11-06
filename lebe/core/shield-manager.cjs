@@ -112,7 +112,7 @@ class LebeShieldManager {
   }
 
   listFilterLists() {
-    return this.#buildEngines(this.#lists).metadata.values().toArray();
+    return Array.from(this.#buildEngines(this.#lists).metadata.values());
   }
 
   evaluateRequest(request = {}) {
@@ -145,7 +145,7 @@ class LebeShieldManager {
   }
 
   getStats() {
-    const lists = this.#buildEngines(this.#lists).metadata.values().toArray();
+    const lists = Array.from(this.#buildEngines(this.#lists).metadata.values());
     return Object.freeze({
       profile: 'lebe-default',
       modules: this.getModuleStates(),
