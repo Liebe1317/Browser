@@ -1,6 +1,6 @@
 import { isBlockedUrl } from './ssrf.ts';
 
-export type LibiAction =
+export type AkramAIAction =
   | { type: 'navigate'; url: string }
   | { type: 'new_tab' }
   | { type: 'back' }
@@ -21,7 +21,7 @@ export type LibiAction =
   | { type: 'scroll_top' }
   | { type: 'scroll_bottom' };
 
-const INTERNAL_COMMANDS: Array<[RegExp, LibiAction]> = [
+const INTERNAL_COMMANDS: Array<[RegExp, AkramAIAction]> = [
   [/^(?:افتح|اعرض|اذهب الى|انتقل الى)\s+(?:الاعدادات|اعدادات المتصفح|settings)$/, { type: 'open_settings' }],
   [/^(?:افتح|اعرض|اذهب الى|انتقل الى)\s+(?:السجل|التاريخ|history)$/, { type: 'open_history' }],
   [/^(?:افتح|اعرض|اذهب الى|انتقل الى)\s+(?:الاشارات|المفضلة|bookmarks)$/, { type: 'open_bookmarks' }],
@@ -45,7 +45,7 @@ function cleanCommand(value: string): string {
 }
 
 /** Parse an explicit user web-search request without delegating query routing to the model. */
-export function parseLibiSearchQuery(input: string): string | null {
+export function parseAkramAISearchQuery(input: string): string | null {
   const command = cleanCommand(input);
   const match = command.match(/^(?:ابحث عن|ابحث لي عن|ابحثلي عن|دور لي على|دورلي على|فتش عن|search for)\s+(.+)$/i);
   const query = match?.[1]?.trim().slice(0, 200) ?? '';
@@ -67,7 +67,7 @@ function safeNavigationUrl(raw: string): string | null {
 }
 
 /** Explicit, narrow command parser. It proposes an action; the UI must ask the user to confirm it. */
-export function detectLibiAction(input: string): LibiAction | null {
+export function detectAkramAIAction(input: string): AkramAIAction | null {
   const command = cleanCommand(input);
   if (/^(ارجع|رجوع|للخلف|الصفحة السابقة|ارجع صفحة)$/.test(command)) return { type: 'back' };
   if (/^(تقدم|للأمام|الى الامام|الصفحة التالية)$/.test(command)) return { type: 'forward' };
@@ -94,7 +94,11 @@ export function detectLibiAction(input: string): LibiAction | null {
   return null;
 }
 
-export function describeLibiAction(action: LibiAction): string {
+export type LibiAction = AkramAIAction;
+export const parseLibiSearchQuery = parseAkramAISearchQuery;
+export const detectLibiAction = detectAkramAIAction;
+
+export function describeAkramAIAction(action: AkramAIAction): string {
   switch (action.type) {
     case 'navigate': return `فتح ${action.url}`;
     case 'new_tab': return 'فتح علامة تبويب جديدة';
