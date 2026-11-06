@@ -1,9 +1,14 @@
-import type { LebeRequest, LebeRequestPolicy, ShieldDecision } from "./contracts";
-
-export declare function hostMatchesDomain(hostname: string, domain: string): boolean;
-
-export declare class LebeShields implements LebeRequestPolicy {
+declare class LebeShields {
   constructor(rules?: readonly { readonly id: string; readonly domain: string }[]);
-  evaluate(request: LebeRequest): ShieldDecision;
+  evaluate(request: import("./contracts").LebeRequest): import("./contracts").ShieldDecision;
   readonly ruleCount: number;
 }
+
+declare function hostMatchesDomain(hostname: string, domain: string): boolean;
+
+declare const runtime: {
+  LebeShields: typeof LebeShields;
+  hostMatchesDomain: typeof hostMatchesDomain;
+};
+
+export default runtime;
