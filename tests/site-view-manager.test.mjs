@@ -57,6 +57,7 @@ class FakeWebContentsView {
     this.webContents.setZoomFactor = (factor) => { this.webContents.zoomFactor = factor; };
     this.webContents.destroy = () => { this.webContents.destroyed = true; };
     this.webContents.setWindowOpenHandler = (handler) => { this.webContents.openHandler = handler; };
+    this.getBounds = () => this.bounds || { x: 0, y: 0 };
     for (const method of ['copy', 'cut', 'paste', 'undo', 'redo', 'selectAll']) {
       this.webContents[method] = () => { this.webContents.lastCommand = method; };
     }
@@ -69,9 +70,10 @@ class FakeWebContentsView {
 
 const events = [];
 let lastContextMenu = null;
+let lastContextMenuOptions = null;
 let copiedText = '';
 const fakeMenu = {
-  buildFromTemplate: (template) => ({ template, popup: () => { lastContextMenu = template; } }),
+  buildFromTemplate: (template) => ({ template, popup: (options) => { lastContextMenu = template; lastContextMenuOptions = options; } }),
 };
 const manager = createSiteViewManager({
   WebContentsView: FakeWebContentsView,
@@ -110,6 +112,7 @@ createdViews[0].webContents.emit('context-menu', {}, {
   editFlags: { canCopy: true },
 });
 ok(Array.isArray(lastContextMenu) && lastContextMenu.some((item) => item.label === 'نسخ عنوان الرابط'), 'right-click opens a native context menu with link actions');
+ok(lastContextMenuOptions.x === 115 && lastContextMenuOptions.y === 165, 'context menu is positioned at the native site-view pointer coordinates');
 const copyLinkItem = lastContextMenu.find((item) => item.label === 'نسخ عنوان الرابط');
 copyLinkItem.click();
 ok(copiedText === 'https://video.example/target/', 'context menu copies only validated HTTP(S) link URLs');
@@ -122,7 +125,7 @@ createdViews[0].webContents.emit('context-menu', {}, {
 });
 ok(lastContextMenu.some((item) => item.label === 'لصق') && lastContextMenu.some((item) => item.label === 'قص'), 'editable fields receive standard editing actions');
 const safePopup = createdViews[0].webContents.openHandler({ url: 'https://download.example/file', disposition: 'foreground-tab' });
-ok(safePopup.action === 'allow', 'safe HTTPS popups can open in an isolated child window');
+ok(safePopup.action === 'deny', 'script-created foreground popups are denied by default');
 ok(createdViews[0].webContents.openHandler({ url: 'https://download.example/file', disposition: 'background-tab' }).action === 'deny', 'background pop-under windows are blocked');
 ok(createdViews[0].webContents.openHandler({ url: 'https://clickadu.com/redirect', disposition: 'foreground-tab' }).action === 'deny', 'known ad-network popup destinations are blocked');
 ok(createdViews[0].webContents.openHandler({ url: 'https://download.example/file', disposition: 'new-window' }).action === 'deny', 'unsolicited new-window requests are blocked');
