@@ -1,5 +1,5 @@
 /**
- * Engine-neutral contracts for the Lebe browser architecture.
+ * Engine-neutral contracts for the Akram browser architecture.
  *
  * This module must remain independent from Electron, Chromium, DOM and Node APIs.
  */
@@ -46,7 +46,7 @@ export interface AkramRequestPolicy {
 
 /**
  * The rendering adapter is intentionally capability-oriented. Concrete adapters
- * translate these operations to their own engine APIs; Lebe Core never imports them.
+ * translate these operations to their own engine APIs; Akram Core never imports them.
  */
 export interface AkramPageHandle {
   readonly id: string;

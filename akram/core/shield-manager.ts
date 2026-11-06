@@ -45,7 +45,7 @@ export interface AkramShieldManagerOptions {
   };
 }
 
-/** Typed engine-neutral facade for the central Lebe Shield policy manager. */
+/** Typed engine-neutral facade for the central Akram Shield policy manager. */
 export class AkramShieldManager implements AkramRequestPolicy {
   readonly #runtime: InstanceType<typeof runtime.AkramShieldManager>;
 

@@ -11,6 +11,7 @@ const { createSiteViewManager } = require('./site-view-manager.cjs');
 
 let mainWindow = null;
 let siteViewManager = null;
+app.setName('Akram Browser');
 const userDataPath = getAegisUserDataPath();
 app.setPath('userData', userDataPath);
 const aksaProxy = parseAksaLocalProxy(process.env.AKSA_VPN_PROXY || 'http://127.0.0.1:19090');
