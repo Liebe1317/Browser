@@ -42,7 +42,7 @@ function createSiteViewManager({
     return views.get(tabId) || null;
   }
 
-  function attachEvents(tabId, webContents) {
+  function attachEvents(tabId, webContents, entry) {
     webContents.on('did-start-loading', () => send(tabId, 'loading', { isLoading: true }));
     webContents.on('did-stop-loading', () => send(tabId, 'loading', { isLoading: false }));
     webContents.on('media-started-playing', () => send(tabId, 'media-state', { state: 'playing' }));
@@ -67,7 +67,42 @@ function createSiteViewManager({
     webContents.on('render-process-gone', (_event, details) => {
       send(tabId, 'process-gone', { reason: typeof details?.reason === 'string' ? details.reason.slice(0, 40) : 'unknown' });
     });
-    webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+    // Allow ordinary web popups as separate, sandboxed windows that reuse the
+    // opener's exact profile partition. Chromium still applies its transient
+    // user-activation popup policy; unsafe schemes and the privileged app origin
+    // are rejected before a window is created.
+    webContents.setWindowOpenHandler((details) => {
+      const popupUrl = details && details.url === 'about:blank'
+        ? 'about:blank'
+        : safeSiteUrl(details?.url, getTrustedAppOrigin());
+      if (!popupUrl) return { action: 'deny' };
+      return {
+        action: 'allow',
+        overrideBrowserWindowOptions: {
+          parent: getWindow(),
+          width: 1100,
+          height: 760,
+          show: true,
+          webPreferences: {
+            partition: entry.partition,
+            nodeIntegration: false,
+            contextIsolation: true,
+            sandbox: true,
+            webSecurity: true,
+            allowRunningInsecureContent: false,
+            webviewTag: false,
+            spellcheck: false,
+          },
+        },
+      };
+    });
+    webContents.on('did-create-window', (popupWindow) => {
+      const popupContents = popupWindow?.webContents;
+      if (!popupContents || popupContents.isDestroyed?.()) return;
+      webContentsToTab.set(popupContents.id, tabId);
+      attachEvents(tabId, popupContents, entry);
+      popupContents.once('destroyed', () => webContentsToTab.delete(popupContents.id));
+    });
     webContents.on('will-navigate', (event, url) => {
       if (!safeSiteUrl(url, getTrustedAppOrigin())) event.preventDefault();
     });
@@ -152,7 +187,7 @@ function createSiteViewManager({
     view.setBounds({ x: 0, y: 0, width: 1, height: 1 });
     view.setVisible(false);
     window.contentView.addChildView(view);
-    attachEvents(tabId, view.webContents);
+    attachEvents(tabId, view.webContents, entry);
 
     try {
       await view.webContents.loadURL(initialUrl);
