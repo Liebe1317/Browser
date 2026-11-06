@@ -521,7 +521,7 @@ export default function App() {
     }
 
     // Reject credential-bearing or unsupported URLs before they enter tab state or history.
-    if (pageType === 'webpage' || pageType === 'youtube') {
+    if (pageType === 'webpage') {
       const decision = decideNavigation({ url: targetUrl, source: 'site' });
       if (decision.action === 'deny') return;
       targetUrl = decision.url;
