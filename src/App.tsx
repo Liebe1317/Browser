@@ -412,12 +412,16 @@ export default function App() {
     const unsubscribe = window.aegisDesktop?.browser?.onSiteViewEvent((event) => {
       if (
         event.type === 'network-request'
+        && typeof event.tabId === 'string'
+        && event.tabId.length > 0
         && typeof event.requestId === 'string'
+        && event.requestId.length <= 160
         && typeof event.url === 'string'
         && typeof event.method === 'string'
         && typeof event.resourceType === 'string'
-        && typeof event.phase === 'string'
+        && ['started', 'completed', 'failed', 'blocked'].includes(event.phase || '')
         && typeof event.timestamp === 'number'
+        && Number.isFinite(event.timestamp)
       ) {
         handleNetworkRequest({
           tabId: event.tabId,
