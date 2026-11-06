@@ -55,10 +55,10 @@ function safeFilterHeaders(input: Record<string, string> | undefined): Record<st
  * Direct mode uses the same connect-time guarded DNS lookup as server/ssrf.ts. Aksa's current
  * CONNECT proxy does not expose a destination-IP pinning contract, so this transport refuses
  * to run while the server VPN is enabled instead of silently bypassing it or claiming that
- * proxy-side DNS is pinned. Redirects are never followed for filter subscriptions.
+ * proxy-side DNS is pinned. The owning runtime must inject its authoritative VPN state. Redirects are never followed for filter subscriptions.
  */
 export function createAkramFilterListFetcher(
-  dependencies: AkramFilterListTransportDependencies = {}
+  dependencies: AkramFilterListTransportDependencies
 ) {
   const vpnStatus = dependencies.vpnStatus;
   if (typeof vpnStatus !== 'function') {
