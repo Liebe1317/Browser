@@ -39,4 +39,4 @@ assert.equal(results.length, 2, 'only ordinary HTTP(S) links survive validation'
 assert.equal(results[0].url, 'https://example.com/article');
 assert.equal(results[1].title.length > 0, true, 'untrusted result labels remain text data');
 
-console.log('PASS - Libi action allowlist, navigation safety, and search-result validation');
+console.log('PASS - Akram AI action allowlist, navigation safety, and search-result validation');
