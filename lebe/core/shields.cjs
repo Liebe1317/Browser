@@ -1,5 +1,7 @@
 'use strict';
 
+const { getDomain } = require('tldts');
+
 function normalizeHost(value) {
   return String(value || '').toLowerCase().replace(/\.$/, '');
 }
@@ -79,11 +81,25 @@ function parseFilterLine(line, index = 0) {
   }
   return { id: 'abp-' + index, source: raw, exception, matcher, types, excludedTypes, domains, excludedDomains, thirdParty };
 }
+function getRegistrableDomain(hostname) {
+  const host = normalizeHost(hostname);
+  if (!host) return null;
+  // Include private suffixes (for example github.io) so separate hosted
+  // tenants are treated as separate sites, as they are in browser isolation.
+  return getDomain(host, { allowPrivateDomains: true }) || null;
+}
 function isThirdParty(requestUrl, documentUrl) {
   if (!documentUrl) return false;
   try {
-    const a = new URL(requestUrl), b = new URL(documentUrl);
-    return !(a.hostname === b.hostname || hostMatchesDomain(a.hostname, b.hostname) || hostMatchesDomain(b.hostname, a.hostname));
+    const requestHost = normalizeHost(new URL(requestUrl).hostname);
+    const documentHost = normalizeHost(new URL(documentUrl).hostname);
+    if (!requestHost || !documentHost) return false;
+    const requestDomain = getRegistrableDomain(requestHost);
+    const documentDomain = getRegistrableDomain(documentHost);
+    // IP addresses, localhost, and public-suffix-only hosts have no
+    // registrable domain. For those, only an exact host match is first-party.
+    if (!requestDomain || !documentDomain) return requestHost !== documentHost;
+    return requestDomain !== documentDomain;
   } catch { return false; }
 }
 function matchesCompiled(rule, url, request) {
@@ -146,4 +162,4 @@ class LebeShields {
   get ruleCount() { return this.#legacyRules.length + this.#networkRules.length; }
   get networkRuleCount() { return this.#networkRules.length; }
 }
-module.exports = { LebeShields, hostMatchesDomain, parseFilterLine, compileNetworkPattern };
+module.exports = { LebeShields, hostMatchesDomain, parseFilterLine, compileNetworkPattern, isThirdParty };
