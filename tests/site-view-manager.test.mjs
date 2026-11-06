@@ -93,7 +93,15 @@ ok(createdViews[0].options.webPreferences.webSecurity === true, 'site view keeps
 ok(!('preload' in createdViews[0].options.webPreferences), 'untrusted site view receives no privileged preload');
 ok(createdViews[0].options.webPreferences.session === sessionFor('aegis-private-main'), 'private tabs use an ephemeral profile partition');
 ok(createdViews[0].visible === false, 'new native views start hidden until layout activates them');
-ok(createdViews[0].webContents.openHandler().action === 'deny', 'site popups are denied by default');
+const safePopup = createdViews[0].webContents.openHandler({ url: 'https://download.example/file', disposition: 'foreground-tab' });
+ok(safePopup.action === 'allow', 'safe HTTPS popups can open in an isolated child window');
+ok(safePopup.overrideBrowserWindowOptions.webPreferences.partition === 'aegis-private-main', 'popup windows reuse only the opener profile partition');
+ok(safePopup.overrideBrowserWindowOptions.webPreferences.sandbox === true
+  && safePopup.overrideBrowserWindowOptions.webPreferences.nodeIntegration === false
+  && safePopup.overrideBrowserWindowOptions.webPreferences.contextIsolation === true,
+  'popup windows retain Chromium renderer isolation');
+ok(createdViews[0].webContents.openHandler({ url: 'javascript:alert(1)' }).action === 'deny', 'script popups remain blocked');
+ok(createdViews[0].webContents.openHandler({ url: 'http://127.0.0.1:3000/private' }).action === 'deny', 'popups cannot target the privileged app origin');
 const routed = manager.recordNetworkEvent({
   webContentsId: createdViews[0].webContents.id,
   requestId: 'network-1',
