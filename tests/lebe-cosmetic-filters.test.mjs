@@ -13,7 +13,7 @@ check(filters.addFilterList([
   'example.com##.sponsored-card',
   'example.com#@#.sponsored-card',
   '##.global-ad-slot',
-  'news.example,~sports.example##[data-ad-unit]',
+  'example.com,~sports.example.com##[data-ad-unit]',
   'example.com##video',
   'example.com##.video-player',
   'example.com##body',
@@ -25,8 +25,8 @@ const exampleCss = filters.getCss('https://www.example.com/article');
 check(exampleCss.includes('.global-ad-slot{'), 'global cosmetic rules apply to every supported page');
 check(!exampleCss.includes('.sponsored-card{'), 'site-specific cosmetic exceptions override matching hide rules');
 check(exampleCss.includes('[data-ad-unit]{'), 'domain-scoped cosmetic rules apply to matching subdomains');
-const sportsCss = filters.getCss('https://sports.example/article');
-check(!sportsCss.includes('[data-ad-unit]{'), 'negated domains exclude a site from cosmetic rules');
+const sportsCss = filters.getCss('https://sports.example.com/article');
+check(!sportsCss.includes('[data-ad-unit]{'), 'negated domains exclude a subdomain from cosmetic rules');
 const unrelatedCss = filters.getCss('https://unrelated.test/');
 check(!unrelatedCss.includes('[data-ad-unit]{'), 'domain-scoped cosmetic rules do not leak to unrelated sites');
 check(filters.getCss('file:///tmp/page.html') === '', 'non-web documents receive no cosmetic CSS');
