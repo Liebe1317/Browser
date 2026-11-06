@@ -410,7 +410,29 @@ export default function App() {
 
   useEffect(() => {
     const unsubscribe = window.aegisDesktop?.browser?.onSiteViewEvent((event) => {
-      if (event.type === 'network-request') handleNetworkRequest(event);
+      if (
+        event.type === 'network-request'
+        && typeof event.requestId === 'string'
+        && typeof event.url === 'string'
+        && typeof event.method === 'string'
+        && typeof event.resourceType === 'string'
+        && typeof event.phase === 'string'
+        && typeof event.timestamp === 'number'
+      ) {
+        handleNetworkRequest({
+          tabId: event.tabId,
+          requestId: event.requestId,
+          url: event.url,
+          method: event.method,
+          resourceType: event.resourceType,
+          phase: event.phase as NetworkRequestEvent['phase'],
+          statusCode: event.statusCode,
+          duration: event.duration,
+          error: event.error,
+          blockedReason: event.blockedReason,
+          timestamp: event.timestamp,
+        });
+      }
     });
     return () => unsubscribe?.();
   }, [handleNetworkRequest]);
