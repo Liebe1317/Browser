@@ -93,7 +93,15 @@ function createBrowserSessionPolicy({ getVpnState, isAppRequest, onNetworkEvent 
       try {
         const url = new URL(raw);
         if (!['http:', 'https:', 'ws:', 'wss:'].includes(url.protocol)) return '';
-        return url.origin + url.pathname;
+        const segments = url.pathname.split('/');
+        const safePath = segments.map((segment, index) => {
+          const previous = segments[index - 1] || '';
+          const followsSensitiveLabel = /^(?:token|access_token|auth|authorization|session|signature|sig|key)$/i.test(previous);
+          const opaqueToken = segment.length >= 24
+            && (/^[a-f0-9]{24,}$/i.test(segment) || /^[A-Za-z0-9_-]{32,}$/.test(segment));
+          return followsSensitiveLabel || opaqueToken ? '[redacted]' : segment;
+        }).join('/');
+        return url.origin + safePath;
       } catch { return ''; }
     };
     browserSession.webRequest.onBeforeRequest(requestFilter, (details, callback) => {
