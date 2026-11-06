@@ -122,7 +122,7 @@ function isPrivateOrLocalUrl(rawUrl) {
     if (isPrivateIpv4(host)) return true;
     if (isIP(host) === 6) {
       const ipv6 = host.toLowerCase();
-      if (ipv6 === '::' || ipv6 === '::1' || /^f[cd][0-9a-f]{2}:/ .test(ipv6) || /^fe[89ab][0-9a-f]:/.test(ipv6)) return true;
+      if (ipv6 === '::' || ipv6 === '::1' || /^f[cd][0-9a-f]{2}:/i.test(ipv6) || /^fe[89ab][0-9a-f]:/.test(ipv6)) return true;
       if (ipv6.startsWith('::ffff:')) {
         const mapped = ipv6.slice('::ffff:'.length);
         if (isPrivateIpv4(mapped)) return true;
