@@ -127,8 +127,7 @@ export const YouTubeView: React.FC<YouTubeViewProps> = ({
     }
 
     if (extractedId && /^[A-Za-z0-9_-]{11}$/.test(extractedId)) {
-      setCurrentVideoId(extractedId);
-      setSearchQuery(query);
+      onNavigate(`https://www.youtube.com/watch?v=${encodeURIComponent(extractedId)}`);
       return;
     }
 
