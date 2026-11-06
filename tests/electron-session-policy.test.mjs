@@ -49,7 +49,10 @@ ok(isBlockedAdOrTracker('https://connect.facebook.net/en_US/fbevents.js'), 'soci
 ok(isBlockedAdOrTracker('https://servedby.smartadserver.com/banner.js'), 'additional display-ad networks are identified');
 ok(isBlockedAdOrTracker('https://track.adsrvr.org/event'), 'additional programmatic ad networks are identified');
 ok(!isBlockedAdOrTracker('https://www.youtube.com/watch?v=example'), 'YouTube content domains are not blocked by the ad filter');
-ok(!isBlockedAdOrTracker('https://rr.googlevideo.com/videoplayback'), 'video delivery domains are not blocked by the ad filter');
+ok(!isBlockedAdOrTracker('https://rr.googlevideo.com/videoplayback?id=content'), 'ordinary video delivery requests are not blocked by the ad filter');
+ok(isBlockedAdOrTracker('https://rr.googlevideo.com/videoplayback?oad=123', { resourceType: 'media' }), 'YouTube video delivery is blocked only when an explicit ad marker is present');
+ok(isBlockedAdOrTracker('https://www.youtube.com/pagead/interaction/', { resourceType: 'script' }), 'YouTube ad endpoint paths are blocked');
+ok(!isBlockedAdOrTracker('https://rr.googlevideo.com/videoplayback?oad=123', { resourceType: 'script' }), 'ad media markers do not block unrelated script requests');
 ok(!isBlockedAdOrTracker('https://notgoogle-analytics.com/'), 'lookalike domains are not blocked');
 ok(isPrivateOrLocalUrl('http://127.0.0.1:3000/'), 'loopback IP URLs are recognized as local');
 ok(isPrivateOrLocalUrl('http://10.0.0.8/'), 'RFC1918 IPv4 URLs are recognized as private');
