@@ -70,7 +70,7 @@ export class LebeShieldManager implements LebeRequestPolicy {
   }
 
   evaluateRequest(request: LebeRequest): ShieldDecision {
-    return this.#runtime.evaluateRequest(request as unknown as Record<string, unknown>) as ShieldDecision;
+    return this.#runtime.evaluateRequest(request as unknown as Record<string, unknown>) as unknown as ShieldDecision;
   }
 
   evaluate(request: LebeRequest): ShieldDecision {
@@ -90,6 +90,6 @@ export class LebeShieldManager implements LebeRequestPolicy {
   }
 
   getStats(): LebeShieldStats {
-    return this.#runtime.getStats() as LebeShieldStats;
+    return this.#runtime.getStats() as unknown as LebeShieldStats;
   }
 }
