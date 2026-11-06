@@ -1,7 +1,7 @@
 declare class LebeShieldManager {
   constructor(options?: {
     legacyRules?: readonly Record<string, unknown>[];
-    limits?: { maxListBytes?: number; maxLinesPerList?: number };
+    limits?: { maxListBytes?: number; maxTotalBytes?: number; maxLinesPerList?: number; maxFilterLists?: number };
   });
   addFilterList(input: { id: string; source?: string; content: string }): {
     readonly id: string;
