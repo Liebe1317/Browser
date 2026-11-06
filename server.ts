@@ -8,7 +8,7 @@ import { escapeHtml, renderSearchResultCard, jsStringLiteral, safeHttpUrl } from
 import { extractYouTubeVideos, parseYouTubeInitialData } from './server/youtube.ts';
 import { GoogleGenAI } from '@google/genai';
 import { authorizeProxyRequest, jarFor, addTokenToProxyUrls, clearSessionCookies, bootstrapAppSession, appSessionId, verifyAppCsrf, destroyPrivateContext } from './server/sessions.ts';
-import { detectAkramAIAction, describeAkramAIAction, parseAkramAISearchQuery } from './server/libi.ts';
+import { detectAkramAIAction, describeAkramAIAction, parseAkramAISearchQuery } from './server/akram-ai.ts';
 import { PerKeyRateLimiter } from './server/rateLimiter.ts';
 import { getAksaVpnStatus, setAksaVpnEnabled } from './server/aksaVpn.ts';
 import { AD_DOMAINS, TRACKER_DOMAINS, hostMatches, buildProxyCsp, WEBRTC_BLOCK_SCRIPT } from './server/shield.ts';
