@@ -44,8 +44,8 @@ interface ChromeNavbarProps {
   onChangeSearchEngine?: (engine: keyof typeof SEARCH_ENGINES) => void;
   showEngineBadge?: boolean;
   uiDensity?: 'comfortable' | 'standard' | 'compact';
-  onToggleLibi?: () => void;
-  isLibiOpen?: boolean;
+  onToggleAkramAI?: () => void;
+  isAkramAIOpen?: boolean;
 }
 
 export const ChromeNavbar: React.FC<ChromeNavbarProps> = ({
@@ -82,8 +82,8 @@ export const ChromeNavbar: React.FC<ChromeNavbarProps> = ({
   onChangeSearchEngine,
   showEngineBadge = true,
   uiDensity = 'standard',
-  onToggleLibi,
-  isLibiOpen = false,
+  onToggleAkramAI,
+  isAkramAIOpen = false,
 }) => {
   const [inputVal, setInputVal] = useState(currentTab.displayUrl || currentTab.url);
   const [isFocused, setIsFocused] = useState(false);
@@ -344,20 +344,20 @@ export const ChromeNavbar: React.FC<ChromeNavbarProps> = ({
 
       {/* Right Controls: Shield Badge, Extensions, Incognito & Kebab Menu */}
       <div className="flex items-center gap-1.5 shrink-0">
-        {/* Libi AI Assistant Button with Palestinian Keffiyeh Avatar */}
-        {onToggleLibi && (
+        {/* Akram AI Assistant Button with Palestinian Keffiyeh Avatar */}
+        {onToggleAkramAI && (
           <button
             type="button"
-            onClick={onToggleLibi}
+            onClick={onToggleAkramAI}
             className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-xs font-medium transition-all shadow-sm ${
-              isLibiOpen
+              isAkramAIOpen
                 ? 'bg-indigo-600 text-white border-indigo-400 shadow-[0_0_12px_rgba(99,102,241,0.4)]'
                 : 'bg-indigo-950/60 hover:bg-indigo-900/70 text-indigo-200 border-indigo-500/40 hover:border-indigo-400'
             }`}
             title="أكرم (Akram) - مساعد الذكاء الاصطناعي الخاص بك 🇵🇸"
           >
             <div className="w-5 h-5 rounded-full overflow-hidden border border-indigo-300/60 shrink-0">
-              <img src="/assets/libi.png" alt="ليبي" className="w-full h-full object-cover" />
+              <img src="/assets/akramAI.png" alt="ليبي" className="w-full h-full object-cover" />
             </div>
             <span className="hidden sm:inline font-bold">ليبي</span>
           </button>
