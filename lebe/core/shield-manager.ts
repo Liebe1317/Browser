@@ -30,6 +30,7 @@ export interface LebeShieldStats {
   readonly filterListCount: number;
   readonly networkRuleCount: number;
   readonly legacyRuleCount: number;
+  readonly ruleCount: number;
   readonly cosmeticRuleCount: number;
   readonly unsupportedLineCount: number;
 }
