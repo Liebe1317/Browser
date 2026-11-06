@@ -97,6 +97,7 @@ export function detectAkramAIAction(input: string): AkramAIAction | null {
 export type LibiAction = AkramAIAction;
 export const parseLibiSearchQuery = parseAkramAISearchQuery;
 export const detectLibiAction = detectAkramAIAction;
+export const describeLibiAction = describeAkramAIAction;
 
 export function describeAkramAIAction(action: AkramAIAction): string {
   switch (action.type) {
