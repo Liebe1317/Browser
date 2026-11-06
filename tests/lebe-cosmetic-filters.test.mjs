@@ -37,6 +37,9 @@ check(!isSafeCosmeticSelector('body'), 'document root selectors are rejected');
 check(!isSafeCosmeticSelector('*'), 'universal selectors are rejected');
 check(isSafeCosmeticSelector('.ad-slot'), 'specific ad-slot class selectors are accepted');
 
+check(!filters.getCss('https://ordinary.example/').includes('.ytp-ad-overlay-container{'), 'built-in YouTube selectors are scoped away from unrelated websites');
+check(filters.getCss('https://ordinary.example/').includes('.ad-container{'), 'general ad selectors remain available on ordinary websites');
+
 const youtubeCss = filters.getCss('https://www.youtube.com/watch?v=example');
 check(youtubeCss.includes('.ytp-ad-overlay-container{'), 'the narrowly scoped YouTube ad-overlay rule remains available');
 check(!youtubeCss.includes('.html5-video-player{'), 'the YouTube video player container is never hidden');
