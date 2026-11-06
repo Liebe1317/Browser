@@ -88,7 +88,8 @@ function isThirdParty(requestUrl, documentUrl) {
 }
 function matchesCompiled(rule, url, request) {
   if (!rule.matcher.test(url.href)) return false;
-  const type = String(request.resourceType || 'other').toLowerCase();
+  const rawType = String(request.resourceType || 'other').toLowerCase();
+  const type = ({ 'main-frame': 'document', 'sub-frame': 'subdocument', xhr: 'xmlhttprequest' })[rawType] || rawType;
   if (rule.types.length && !rule.types.includes(type)) return false;
   if (rule.excludedTypes.includes(type)) return false;
   let documentHost = '';
