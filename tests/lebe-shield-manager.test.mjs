@@ -1,0 +1,78 @@
+import { createRequire } from 'node:module';
+const require = createRequire(import.meta.url);
+const { LebeShieldManager } = require('../lebe/core/shield-manager.cjs');
+
+const checks = [];
+function check(value, label) {
+  checks.push([!!value, label]);
+  console.log((value ? 'PASS' : 'FAIL') + ' - ' + label);
+}
+
+const manager = new LebeShieldManager();
+check(manager.getStats().profile === 'lebe-default', 'Lebe Default is the built-in protection profile');
+check(manager.getModuleStates().network && manager.getModuleStates().cosmetic, 'network and cosmetic protection start enabled');
+
+const metadata = manager.addFilterList({
+  id: 'starter',
+  source: 'unit-test-list',
+  content: [
+    '! title: manager test',
+    '||ads.example^$script,third-party',
+    'example.com##.sponsored-card',
+    'example.com#@#.sponsored-card',
+    'youtube.com#@#.ytp-ad-overlay-container',
+  ].join('\n'),
+});
+check(metadata.networkRuleCount === 1, 'manager registers network rules');
+check(metadata.cosmeticRuleCount === 2, 'manager registers cosmetic rules and exceptions');
+check(manager.evaluateRequest({
+  url: 'https://ads.example/ad.js',
+  method: 'GET',
+  resourceType: 'script',
+  documentUrl: 'https://publisher.example',
+}).action === 'block', 'central manager evaluates network requests');
+check(manager.getCosmeticCss('https://example.com/').includes('.sponsored-card') === false, 'cosmetic exception is honored through the manager');
+check(manager.getCosmeticCss('https://www.youtube.com/').includes('.ytp-ad-overlay-container') === false, 'site exception can disable a built-in YouTube cosmetic rule');
+check(!manager.getCosmeticCss('https://unrelated.example/').includes('.ytp-ad-overlay-container'), 'YouTube built-ins do not leak to unrelated sites');
+check(manager.getCosmeticCss('https://youtube.com/').includes('.ytp-ad-overlay-container{'), 'YouTube built-ins apply on YouTube');
+
+let duplicateRejected = false;
+try { manager.addFilterList({ id: 'starter', content: '||other.example^' }); } catch { duplicateRejected = true; }
+check(duplicateRejected, 'duplicate list registration is rejected without changing live rules');
+check(manager.evaluateRequest({
+  url: 'https://ads.example/ad.js', method: 'GET', resourceType: 'script',
+  documentUrl: 'https://publisher.example',
+}).action === 'block', 'rejected list registration leaves the active policy unchanged');
+
+const updated = manager.updateFilterList({
+  id: 'starter',
+  source: 'unit-test-list-v2',
+  content: '||tracker.example^$image',
+});
+check(updated.networkRuleCount === 1, 'filter-list replacement reports its validated rule count');
+check(manager.evaluateRequest({
+  url: 'https://ads.example/ad.js', method: 'GET', resourceType: 'script',
+  documentUrl: 'https://publisher.example',
+}).action === 'allow', 'atomic list replacement removes the previous list rules');
+check(manager.evaluateRequest({
+  url: 'https://tracker.example/pixel', method: 'GET', resourceType: 'image',
+  documentUrl: 'https://publisher.example',
+}).action === 'block', 'atomic list replacement activates the new rules');
+
+manager.setModuleEnabled('network', false);
+check(manager.evaluateRequest({
+  url: 'https://tracker.example/pixel', method: 'GET', resourceType: 'image',
+  documentUrl: 'https://publisher.example',
+}).reason === 'module-disabled', 'module policy is applied centrally');
+manager.setModuleEnabled('network', true);
+
+check(manager.removeFilterList('starter'), 'registered filter list can be removed');
+check(manager.getStats().filterListCount === 0, 'removal rebuilds the active rule snapshot');
+check(manager.removeFilterList('missing') === false, 'removing an unknown list is a safe no-op');
+
+let oversizedRejected = false;
+const limited = new LebeShieldManager({ limits: { maxListBytes: 8, maxLinesPerList: 2 } });
+try { limited.addFilterList({ id: 'large', content: '||long.example^' }); } catch { oversizedRejected = true; }
+check(oversizedRejected, 'oversized filter lists are rejected before activation');
+
+if (checks.some(([ok]) => !ok)) process.exitCode = 1;
