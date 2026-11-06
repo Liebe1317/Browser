@@ -1,6 +1,7 @@
 'use strict';
 
 const { isIP } = require('node:net');
+const { createChromiumShieldsAdapter } = require('../lebe/adapters/chromium/session-policy-adapter.cjs');
 
 // Keep the native Electron site-view filter aligned with the proxy shield's known
 // ad-network and tracker coverage. This is a domain blocklist, not a claim to block every ad.
@@ -64,11 +65,6 @@ const blockedDomains = [
   'imrworldwide.com',
 ];
 
-function hostMatches(host, domain) {
-  return host === domain || host.endsWith('.' + domain);
-}
-
-
 function isPrivateIpv4(host) {
   if (isIP(host) !== 4) return false;
   const [a, b] = host.split('.').map(Number);
@@ -115,13 +111,12 @@ function isPrivateOrLocalUrl(rawUrl) {
   }
 }
 
+const lebeShieldsAdapter = createChromiumShieldsAdapter(
+  blockedDomains.map((domain) => ({ id: domain, domain })),
+);
+
 function isBlockedAdOrTracker(rawUrl) {
-  try {
-    const host = new URL(rawUrl).hostname.toLowerCase().replace(/\.$/, '');
-    return blockedDomains.some((domain) => hostMatches(host, domain));
-  } catch {
-    return false;
-  }
+  return lebeShieldsAdapter.evaluateUrl(rawUrl).action === 'block';
 }
 
 /**
