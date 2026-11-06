@@ -1,6 +1,7 @@
 import runtime from "./shield-manager.cjs";
 import type {
   LebeRequest,
+  LebeRequestPolicy,
   ShieldDecision,
   ShieldProfileId,
 } from "./contracts";
@@ -44,7 +45,7 @@ export interface LebeShieldManagerOptions {
 }
 
 /** Typed engine-neutral facade for the central Lebe Shield policy manager. */
-export class LebeShieldManager {
+export class LebeShieldManager implements LebeRequestPolicy {
   readonly #runtime: InstanceType<typeof runtime.LebeShieldManager>;
 
   constructor(options: LebeShieldManagerOptions = {}) {
@@ -69,6 +70,10 @@ export class LebeShieldManager {
 
   evaluateRequest(request: LebeRequest): ShieldDecision {
     return this.#runtime.evaluateRequest(request as unknown as Record<string, unknown>) as ShieldDecision;
+  }
+
+  evaluate(request: LebeRequest): ShieldDecision {
+    return this.evaluateRequest(request);
   }
 
   getCosmeticCss(rawUrl: string): string {
