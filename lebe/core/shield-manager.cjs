@@ -39,6 +39,7 @@ class LebeShieldManager {
   #lists = new Map();
   #network;
   #cosmetic;
+  #metadata = new Map();
   #modules = { network: true, cosmetic: true };
 
   constructor(options = {}) {
@@ -52,6 +53,7 @@ class LebeShieldManager {
     const engines = this.#buildEngines(this.#lists);
     this.#network = engines.network;
     this.#cosmetic = engines.cosmetic;
+    this.#metadata = engines.metadata;
   }
 
   #buildEngines(lists) {
@@ -82,6 +84,7 @@ class LebeShieldManager {
     this.#lists = nextLists;
     this.#network = candidate.network;
     this.#cosmetic = candidate.cosmetic;
+    this.#metadata = candidate.metadata;
     return candidate.metadata;
   }
 
@@ -112,7 +115,7 @@ class LebeShieldManager {
   }
 
   listFilterLists() {
-    return Array.from(this.#buildEngines(this.#lists).metadata.values());
+    return Array.from(this.#metadata.values());
   }
 
   evaluateRequest(request = {}) {
@@ -145,7 +148,7 @@ class LebeShieldManager {
   }
 
   getStats() {
-    const lists = Array.from(this.#buildEngines(this.#lists).metadata.values());
+    const lists = Array.from(this.#metadata.values());
     return Object.freeze({
       profile: 'lebe-default',
       modules: this.getModuleStates(),
