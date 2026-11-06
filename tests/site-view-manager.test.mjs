@@ -57,6 +57,7 @@ class FakeWebContentsView {
     this.webContents.setZoomFactor = (factor) => { this.webContents.zoomFactor = factor; };
     this.webContents.destroy = () => { this.webContents.destroyed = true; };
     this.webContents.setWindowOpenHandler = (handler) => { this.webContents.openHandler = handler; };
+    this.webContents.insertCSS = async (css) => { this.webContents.insertedCss = css; };
     this.getBounds = () => this.bounds || { x: 0, y: 0 };
     for (const method of ['copy', 'cut', 'paste', 'undo', 'redo', 'selectAll']) {
       this.webContents[method] = () => { this.webContents.lastCommand = method; };
@@ -105,6 +106,10 @@ ok(createdViews[0].options.webPreferences.webSecurity === true, 'site view keeps
 ok(!('preload' in createdViews[0].options.webPreferences), 'untrusted site view receives no privileged preload');
 ok(createdViews[0].options.webPreferences.session === sessionFor('aegis-private-main'), 'private tabs use an ephemeral profile partition');
 ok(createdViews[0].visible === false, 'new native views start hidden until layout activates them');
+createdViews[0].webContents.emit('dom-ready');
+ok(createdViews[0].webContents.insertedCss.includes('.ytp-ad-overlay-container')
+  && createdViews[0].webContents.insertedCss.includes('.adsbygoogle'),
+  'site views install cosmetic ad-slot and YouTube overlay filtering');
 createdViews[0].webContents.emit('context-menu', {}, {
   linkURL: 'https://video.example/target',
   selectionText: 'selected text',
@@ -129,11 +134,7 @@ ok(safePopup.action === 'deny', 'script-created foreground popups are denied by 
 ok(createdViews[0].webContents.openHandler({ url: 'https://download.example/file', disposition: 'background-tab' }).action === 'deny', 'background pop-under windows are blocked');
 ok(createdViews[0].webContents.openHandler({ url: 'https://clickadu.com/redirect', disposition: 'foreground-tab' }).action === 'deny', 'known ad-network popup destinations are blocked');
 ok(createdViews[0].webContents.openHandler({ url: 'https://download.example/file', disposition: 'new-window' }).action === 'deny', 'unsolicited new-window requests are blocked');
-ok(safePopup.overrideBrowserWindowOptions.webPreferences.partition === 'aegis-private-main', 'popup windows reuse only the opener profile partition');
-ok(safePopup.overrideBrowserWindowOptions.webPreferences.sandbox === true
-  && safePopup.overrideBrowserWindowOptions.webPreferences.nodeIntegration === false
-  && safePopup.overrideBrowserWindowOptions.webPreferences.contextIsolation === true,
-  'popup windows retain Chromium renderer isolation');
+// Popup windows are denied before a child WebContents can be created.
 ok(createdViews[0].webContents.openHandler({ url: 'javascript:alert(1)' }).action === 'deny', 'script popups remain blocked');
 ok(createdViews[0].webContents.openHandler({ url: 'http://127.0.0.1:3000/private' }).action === 'deny', 'popups cannot target the privileged app origin');
 const popupContents = new EventEmitter();
