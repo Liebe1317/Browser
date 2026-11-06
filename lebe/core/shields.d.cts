@@ -1,5 +1,5 @@
 declare class LebeShields {
-  constructor(rules?: readonly { readonly id: string; readonly domain: string }[]);
+  constructor(rules?: readonly { readonly id: string; readonly domain?: string; readonly domains?: readonly string[]; readonly pathIncludes?: readonly string[]; readonly queryKeysAny?: readonly string[]; readonly resourceTypes?: readonly string[]; readonly methods?: readonly string[] }[]);
   evaluate(request: import("./contracts").LebeRequest): import("./contracts").ShieldDecision;
   readonly ruleCount: number;
 }
