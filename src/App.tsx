@@ -1000,12 +1000,12 @@ export default function App() {
           dir="rtl"
         >
           <div className="relative w-8 h-8 rounded-full overflow-hidden border border-indigo-400 shrink-0 shadow-sm">
-            <img src="/assets/libi.png" alt="ليبي" className="w-full h-full object-cover" />
+            <img src="/assets/libi.png" alt="أكرم" className="w-full h-full object-cover" />
             <span className="absolute bottom-0 right-0 w-2 h-2 rounded-full bg-emerald-400" />
           </div>
           <div className="flex flex-col text-right leading-none pr-0.5">
             <span className="text-xs font-bold text-indigo-300 flex items-center gap-1">
-              <span>ليبي</span>
+              <span>أكرم</span>
               <span className="text-[10px]">🇵🇸</span>
             </span>
             <span className="text-[10px] text-slate-400 group-hover:text-slate-200 transition-colors">مساعدك الخاص</span>
