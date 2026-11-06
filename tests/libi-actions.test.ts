@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { detectAkramAIAction, describeAkramAIAction, parseAkramAISearchQuery } from '../server/libi.ts';
+import { detectAkramAIAction, describeAkramAIAction, parseAkramAISearchQuery } from '../server/akram-ai.ts';
 import { parseLibiSearchResults } from '../src/types/libi.ts';
 
 assert.deepEqual(detectAkramAIAction('ليبي، افتح الإعدادات'), { type: 'open_settings' }, 'legacy assistant invocation remains supported');
