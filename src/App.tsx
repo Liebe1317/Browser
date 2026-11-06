@@ -38,7 +38,16 @@ export default function App() {
     else if (initialUrl === 'chrome://shields') pageType = 'shields';
     else if (initialUrl === 'chrome://downloads') pageType = 'downloads';
     else if (initialUrl === 'chrome://security' || initialUrl === 'chrome://vault') pageType = 'security';
-    else if (initialUrl.includes('youtube.com') || initialUrl.includes('youtu.be')) pageType = 'youtube';
+    else if (initialUrl.includes('youtube.com') || initialUrl.includes('youtu.be')) {
+      try {
+        const initial = new URL(initialUrl);
+        const host = initial.hostname.toLowerCase();
+        pageType = (host === 'youtube.com' || host === 'www.youtube.com' || host === 'm.youtube.com')
+          && initial.pathname === '/' && !initial.searchParams.has('v') ? 'youtube' : 'webpage';
+      } catch {
+        pageType = 'webpage';
+      }
+    }
     else if (!isInternal) pageType = 'webpage';
 
     return {
@@ -496,7 +505,17 @@ export default function App() {
       else if (trimmed === 'chrome://youtube') pageType = 'youtube';
     } else if (trimmed.includes('youtube.com') || trimmed.includes('youtu.be')) {
       targetUrl = trimmed.startsWith('http') ? trimmed : `https://${trimmed}`;
-      pageType = 'youtube';
+      try {
+        const youtubeUrl = new URL(targetUrl);
+        const host = youtubeUrl.hostname.toLowerCase();
+        const isYouTubeHome = (host === 'youtube.com' || host === 'www.youtube.com' || host === 'm.youtube.com')
+          && youtubeUrl.pathname === '/' && !youtubeUrl.searchParams.has('v');
+        // Keep the Aegis YouTube discovery page for the homepage only.
+        // Real video/watch/shorts URLs must use the isolated native Chromium site view.
+        pageType = isYouTubeHome ? 'youtube' : 'webpage';
+      } catch {
+        pageType = 'webpage';
+      }
     } else if (trimmed.includes('google.com/search') || trimmed.includes('google.com/?q=')) {
       targetUrl = trimmed.startsWith('http') ? trimmed : `https://${trimmed}`;
       pageType = 'webpage';
