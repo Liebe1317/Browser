@@ -47,7 +47,7 @@ assert.equal(
   path.join('C:\\Users\\test\\AppData\\Roaming', 'AegisBrowser')
 );
 assert.equal(
-  getAegisUserDataPath('linux', { XDG_CONFIG_HOME: '/tmp/aegis-test' }, '/home/test'),
+  getAegisUserDataPath('linux', { XDG_CONFIG_HOME: '/tmp/aegis-test' }, '/home/test').replace(/\\\\/g, '/'),
   '/tmp/aegis-test/aegis-browser'
 );
 
