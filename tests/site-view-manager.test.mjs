@@ -57,6 +57,9 @@ class FakeWebContentsView {
     this.webContents.setZoomFactor = (factor) => { this.webContents.zoomFactor = factor; };
     this.webContents.destroy = () => { this.webContents.destroyed = true; };
     this.webContents.setWindowOpenHandler = (handler) => { this.webContents.openHandler = handler; };
+    for (const method of ['copy', 'cut', 'paste', 'undo', 'redo', 'selectAll']) {
+      this.webContents[method] = () => { this.webContents.lastCommand = method; };
+    }
     this.webContents.loadURL = async (url) => { this.webContents.loadedUrl = url; };
     createdViews.push(this);
   }
@@ -65,8 +68,15 @@ class FakeWebContentsView {
 }
 
 const events = [];
+let lastContextMenu = null;
+let copiedText = '';
+const fakeMenu = {
+  buildFromTemplate: (template) => ({ template, popup: () => { lastContextMenu = template; } }),
+};
 const manager = createSiteViewManager({
   WebContentsView: FakeWebContentsView,
+  Menu: fakeMenu,
+  clipboard: { writeText: (value) => { copiedText = value; } },
   getWindow: () => windows,
   getSession: sessionFor,
   registerSession: (session) => registered.push(session),
@@ -93,6 +103,24 @@ ok(createdViews[0].options.webPreferences.webSecurity === true, 'site view keeps
 ok(!('preload' in createdViews[0].options.webPreferences), 'untrusted site view receives no privileged preload');
 ok(createdViews[0].options.webPreferences.session === sessionFor('aegis-private-main'), 'private tabs use an ephemeral profile partition');
 ok(createdViews[0].visible === false, 'new native views start hidden until layout activates them');
+createdViews[0].webContents.emit('context-menu', {}, {
+  linkURL: 'https://video.example/target',
+  selectionText: 'selected text',
+  isEditable: false,
+  editFlags: { canCopy: true },
+});
+ok(Array.isArray(lastContextMenu) && lastContextMenu.some((item) => item.label === 'نسخ عنوان الرابط'), 'right-click opens a native context menu with link actions');
+const copyLinkItem = lastContextMenu.find((item) => item.label === 'نسخ عنوان الرابط');
+copyLinkItem.click();
+ok(copiedText === 'https://video.example/target/', 'context menu copies only validated HTTP(S) link URLs');
+const copySelectionItem = lastContextMenu.find((item) => item.label === 'نسخ التحديد');
+copySelectionItem.click();
+ok(createdViews[0].webContents.lastCommand === 'copy', 'context menu copies selected page text through Chromium');
+createdViews[0].webContents.emit('context-menu', {}, {
+  isEditable: true,
+  editFlags: { canUndo: true, canRedo: true, canCut: true, canCopy: true, canPaste: true },
+});
+ok(lastContextMenu.some((item) => item.label === 'لصق') && lastContextMenu.some((item) => item.label === 'قص'), 'editable fields receive standard editing actions');
 const safePopup = createdViews[0].webContents.openHandler({ url: 'https://download.example/file', disposition: 'foreground-tab' });
 ok(safePopup.action === 'allow', 'safe HTTPS popups can open in an isolated child window');
 ok(createdViews[0].webContents.openHandler({ url: 'https://download.example/file', disposition: 'background-tab' }).action === 'deny', 'background pop-under windows are blocked');
