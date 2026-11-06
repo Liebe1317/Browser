@@ -79,7 +79,7 @@ function createSiteViewManager({
     // rejects broad/core-player selectors and applies site-specific exceptions.
     webContents.on('dom-ready', () => {
       if (typeof webContents.insertCSS !== 'function') return;
-      const css = getCosmeticCss(webContents.getURL?.() || '');
+      const css = getCosmeticCss(webContents.getURL?.() || entry.url || '');
       if (css) void webContents.insertCSS(css).catch(() => {});
     });
 
@@ -218,7 +218,7 @@ function createSiteViewManager({
       },
     });
 
-    const entry = { view, browserSession, partition, profileKind, profileId, popupWindows: new Set() };
+    const entry = { view, browserSession, partition, profileKind, profileId, url: initialUrl, popupWindows: new Set() };
     views.set(tabId, entry);
     webContentsToTab.set(view.webContents.id, tabId);
     const partitionEntry = partitions.get(partition) || { browserSession, profileKind, count: 0 };
@@ -265,6 +265,7 @@ function createSiteViewManager({
     if (!entry || !url) return { ok: false, error: 'navigation-denied' };
     try {
       await entry.view.webContents.loadURL(url);
+      entry.url = url;
       return { ok: true };
     } catch {
       return { ok: false, error: 'navigation-failed' };
