@@ -12,6 +12,7 @@ const manager = new LebeShieldManager();
 check(manager.getStats().profile === 'lebe-default', 'Lebe Default is the built-in protection profile');
 check(manager.getModuleStates().network && manager.getModuleStates().cosmetic, 'network and cosmetic protection start enabled');
 check(manager.evaluateRequest({ url: 'https://doubleclick.net/ad.js', method: 'GET', resourceType: 'script' }).action === 'block', 'built-in network protection rules are owned by the central Shield core');
+check(manager.evaluate({ url: 'https://doubleclick.net/ad.js', method: 'GET', resourceType: 'script' }).action === 'block', 'Shield manager implements the shared request-policy contract');
 
 const metadata = manager.addFilterList({
   id: 'starter',
