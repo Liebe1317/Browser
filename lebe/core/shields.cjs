@@ -27,7 +27,8 @@ function wildcardFragment(pattern) {
   return source;
 }
 function wildcardToRegExp(pattern) {
-  return new RegExp('^' + wildcardFragment(pattern) + '
+  return new RegExp('^' + wildcardFragment(pattern) + '$', 'i');
+}
 function compileNetworkPattern(pattern) {
   let value = String(pattern || '').trim();
   if (!value || value.startsWith('!') || value.startsWith('[') || value.includes('##') || value.includes('#@#')) return null;
