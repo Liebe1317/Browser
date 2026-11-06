@@ -34,7 +34,7 @@ function compileNetworkPattern(pattern) {
   if (!value || value.startsWith('!') || value.startsWith('[') || value.includes('##') || value.includes('#@#')) return null;
   if (value.startsWith('||')) {
     value = value.slice(2);
-    const separator = value.indexOf('^');
+    const separator = value.search(/[\\/^*]/);
     const host = separator < 0 ? value : value.slice(0, separator);
     const rest = separator < 0 ? '' : value.slice(separator);
     return new RegExp('^(?:https?|wss?):\\/\\/(?:[^/]+\\.)?' + escapeRegex(host) + wildcardFragment(rest), 'i');
