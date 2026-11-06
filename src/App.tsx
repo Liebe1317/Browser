@@ -508,7 +508,7 @@ export default function App() {
       try {
         const youtubeUrl = new URL(targetUrl);
         const host = youtubeUrl.hostname.toLowerCase();
-        const isYouTubeHome = (host === 'youtube.com' || host === 'www.youtube.com' || host === 'm.youtube.com')
+        const isYouTubeHome = (host === 'youtube.com' || host === 'www.youtube.com')
           && youtubeUrl.pathname === '/' && !youtubeUrl.searchParams.has('v');
         // Keep the Aegis YouTube discovery page for the homepage only.
         // Real video/watch/shorts URLs must use the isolated native Chromium site view.
