@@ -44,6 +44,20 @@ assert.equal(events[0].method, 'POST');
 assert.equal(events[0].resourceType, 'xhr');
 assert.equal(JSON.stringify(events).includes(token), false);
 assert.equal(JSON.stringify(events).includes('csrf'), false);
+const shortToken = '0123456789abcdef';
+let shortTokenResult;
+listeners.before({
+  id: 'request-short-token',
+  webContentsId: 17,
+  url: `https://example.com/api/${shortToken}/data?access_token=hidden`,
+  method: 'GET',
+  resourceType: 'fetch',
+}, (result) => { shortTokenResult = result; });
+assert.deepEqual(shortTokenResult, {});
+assert.equal(events.at(-1).url, 'https://example.com/api/[redacted]/data');
+assert.equal(JSON.stringify(events).includes(shortToken), false);
+assert.equal(JSON.stringify(events).includes('access_token'), false);
+
 
 listeners.completed({ id: 'request-1', statusCode: 200 });
 assert.equal(events.length, 2);
