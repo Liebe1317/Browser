@@ -87,27 +87,50 @@ function createBrowserSessionPolicy({ getVpnState, isAppRequest, onNetworkEvent 
     sessionMetadata.set(browserSession, { trustedAppSession });
     installed.add(browserSession);
 
-    browserSession.webRequest.onBeforeRequest(
-      { urls: ['*://*/*', 'ws://*/*', 'wss://*/*'] },
-      (details, callback) => {
-        if (isBlockedAdOrTracker(details.url)) return callback({ cancel: true });
-        if (isPrivateOrLocalUrl(details.url) && !(trustedAppSession && isAppRequest(details.url))) return callback({ cancel: true });
-        const vpn = getVpnState();
-        if (vpn.enabled && !vpn.connected && !(trustedAppSession && isAppRequest(details.url))) {
-          return callback({ cancel: true });
-        }
-        callback({});
-      },
-    );
-
-    browserSession.webRequest.onErrorOccurred(
-      { urls: ['*://*/*', 'ws://*/*', 'wss://*/*'] },
-      (details) => {
-        if (/ERR_PROXY|ERR_TUNNEL_CONNECTION_FAILED/i.test(details.error || '')) {
-          getVpnState().onProxyFailure?.();
-        }
-      },
-    );
+    const requestStarts = new Map();
+    const requestFilter = { urls: ['*://*/*', 'ws://*/*', 'wss://*/*'] };
+    const safeRequestUrl = (raw) => {
+      try {
+        const url = new URL(raw);
+        if (!['http:', 'https:', 'ws:', 'wss:'].includes(url.protocol)) return '';
+        return url.origin + url.pathname;
+      } catch { return ''; }
+    };
+    browserSession.webRequest.onBeforeRequest(requestFilter, (details, callback) => {
+      const isApp = trustedAppSession && isAppRequest(details.url);
+      const blockedReason = isBlockedAdOrTracker(details.url) ? 'shield'
+        : (isPrivateOrLocalUrl(details.url) && !isApp) ? 'private-network'
+        : (getVpnState().enabled && !getVpnState().connected && !isApp) ? 'vpn-disconnected' : '';
+      const base = {
+        webContentsId: details.webContentsId,
+        requestId: details.id,
+        url: safeRequestUrl(details.url),
+        method: typeof details.method === 'string' ? details.method : 'GET',
+        resourceType: typeof details.resourceType === 'string' ? details.resourceType : 'other',
+        timestamp: Date.now(),
+      };
+      if (blockedReason) {
+        onNetworkEvent?.({ ...base, phase: 'blocked', blockedReason });
+        return callback({ cancel: true });
+      }
+      requestStarts.set(details.id, base);
+      onNetworkEvent?.({ ...base, phase: 'started' });
+      callback({});
+    });
+    browserSession.webRequest.onCompleted(requestFilter, (details) => {
+      const started = requestStarts.get(details.id);
+      if (!started) return;
+      requestStarts.delete(details.id);
+      onNetworkEvent?.({ ...started, phase: 'completed', statusCode: Number.isInteger(details.statusCode) ? details.statusCode : 0, duration: Math.max(0, Date.now() - started.timestamp) });
+    });
+    browserSession.webRequest.onErrorOccurred(requestFilter, (details) => {
+      const started = requestStarts.get(details.id);
+      if (started) {
+        requestStarts.delete(details.id);
+        onNetworkEvent?.({ ...started, phase: 'failed', error: typeof details.error === 'string' ? details.error.slice(0, 80) : 'network-error', duration: Math.max(0, Date.now() - started.timestamp) });
+      }
+      if (/ERR_PROXY|ERR_TUNNEL_CONNECTION_FAILED/i.test(details.error || '')) getVpnState().onProxyFailure?.();
+    });
 
     // Electron's permission-request details do not expose a userGesture flag for fullscreen.
     // Chromium gates the Fullscreen API on transient user activation; automatic-fullscreen stays denied.
