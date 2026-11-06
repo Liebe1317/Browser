@@ -90,10 +90,10 @@ function matchesCompiled(rule, url, request) {
   if (rule.types.length && !rule.types.includes(type)) return false;
   if (rule.excludedTypes.includes(type)) return false;
   let documentHost = '';
-  try { documentHost = request.documentUrl ? new URL(request.documentUrl).hostname : ''; } catch {}
+  try { documentHost = (request.documentUrl || request.initiator) ? new URL((request.documentUrl || request.initiator)).hostname : ''; } catch {}
   if (rule.domains.length && !rule.domains.some((d) => hostMatchesDomain(documentHost, d))) return false;
   if (rule.excludedDomains.some((d) => hostMatchesDomain(documentHost, d))) return false;
-  if (rule.thirdParty !== null && isThirdParty(url.href, request.documentUrl) !== rule.thirdParty) return false;
+  if (rule.thirdParty !== null && isThirdParty(url.href, (request.documentUrl || request.initiator)) !== rule.thirdParty) return false;
   return true;
 }
 function matchesLegacy(rule, url, request) {
@@ -207,10 +207,10 @@ function matchesCompiled(rule, url, request) {
   if (rule.types.length && !rule.types.includes(type)) return false;
   if (rule.excludedTypes.includes(type)) return false;
   let documentHost = '';
-  try { documentHost = request.documentUrl ? new URL(request.documentUrl).hostname : ''; } catch {}
+  try { documentHost = (request.documentUrl || request.initiator) ? new URL((request.documentUrl || request.initiator)).hostname : ''; } catch {}
   if (rule.domains.length && !rule.domains.some((d) => hostMatchesDomain(documentHost, d))) return false;
   if (rule.excludedDomains.some((d) => hostMatchesDomain(documentHost, d))) return false;
-  if (rule.thirdParty !== null && isThirdParty(url.href, request.documentUrl) !== rule.thirdParty) return false;
+  if (rule.thirdParty !== null && isThirdParty(url.href, (request.documentUrl || request.initiator)) !== rule.thirdParty) return false;
   return true;
 }
 function matchesLegacy(rule, url, request) {
