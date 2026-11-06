@@ -75,7 +75,16 @@ declare global {
         closeSiteView(tabId: string): Promise<boolean>;
         onSiteViewEvent(callback: (event: {
           tabId: string;
-          type: 'loading' | 'title' | 'navigation' | 'error' | 'process-gone' | 'media-state' | 'audio-state';
+          type: 'loading' | 'title' | 'navigation' | 'error' | 'process-gone' | 'media-state' | 'audio-state' | 'network-request';
+          requestId?: string;
+          method?: string;
+          resourceType?: string;
+          phase?: 'started' | 'completed' | 'failed' | 'blocked';
+          statusCode?: number;
+          duration?: number;
+          error?: string;
+          blockedReason?: string;
+          timestamp?: number;
           state?: 'playing' | 'paused';
           audible?: boolean;
           isLoading?: boolean;
@@ -85,7 +94,17 @@ declare global {
           canGoForward?: boolean;
           code?: number;
           reason?: string;
-        }) => void): () => void;
+        } & Partial<{
+          requestId: string;
+          method: string;
+          resourceType: string;
+          phase: 'started' | 'completed' | 'failed' | 'blocked';
+          statusCode: number;
+          duration: number;
+          error: string;
+          blockedReason: string;
+          timestamp: number;
+        }>) => void): () => void;
       };
     };
   }
