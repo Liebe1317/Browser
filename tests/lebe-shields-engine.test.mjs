@@ -9,7 +9,7 @@ const count = engine.addFilterList([
   '||ads.example^$script,third-party',
   '@@||ads.example/allowed.js^$script,domain=publisher.example',
   '||tracker.example/pixel^$image',
-  '||cdn.example/file^$script,domain=publisher.example|~trusted.publisher.example',
+  '||cdn.example/file$script,domain=publisher.example|~trusted.publisher.example',
   '||media.example^$media,~third-party',
 ].join('\n'), 'unit-test');
 check(count === 5, 'parses supported ABP network filters and ignores comments');
