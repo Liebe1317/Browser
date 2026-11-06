@@ -1,4 +1,4 @@
-# Libi security and data flow
+# Akram AI security and data flow
 
 ## Model API boundary
 
@@ -8,11 +8,11 @@ Never place the key in a VITE_-prefixed variable, URL, localStorage, a React com
 
 ## Two-way interaction
 
-- Libi can answer questions through the configured server-side model.
-- Libi can search the web through a bounded server-side DuckDuckGo request and show validated HTTP(S) result cards. Result links open only after the user clicks.
+- Akram can answer questions through the configured server-side model.
+- Akram can search the web through a bounded server-side DuckDuckGo request and show validated HTTP(S) result cards. Result links open only after the user clicks.
 - With the drawer open, Aegis asks the proxied page frame for a text-only snapshot. The snapshot is kept in React memory, capped at 12,000 characters, and removes script/style/form/input/button/frame/canvas content.
-- Page text is **not** sent to Gemini unless the user checks "السماح بمشاركة نص الصفحة مع Gemini". The consent resets when the URL or active tab changes or the Libi drawer closes.
-- Libi can propose fixed browser actions (navigate, tab/history, settings, bookmark, reader mode, zoom, scroll, theme). The user must confirm each proposal. It cannot run generated code or free-form scripts.
+- Page text is **not** sent to Gemini unless the user checks "السماح بمشاركة نص الصفحة مع Gemini". The consent resets when the URL or active tab changes or the Akram assistant closes.
+- Akram can propose fixed browser actions (navigate, tab/history, settings, bookmark, reader mode, zoom, scroll, theme). The user must confirm each proposal. It cannot run generated code or free-form scripts.
 - Action parsing is deterministic and validates HTTP(S) navigation. There are no model function-calling tools.
 
 ## Untrusted page content
@@ -33,7 +33,7 @@ Web search queries are sent to DuckDuckGo by the Aegis server. Returned result U
 - Libi input/history/page metadata limits, per-session request caps, and global concurrency limits.
 - Model credentials stay in the server process; provider errors do not return credential-bearing details to the browser.
 - Page-control is a deterministic allowlist and every action requires user confirmation.
-- No arbitrary filesystem, shell, password manager, cookies, downloads, or OS access is exposed to Libi.
+- No arbitrary filesystem, shell, password manager, cookies, downloads, or OS access is exposed to Akram.
 
 ## Residual risks
 
