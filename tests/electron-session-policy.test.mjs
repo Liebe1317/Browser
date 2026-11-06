@@ -1,7 +1,7 @@
 import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
-const { createBrowserSessionPolicy, isBlockedAdOrTracker, isPrivateOrLocalUrl, addShieldFilterList, getShieldStats } = require('../electron/session-policy.cjs');
+const { createBrowserSessionPolicy, isBlockedAdOrTracker, isPrivateOrLocalUrl, addShieldFilterList, getShieldStats, getCosmeticCss } = require('../electron/session-policy.cjs');
 const ok = (condition, message) => {
   console.log((condition ? 'PASS' : 'FAIL') + ' - ' + message);
   if (!condition) process.exitCode = 1;
@@ -52,6 +52,9 @@ ok(addShieldFilterList('||custom-filter.example^$script,third-party\n@@||custom-
 ok(isBlockedAdOrTracker('https://custom-filter.example/ad.js', { resourceType: 'script', initiator: 'https://publisher.example' }), 'imported filter lists are enforced by the live Chromium request policy');
 ok(!isBlockedAdOrTracker('https://custom-filter.example/allowed.js', { resourceType: 'script', initiator: 'https://publisher.example' }), 'imported site-specific exceptions are honored by the live request policy');
 ok(getShieldStats().networkRuleCount === 2, 'Lebe Shields exposes network filter rule statistics');
+addShieldFilterList('cosmetic-check.example##.sponsored-widget', 'cosmetic-integration-test');
+ok(getCosmeticCss('https://www.cosmetic-check.example/page').includes('.sponsored-widget{'), 'cosmetic rules imported through the session policy reach the Chromium CSS adapter');
+ok(!getCosmeticCss('https://unrelated.example/page').includes('.sponsored-widget{'), 'imported cosmetic rules remain scoped to their declared site');
 ok(!isBlockedAdOrTracker('https://www.youtube.com/watch?v=example'), 'YouTube content domains are not blocked by the ad filter');
 ok(!isBlockedAdOrTracker('https://rr.googlevideo.com/videoplayback?id=content'), 'ordinary video delivery requests are not blocked by the ad filter');
 ok(isBlockedAdOrTracker('https://rr.googlevideo.com/videoplayback?oad=123', { resourceType: 'media' }), 'YouTube video delivery is blocked only when an explicit ad marker is present');
