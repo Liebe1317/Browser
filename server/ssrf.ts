@@ -10,7 +10,8 @@
  */
 import dns from 'node:dns';
 import net from 'node:net';
-import { Agent, fetch as undiciFetch } from 'undici';
+import { Agent, fetch as undiciFetch, type Dispatcher } from 'undici';
+import { getAksaDispatcher } from './aksaVpn.ts';
 
 export class SsrfBlockedError extends Error {
   constructor(message: string) {
@@ -187,9 +188,29 @@ export interface SafeFetcherConfig {
   /** Overridable for tests only. */
   lookup?: typeof guardedLookup;
   isBlockedUrl?: (u: URL) => boolean;
+  /** Optional browser-scoped VPN dispatcher. It must fail closed; never fall back to direct fetch. */
+  getDispatcher?: () => Dispatcher | undefined;
 }
 
 const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
+
+// Only browser presentation headers may cross an origin-changing redirect.
+// CSRF, authorization, cookies, content metadata and custom headers are origin-bound.
+const SAFE_REDIRECT_HEADERS = new Set([
+  'accept',
+  'accept-language',
+  'user-agent',
+  'sec-ch-ua',
+  'sec-ch-ua-mobile',
+  'sec-ch-ua-platform',
+  'upgrade-insecure-requests',
+  'dnt',
+  'sec-gpc',
+  // Byte-range metadata is representation selection, not origin credentials. CDN redirects
+  // must retain it or video seeking and segmented media requests silently degrade to full fetches.
+  'range',
+  'if-range',
+]);
 
 export function createSafeFetcher(config: SafeFetcherConfig = {}) {
   const urlBlocked = config.isBlockedUrl ?? isBlockedUrl;
@@ -220,7 +241,7 @@ export function createSafeFetcher(config: SafeFetcherConfig = {}) {
         body: method === 'GET' || method === 'HEAD' ? undefined : body,
         signal: init.signal,
         redirect: 'manual',
-        dispatcher: agent,
+        dispatcher: config.getDispatcher?.() ?? agent,
       });
       opts.onResponse?.(url, response);
 
@@ -237,6 +258,13 @@ export function createSafeFetcher(config: SafeFetcherConfig = {}) {
         throw new Error('Invalid redirect location');
       }
 
+      // Never forward site-bound or custom headers to a different origin after redirect.
+      if (next.origin !== url.origin) {
+        baseHeaders = Object.fromEntries(
+          Object.entries(baseHeaders).filter(([name]) => SAFE_REDIRECT_HEADERS.has(name.toLowerCase()))
+        );
+      }
+
       // Per the Fetch spec: 303 (and 301/302 after POST) become GET without a body
       if (response.status === 303 || ((response.status === 301 || response.status === 302) && method === 'POST')) {
         if (method !== 'HEAD') method = 'GET';
@@ -251,7 +279,7 @@ export function createSafeFetcher(config: SafeFetcherConfig = {}) {
   };
 }
 
-export const safeFetch = createSafeFetcher();
+export const safeFetch = createSafeFetcher({ getDispatcher: getAksaDispatcher });
 
 /** Reads a response body but aborts if it exceeds `maxBytes` (protects server memory). */
 export async function readBodyCapped(response: SafeResponse, maxBytes: number): Promise<Buffer> {

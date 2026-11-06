@@ -34,6 +34,8 @@ export interface Tab {
   isIncognito: boolean;
   isPinned: boolean;
   isMuted: boolean;
+  mediaState?: 'playing' | 'paused';
+  isAudible?: boolean;
   readerMode: boolean;
   zoomLevel: number;
   adsBlocked: number;
@@ -118,13 +120,33 @@ export interface BrowserSettings {
   shieldSettings: ShieldSettings;
 }
 
+export type NetworkResourceType = 'document' | 'script' | 'xhr' | 'fetch' | 'image' | 'stylesheet' | 'iframe' | 'font' | 'media' | 'websocket' | 'other';
+
+export interface NetworkRequestEvent {
+  tabId: string;
+  requestId: string;
+  url: string;
+  method: string;
+  resourceType: string;
+  phase: 'started' | 'completed' | 'failed' | 'blocked';
+  statusCode?: number;
+  duration?: number;
+  error?: string;
+  blockedReason?: string;
+  timestamp: number;
+}
+
 export interface NetworkRequest {
   id: string;
+  tabId?: string;
   url: string;
   domain: string;
-  type: 'script' | 'xhr' | 'image' | 'stylesheet' | 'iframe' | 'font';
-  status: 'allowed' | 'blocked';
-  reason?: 'ad' | 'tracker' | 'fingerprinting' | 'insecure';
+  method?: string;
+  type: NetworkResourceType;
+  status: 'pending' | 'allowed' | 'blocked' | 'failed';
+  statusCode?: number;
+  error?: string;
+  reason?: 'ad' | 'tracker' | 'fingerprinting' | 'insecure' | 'shield' | 'private-network' | 'vpn-disconnected';
   timestamp: number;
   size: string;
   duration: number;

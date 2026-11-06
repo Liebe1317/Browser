@@ -1,32 +1,215 @@
-// Electron Desktop Main Process for Aegis Privacy Browser (Windows / macOS / Linux)
-const { app, BrowserWindow, session, Menu, shell } = require('electron');
-const { spawn } = require('child_process');
-const http = require('http');
+'use strict';
+
+const { app, BrowserWindow, WebContentsView, session, ipcMain, Menu, dialog } = require('electron');
 const path = require('path');
+const http = require('http');
+const { spawn } = require('child_process');
+const { pathToFileURL } = require('url');
+const { parseAksaLocalProxy, getAegisUserDataPath } = require('./aksa-config.cjs');
+const { AksaSidecar } = require('./aksa-sidecar.cjs');
+const { installWireproxy } = require('./aksa-installer.cjs');
+const { createBrowserSessionPolicy } = require('./session-policy.cjs');
+const { createSiteViewManager } = require('./site-view-manager.cjs');
 
-let mainWindow;
-let serverProc;
-const PORT = process.env.AEGIS_PORT || '3187';
+let mainWindow = null;
+let siteViewManager = null;
+const userDataPath = getAegisUserDataPath();
+app.setPath('userData', userDataPath);
+const aksaProxy = parseAksaLocalProxy(process.env.AKSA_VPN_PROXY || 'http://127.0.0.1:19090');
+let aksaSidecar = null;
+let aksaEnabled = false;
+let aksaConnected = false;
+let aksaMonitor = null;
+let aksaCheckInFlight = false;
 
-function waitForServer(retries = 60) {
-  return new Promise((resolve, reject) => {
-    const tryOnce = (n) => {
-      http.get(`http://127.0.0.1:${PORT}/api/health`, (res) => { res.resume(); resolve(); })
-        .on('error', () => (n <= 0 ? reject(new Error('server did not start')) : setTimeout(() => tryOnce(n - 1), 500)));
-    };
-    tryOnce(retries);
+const browserSessionPolicy = createBrowserSessionPolicy({
+  getVpnState: () => ({
+    enabled: aksaEnabled,
+    connected: aksaConnected,
+    onProxyFailure: () => {
+      if (!aksaEnabled) return;
+      aksaConnected = false;
+      void applyAksaFailClosedProxy().catch(() => {});
+    },
+  }),
+  isAppRequest,
+  onNetworkEvent: (payload) => { siteViewManager?.recordNetworkEvent(payload); },
+});
+
+// The browser UI needs the local Express/Vite API; a file:// renderer cannot use same-origin /api.
+const localPort = Number(process.env.AEGIS_PORT || process.env.PORT || 3000);
+const startUrl = process.env.ELECTRON_START_URL || `http://127.0.0.1:${localPort}`;
+
+// Start the local Express API ourselves unless the UI is served elsewhere (ELECTRON_START_URL, e.g. Vite dev)
+// or a healthy Aegis server is already listening on the port.
+let serverProc = null;
+function probeServer() {
+  return new Promise((resolve) => {
+    const r = http.get({ host: '127.0.0.1', port: localPort, path: '/api/health', timeout: 1500 }, (res) => { res.resume(); resolve(res.statusCode === 200); });
+    r.on('error', () => resolve(false));
+    r.on('timeout', () => { r.destroy(); resolve(false); });
   });
 }
-
-function startServer() {
+async function ensureLocalServer() {
+  if (process.env.ELECTRON_START_URL || await probeServer()) return;
   const root = path.join(__dirname, '..');
   const tsx = path.join(root, 'node_modules', 'tsx', 'dist', 'cli.mjs');
-  serverProc = spawn(process.execPath, [tsx, 'server.ts', '--port', PORT], {
+  serverProc = spawn(process.execPath, [tsx, 'server.ts', '--port', String(localPort)], {
     cwd: root,
     env: { ...process.env, NODE_ENV: 'production', HOST: '127.0.0.1', ELECTRON_RUN_AS_NODE: '1' },
     stdio: 'inherit',
   });
+  for (let i = 0; i < 60; i++) {
+    if (await probeServer()) return;
+    await new Promise((r) => setTimeout(r, 500));
+  }
+  throw new Error('Aegis server did not start');
 }
+
+// Prevent UDP/QUIC side channels from bypassing the HTTP CONNECT VPN proxy.
+app.commandLine.appendSwitch('force-webrtc-ip-handling-policy', 'disable_non_proxied_udp');
+app.commandLine.appendSwitch('disable-quic');
+app.commandLine.appendSwitch('disable-dns-prefetch');
+let trustedAppOrigin = null;
+try {
+  const parsedStart = new URL(startUrl);
+  if (parsedStart.protocol === 'http:' || parsedStart.protocol === 'https:') trustedAppOrigin = parsedStart.origin;
+} catch {
+  // A local file:// build does not need a remote application origin.
+}
+
+function isTrustedUi(event) {
+  if (!mainWindow || event.sender !== mainWindow.webContents || event.senderFrame !== event.sender.mainFrame) return false;
+  const currentUrl = event.senderFrame.url || '';
+  if (currentUrl.startsWith('file://')) {
+    return currentUrl === startUrl || currentUrl === pathToFileURL(path.join(__dirname, '../dist/index.html')).toString();
+  }
+  try {
+    return !!trustedAppOrigin && new URL(currentUrl).origin === trustedAppOrigin;
+  } catch {
+    return false;
+  }
+}
+
+function isAppRequest(rawUrl) {
+  try {
+    const url = new URL(rawUrl);
+    return !!trustedAppOrigin && url.origin === trustedAppOrigin;
+  } catch {
+    return false;
+  }
+}
+
+async function probeAksaTunnel() {
+  if (!aksaProxy || !aksaSidecar) return false;
+  return aksaSidecar.checkHealth();
+}
+
+async function applyAksaProxy() {
+  if (!aksaProxy) throw new Error('Aksa local gateway is not configured');
+  await browserSessionPolicy.applyProxyToAll({
+    mode: 'fixed_servers',
+    proxyRules: aksaProxy.proxyRules,
+    proxyBypassRules: aksaProxy.proxyBypassRules,
+  });
+}
+
+async function applyAksaFailClosedProxy() {
+  await browserSessionPolicy.applyFailClosedToAll(
+    aksaProxy ? aksaProxy.proxyBypassRules : 'localhost;127.0.0.1;[::1]',
+  );
+}
+
+function getAksaStatus() {
+  const sidecarStatus = aksaSidecar ? aksaSidecar.getStatus() : {};
+  const configured = !!aksaProxy && sidecarStatus.installed === true && sidecarStatus.profileConfigured === true;
+  return {
+    configured,
+    installed: sidecarStatus.installed === true,
+    profileConfigured: sidecarStatus.profileConfigured === true,
+    running: sidecarStatus.running === true,
+    enabled: aksaEnabled,
+    connected: aksaEnabled && aksaConnected,
+    gateway: configured ? 'configured-local' : 'not-configured',
+    version: sidecarStatus.version || null,
+    scope: 'registered-electron-sessions',
+  };
+}
+
+async function refreshAksaHealth() {
+  if (!aksaEnabled || aksaCheckInFlight) return;
+  aksaCheckInFlight = true;
+  try {
+    const healthy = await probeAksaTunnel();
+    if (healthy && !aksaConnected) {
+      await applyAksaProxy();
+      aksaConnected = true;
+    } else if (!healthy && aksaConnected) {
+      aksaConnected = false;
+      await applyAksaFailClosedProxy();
+    } else {
+      aksaConnected = healthy;
+    }
+  } catch {
+    aksaConnected = false;
+    try { await applyAksaFailClosedProxy(); } catch {}
+  } finally {
+    aksaCheckInFlight = false;
+  }
+}
+
+function startAksaMonitor() {
+  if (aksaMonitor) clearInterval(aksaMonitor);
+  aksaMonitor = setInterval(() => { void refreshAksaHealth(); }, 4000);
+  aksaMonitor.unref?.();
+}
+
+async function setAksaEnabled(next) {
+  if (next === false) {
+    aksaEnabled = false;
+    aksaConnected = false;
+    if (aksaMonitor) clearInterval(aksaMonitor);
+    aksaMonitor = null;
+    await browserSessionPolicy.restoreSystemProxyToAll();
+    await aksaSidecar?.stop();
+    return { ok: true, status: getAksaStatus() };
+  }
+
+  if (!aksaProxy || !aksaSidecar) {
+    return { ok: false, status: getAksaStatus(), error: 'Aksa desktop engine is unavailable.' };
+  }
+  const started = await aksaSidecar.start();
+  if (!started.ok) {
+    return { ok: false, status: getAksaStatus(), error: started.error || 'تعذر تشغيل نفق Aksa.' };
+  }
+
+  const healthy = await probeAksaTunnel();
+  if (!healthy) {
+    await aksaSidecar.stop();
+    return {
+      ok: false,
+      status: getAksaStatus(),
+      error: 'بوابة WireGuard لم تؤكد اتصال النفق عبر /readyz. لم يتم تحويل حركة المتصفح.',
+    };
+  }
+
+  // Gate all external web requests while the proxy/session transition is being applied.
+  aksaEnabled = true;
+  aksaConnected = false;
+  try {
+    await applyAksaProxy();
+    aksaConnected = true;
+    startAksaMonitor();
+    return { ok: true, status: getAksaStatus() };
+  } catch {
+    aksaEnabled = false;
+    aksaConnected = false;
+    try { await applyAksaFailClosedProxy(); } catch {}
+    await aksaSidecar.stop();
+    return { ok: false, status: getAksaStatus(), error: 'تعذر تحويل جلسة Chromium إلى بروكسي Aksa المحلي.' };
+  }
+}
+
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -38,74 +221,167 @@ function createWindow() {
     backgroundColor: '#0f172a',
     frame: true,
     webPreferences: {
+      preload: path.join(__dirname, 'preload.cjs'),
       nodeIntegration: false,
       contextIsolation: true,
       sandbox: true,
       webSecurity: true,
       allowRunningInsecureContent: false,
+      webviewTag: false,
+    },
+    icon: path.join(__dirname, '../public/favicon.ico'),
+  });
+
+  Menu.setApplicationMenu(null);
+
+  // Register the application session before loading the UI. Every future profile
+  // partition must pass through this same policy before creating its WebContents.
+  browserSessionPolicy.register(session.defaultSession, { trustedAppSession: true });
+
+  siteViewManager = createSiteViewManager({
+    WebContentsView,
+    getWindow: () => mainWindow,
+    getSession: (partition) => session.fromPartition(partition),
+    registerSession: (browserSession) => browserSessionPolicy.register(browserSession),
+    prepareSession: async (browserSession) => {
+      if (!aksaEnabled) return;
+      if (aksaConnected && aksaProxy) {
+        await browserSession.setProxy({
+          mode: 'fixed_servers',
+          proxyRules: aksaProxy.proxyRules,
+          proxyBypassRules: '<-loopback>',
+        });
+      } else {
+        await browserSession.setProxy({
+          mode: 'fixed_servers',
+          proxyRules: 'http=127.0.0.1:1;https=127.0.0.1:1',
+          proxyBypassRules: '<-loopback>',
+        });
+      }
+      await browserSession.closeAllConnections();
+    },
+    getTrustedAppOrigin: () => trustedAppOrigin,
+    onEvent: (payload) => {
+      if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.webContents.isDestroyed()) {
+        mainWindow.webContents.send('aegis:site:event', payload);
+      }
     },
   });
 
-  // Remove native default menu for sleek browser look
-  Menu.setApplicationMenu(null);
-
-  // Set privacy headers and block common ad/tracker scripts at the Electron session level
-  const filter = {
-    urls: [
-      '*://*.doubleclick.net/*',
-      '*://*.google-analytics.com/*',
-      '*://*.googletagmanager.com/*',
-      '*://*.facebook.com/tr/*',
-      '*://*.criteo.com/*',
-      '*://*.taboola.com/*',
-      '*://*.outbrain.com/*',
-    ],
-  };
-
-  session.defaultSession.webRequest.onBeforeRequest(filter, (details, callback) => {
-    callback({ cancel: true });
+  mainWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+  mainWindow.webContents.on('will-navigate', (event, targetUrl) => {
+    let allowed = false;
+    if (targetUrl.startsWith('file://')) {
+      allowed = targetUrl === startUrl;
+    } else {
+      allowed = isAppRequest(targetUrl);
+    }
+    if (!allowed) event.preventDefault();
+  });
+  mainWindow.webContents.on('will-attach-webview', (event) => event.preventDefault());
+  mainWindow.webContents.on('render-process-gone', () => {
+    // Do not write page URLs or renderer-provided content to logs.
+    console.error('[Aegis Desktop] Renderer process exited unexpectedly.');
   });
 
-  // Use a common desktop user agent
-  session.defaultSession.setUserAgent(
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36'
-  );
-
-  // In production, load the built index.html or local express server
-  // The UI needs the local proxy server (/api), so load it over http, never file://
-  const startUrl = process.env.ELECTRON_START_URL || `http://127.0.0.1:${PORT}`;
-  mainWindow.loadURL(startUrl);
-
-  // Keep the shell locked to the app: external links open in the system browser, never in this window
-  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    if (/^https?:\/\//.test(url)) shell.openExternal(url);
-    return { action: 'deny' };
+  mainWindow.loadURL(startUrl).catch(() => {
+    console.error('[Aegis Desktop] Unable to load the configured Aegis app URL.');
   });
-  mainWindow.webContents.on('will-navigate', (e, url) => {
-    if (!url.startsWith(`http://127.0.0.1:${PORT}`)) e.preventDefault();
-  });
-
   mainWindow.on('closed', () => {
+    const manager = siteViewManager;
+    siteViewManager = null;
     mainWindow = null;
+    void manager?.closeAll();
   });
 }
 
 app.whenReady().then(async () => {
-  if (!process.env.ELECTRON_START_URL) {
-    startServer();
-    await waitForServer();
-  }
-  createWindow();
+  aksaSidecar = new AksaSidecar(userDataPath, {
+    onExit: () => {
+      if (aksaEnabled) {
+        aksaConnected = false;
+        void applyAksaFailClosedProxy().catch(() => {});
+      }
+    },
+  });
 
+  ipcMain.handle('aegis:vpn:install', async (event) => {
+    if (!isTrustedUi(event)) return { ok: false, error: 'Untrusted desktop IPC request.' };
+    try {
+      const result = await installWireproxy({ userDataPath });
+      return { ok: true, version: result.version, status: getAksaStatus() };
+    } catch (error) {
+      return { ok: false, error: error instanceof Error ? error.message : 'تعذر تثبيت محرك Aksa.', status: getAksaStatus() };
+    }
+  });
+
+  ipcMain.handle('aegis:vpn:choose-config', async (event) => {
+    if (!isTrustedUi(event)) return { ok: false, error: 'Untrusted desktop IPC request.' };
+    if (aksaEnabled) return { ok: false, error: 'أوقف Aksa قبل تغيير ملف WireGuard.' };
+    const selection = await dialog.showOpenDialog(mainWindow, {
+      title: 'اختيار ملف إعداد WireGuard من مزود VPN',
+      properties: ['openFile'],
+      filters: [{ name: 'WireGuard configuration', extensions: ['conf'] }],
+    });
+    if (selection.canceled || !selection.filePaths[0]) return { ok: false, cancelled: true, status: getAksaStatus() };
+    try {
+      aksaSidecar.configureProfile(selection.filePaths[0]);
+      return { ok: true, status: getAksaStatus() };
+    } catch (error) {
+      return { ok: false, error: error instanceof Error ? error.message : 'ملف WireGuard غير صالح.', status: getAksaStatus() };
+    }
+  });
+
+  ipcMain.handle('aegis:vpn:get-status', (event) => {
+    if (!isTrustedUi(event)) return { configured: false, enabled: false, connected: false, gateway: 'not-configured', scope: 'registered-electron-sessions' };
+    return getAksaStatus();
+  });
+  ipcMain.handle('aegis:vpn:set-enabled', async (event, enabled) => {
+    if (!isTrustedUi(event) || typeof enabled !== 'boolean') {
+      return { ok: false, status: getAksaStatus(), error: 'Untrusted desktop IPC request.' };
+    }
+    return setAksaEnabled(enabled);
+  });
+
+  ipcMain.handle('aegis:site:create', async (event, payload) => {
+    if (!isTrustedUi(event) || !siteViewManager) return { ok: false, error: 'untrusted-or-unavailable' };
+    try { return await siteViewManager.create(payload); } catch { return { ok: false, error: 'site-view-unavailable' }; }
+  });
+  ipcMain.handle('aegis:site:set-bounds', (event, tabId, bounds) => {
+    if (!isTrustedUi(event) || !siteViewManager) return false;
+    return siteViewManager.setBounds(tabId, bounds);
+  });
+  ipcMain.handle('aegis:site:set-visible', (event, tabId, visible) => {
+    if (!isTrustedUi(event) || !siteViewManager || typeof visible !== 'boolean') return false;
+    return siteViewManager.setVisible(tabId, visible);
+  });
+  ipcMain.handle('aegis:site:navigate', async (event, tabId, url) => {
+    if (!isTrustedUi(event) || !siteViewManager) return { ok: false, error: 'untrusted-or-unavailable' };
+    return siteViewManager.navigate(tabId, url);
+  });
+  ipcMain.handle('aegis:site:back', (event, tabId) => isTrustedUi(event) && !!siteViewManager?.goBack(tabId));
+  ipcMain.handle('aegis:site:forward', (event, tabId) => isTrustedUi(event) && !!siteViewManager?.goForward(tabId));
+  ipcMain.handle('aegis:site:reload', (event, tabId) => isTrustedUi(event) && !!siteViewManager?.reload(tabId));
+  ipcMain.handle('aegis:site:set-zoom', (event, tabId, zoomLevel) => isTrustedUi(event) && !!siteViewManager?.setZoom(tabId, zoomLevel));
+  ipcMain.handle('aegis:site:close', async (event, tabId) => isTrustedUi(event) && !!(await siteViewManager?.close(tabId)));
+
+  try { await ensureLocalServer(); } catch { console.error('[Aegis Desktop] Local server did not start.'); }
+  createWindow();
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
 });
 
-app.on('before-quit', () => { if (serverProc) serverProc.kill(); });
-
-app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
-    app.quit();
+let finalQuitStarted = false;
+app.on('before-quit', (event) => {
+  if (aksaMonitor) clearInterval(aksaMonitor);
+  if (serverProc) { serverProc.kill(); serverProc = null; }
+  if (!finalQuitStarted && aksaSidecar) {
+    finalQuitStarted = true;
+    event.preventDefault();
+    void Promise.allSettled([siteViewManager?.closeAll(), aksaSidecar.stop()]).finally(() => app.quit());
   }
+});
+app.on('window-all-closed', () => {
+  if (process.platform !== 'darwin') app.quit();
 });

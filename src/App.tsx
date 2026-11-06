@@ -18,10 +18,13 @@ import { SecurityVaultView } from './components/views/SecurityVaultView';
 import { VaultLockScreen } from './components/browser/VaultLockScreen';
 import { isVaultSetUp, createVault, unlockVault, lockVault, saveVaultData, loadVaultData, destroyVault, UnlockResult } from './utils/vault';
 import { LibiAssistant } from './components/browser/LibiAssistant';
+import { LibiBrowserAction } from './types/libi';
+import { fetchWithAegisCsrf } from './utils/sessionSecurity';
 
-import { Tab, Bookmark, HistoryItem, DownloadItem, BrowserSettings, ShieldSettings, NetworkRequest, BrowserPageType, VaultState } from './types/browser';
+import { Tab, Bookmark, HistoryItem, DownloadItem, BrowserSettings, ShieldSettings, NetworkRequest, NetworkRequestEvent, BrowserPageType, VaultState } from './types/browser';
 import { DEFAULT_SETTINGS, DEFAULT_SHIELD_SETTINGS, DEFAULT_BOOKMARKS, SEARCH_ENGINES } from './data/initialData';
 import { THEME_PRESETS, applyCustomTheme, getSavedTheme } from './utils/theme';
+import { decideNavigation } from './core/browserPolicy';
 
 export default function App() {
   // Initial default tab
@@ -150,6 +153,12 @@ export default function App() {
   const [showLibi, setShowLibi] = useState(false);
   const [libiContextQuery, setLibiContextQuery] = useState<string | undefined>(undefined);
   const [networkRequests, setNetworkRequests] = useState<NetworkRequest[]>([]);
+  const [reloadNonce, setReloadNonce] = useState(0);
+  const [pageTexts, setPageTexts] = useState<Record<string, string>>({});
+  const [pageScrollCommand, setPageScrollCommand] = useState<{ id: number; direction: 'top' | 'bottom' } | null>(null);
+  const handlePageText = useCallback((id: string, text: string) => {
+    setPageTexts((previous) => ({ ...previous, [id]: text.slice(0, 12000) }));
+  }, []);
 
   // Persist state
   useEffect(() => {
@@ -192,11 +201,23 @@ export default function App() {
   // Get active tab
   const activeTab = tabs.find((t) => t.id === activeTabId) || tabs[0] || createDefaultTab();
 
+  // Send destructive cookie-clear requests with the session-bound CSRF proof.
+  const clearServerSessionCookies = () => {
+    void (async () => {
+      try {
+        await fetchWithAegisCsrf('/api/session/clear', { method: 'POST' });
+      } catch {
+        // Local browsing data is still cleared; the server session expires independently.
+      }
+    })();
+  };
+
   // Vault & Cryptographic Handlers
   const handleLockVault = () => {
     if (!vaultState.isSetUp) return; // nothing to unlock with yet
+    tabs.forEach((tab) => { void window.aegisDesktop?.browser?.closeSiteView(tab.id); });
     lockVault();
-    fetch('/api/session/clear', { method: 'POST' }).catch(() => {}); // log out of proxied sites too
+    clearServerSessionCookies(); // log out of proxied sites too
     // Clear decrypted data and open pages from memory while locked
     setBookmarks(DEFAULT_BOOKMARKS);
     setHistory([]);
@@ -237,6 +258,7 @@ export default function App() {
   };
 
   const handleEmergencyPurge = () => {
+    tabs.forEach((tab) => { void window.aegisDesktop?.browser?.closeSiteView(tab.id); });
     try {
       localStorage.clear();
       sessionStorage.clear();
@@ -247,7 +269,7 @@ export default function App() {
     const freshTab = createDefaultTab(true, 'chrome://newtab');
     setTabs([freshTab]);
     setActiveTabId(freshTab.id);
-    fetch('/api/session/clear', { method: 'POST' }).catch(() => {});
+    clearServerSessionCookies();
     destroyVault();
     setVaultState((prev) => ({ ...prev, isLocked: false, isSetUp: false, storageEncrypted: false, lastEncryptedTimestamp: Date.now() }));
   };
@@ -265,6 +287,27 @@ export default function App() {
 
   const handleCloseTab = (id: string, e?: React.MouseEvent) => {
     e?.stopPropagation();
+    void window.aegisDesktop?.browser?.closeSiteView(id);
+    setPageTexts((previous) => {
+      const next = { ...previous };
+      delete next[id];
+      return next;
+    });
+    const closingTab = tabs.find((tab) => tab.id === id);
+    if (closingTab?.isIncognito) {
+      void (async () => {
+        try {
+          await fetchWithAegisCsrf('/api/session/context/close', {
+            method: 'POST',
+            keepalive: true,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ contextId: `private-${closingTab.id}` }),
+          });
+        } catch {
+          // The browser tab is closed immediately; the server also expires abandoned sessions.
+        }
+      })();
+    }
     if (tabs.length === 1) {
       // If closing last tab, reset to a fresh new tab
       const freshTab = createDefaultTab(activeTab.isIncognito);
@@ -284,6 +327,14 @@ export default function App() {
   };
 
   const handleUpdateTab = (id: string, updates: Partial<Tab>) => {
+    const existingTab = tabs.find((tab) => tab.id === id);
+    if (existingTab && typeof updates.url === 'string' && updates.url !== existingTab.url) {
+      setPageTexts((previous) => {
+        const next = { ...previous };
+        delete next[id];
+        return next;
+      });
+    }
     setTabs((prev) =>
       prev.map((t) => (t.id === id ? { ...t, ...updates } : t))
     );
@@ -310,6 +361,81 @@ export default function App() {
       if (reason === 'tracker') setTotalTrackersBlocked((c) => c + 1);
     }
   };
+
+  const handleNetworkRequest = useCallback((event: NetworkRequestEvent) => {
+    let parsedUrl: URL;
+    try { parsedUrl = new URL(event.url); } catch { return; }
+    const resourceType = event.resourceType.toLowerCase();
+    const type: NetworkRequest['type'] =
+      resourceType === 'mainframe' ? 'document'
+      : resourceType === 'subframe' ? 'iframe'
+      : resourceType === 'stylesheet' ? 'stylesheet'
+      : resourceType === 'script' ? 'script'
+      : resourceType === 'image' ? 'image'
+      : resourceType === 'font' ? 'font'
+      : resourceType === 'xhr' ? 'xhr'
+      : resourceType === 'fetch' ? 'fetch'
+      : resourceType === 'media' ? 'media'
+      : resourceType === 'websocket' ? 'websocket'
+      : 'other';
+    const status: NetworkRequest['status'] =
+      event.phase === 'blocked' ? 'blocked'
+      : event.phase === 'failed' ? 'failed'
+      : event.phase === 'started' ? 'pending'
+      : 'allowed';
+    const id = `${event.tabId}:${event.requestId}`;
+    const request: NetworkRequest = {
+      id,
+      tabId: event.tabId,
+      url: event.url,
+      domain: parsedUrl.hostname,
+      method: event.method,
+      type,
+      status,
+      statusCode: event.statusCode,
+      error: event.error,
+      reason: event.blockedReason as NetworkRequest['reason'],
+      timestamp: event.timestamp,
+      size: '—',
+      duration: Number.isFinite(event.duration) ? Math.max(0, event.duration || 0) : 0,
+    };
+    setNetworkRequests((previous) => {
+      const index = previous.findIndex((item) => item.id === id);
+      if (index < 0) return [request, ...previous].slice(0, 300);
+      const next = previous.slice();
+      next[index] = request;
+      return next;
+    });
+  }, []);
+
+  useEffect(() => {
+    const unsubscribe = window.aegisDesktop?.browser?.onSiteViewEvent((event) => {
+      if (
+        event.type === 'network-request'
+        && typeof event.requestId === 'string'
+        && typeof event.url === 'string'
+        && typeof event.method === 'string'
+        && typeof event.resourceType === 'string'
+        && typeof event.phase === 'string'
+        && typeof event.timestamp === 'number'
+      ) {
+        handleNetworkRequest({
+          tabId: event.tabId,
+          requestId: event.requestId,
+          url: event.url,
+          method: event.method,
+          resourceType: event.resourceType,
+          phase: event.phase as NetworkRequestEvent['phase'],
+          statusCode: event.statusCode,
+          duration: event.duration,
+          error: event.error,
+          blockedReason: event.blockedReason,
+          timestamp: event.timestamp,
+        });
+      }
+    });
+    return () => unsubscribe?.();
+  }, [handleNetworkRequest]);
 
   // Central Navigation
   const handleNavigate = (input: string) => {
@@ -361,6 +487,13 @@ export default function App() {
       pageType = 'webpage';
     }
 
+    // Reject credential-bearing or unsupported URLs before they enter tab state or history.
+    if (pageType === 'webpage' || pageType === 'youtube') {
+      const decision = decideNavigation({ url: targetUrl, source: 'site' });
+      if (decision.action === 'deny') return;
+      targetUrl = decision.url;
+    }
+
     const newHistory = [...activeTab.history.slice(0, activeTab.historyIndex + 1), targetUrl];
     const newHistoryIndex = newHistory.length - 1;
 
@@ -379,6 +512,8 @@ export default function App() {
       canGoBack: newHistoryIndex > 0,
       canGoForward: false,
       isLoading: pageType === 'webpage',
+      mediaState: 'paused',
+      isAudible: false,
       securityStatus: targetUrl.startsWith('https://') || pageType !== 'webpage' ? 'secure' : 'warning',
     });
 
@@ -397,6 +532,10 @@ export default function App() {
   };
 
   const handleGoBack = () => {
+    if (activeTab.pageType === 'webpage' && window.aegisDesktop?.browser) {
+      void window.aegisDesktop.browser.goBackSiteView(activeTab.id);
+      return;
+    }
     if (activeTab.historyIndex > 0) {
       const newIndex = activeTab.historyIndex - 1;
       const targetUrl = activeTab.history[newIndex];
@@ -409,6 +548,7 @@ export default function App() {
       else if (targetUrl.startsWith('chrome://shields')) pageType = 'shields';
       else if (targetUrl.startsWith('chrome://downloads')) pageType = 'downloads';
 
+      if (pageType === 'webpage' && decideNavigation({ url: targetUrl, source: 'site' }).action === 'deny') return;
       handleUpdateTab(activeTab.id, {
         url: targetUrl,
         displayUrl: pageType === 'newtab' ? '' : targetUrl,
@@ -421,6 +561,10 @@ export default function App() {
   };
 
   const handleGoForward = () => {
+    if (activeTab.pageType === 'webpage' && window.aegisDesktop?.browser) {
+      void window.aegisDesktop.browser.goForwardSiteView(activeTab.id);
+      return;
+    }
     if (activeTab.historyIndex < activeTab.history.length - 1) {
       const newIndex = activeTab.historyIndex + 1;
       const targetUrl = activeTab.history[newIndex];
@@ -433,6 +577,7 @@ export default function App() {
       else if (targetUrl.startsWith('chrome://shields')) pageType = 'shields';
       else if (targetUrl.startsWith('chrome://downloads')) pageType = 'downloads';
 
+      if (pageType === 'webpage' && decideNavigation({ url: targetUrl, source: 'site' }).action === 'deny') return;
       handleUpdateTab(activeTab.id, {
         url: targetUrl,
         displayUrl: pageType === 'newtab' ? '' : targetUrl,
@@ -445,11 +590,57 @@ export default function App() {
   };
 
   const handleReload = () => {
+    setPageTexts((previous) => {
+      const next = { ...previous };
+      delete next[activeTab.id];
+      return next;
+    });
+    if (activeTab.pageType === 'webpage' && window.aegisDesktop?.browser) {
+      void window.aegisDesktop.browser.reloadSiteView(activeTab.id);
+      handleUpdateTab(activeTab.id, { isLoading: true });
+      return;
+    }
+    setReloadNonce((value) => value + 1);
     handleUpdateTab(activeTab.id, { isLoading: true });
-    setTimeout(() => {
-      handleUpdateTab(activeTab.id, { isLoading: false });
-    }, 800);
   };
+
+  // Libi can request only allowlisted UI actions; each request is confirmed inside its panel.
+  const handleLibiBrowserAction = (action: LibiBrowserAction) => {
+    switch (action.type) {
+      case 'navigate': handleNavigate(action.url); break;
+      case 'new_tab': handleNewTab(); break;
+      case 'back': handleGoBack(); break;
+      case 'forward': handleGoForward(); break;
+      case 'reload': handleReload(); break;
+      case 'open_settings': handleNavigate('chrome://settings'); break;
+      case 'open_history': handleNavigate('chrome://history'); break;
+      case 'open_bookmarks': handleNavigate('chrome://bookmarks'); break;
+      case 'open_downloads': handleNavigate('chrome://downloads'); break;
+      case 'open_security': handleNavigate('chrome://security'); break;
+      case 'open_shields': handleNavigate('chrome://shields'); break;
+      case 'toggle_theme':
+        setSettings((current) => ({ ...current, theme: current.theme === 'light' ? 'dark' : 'light' }));
+        break;
+      case 'toggle_reader': handleUpdateTab(activeTab.id, { readerMode: true }); break;
+      case 'bookmark_page':
+        if (!bookmarks.some((bookmark) => bookmark.url === activeTab.url)) handleToggleBookmark();
+        break;
+      case 'zoom_in': handleZoomIn(); break;
+      case 'zoom_out': handleZoomOut(); break;
+      case 'zoom_reset': handleZoomReset(); break;
+      case 'scroll_top':
+        setPageScrollCommand((current) => ({ id: (current?.id ?? 0) + 1, direction: 'top' }));
+        break;
+      case 'scroll_bottom':
+        setPageScrollCommand((current) => ({ id: (current?.id ?? 0) + 1, direction: 'bottom' }));
+        break;
+    }
+  };
+
+  useEffect(() => {
+    setPageScrollCommand(null);
+    setPageTexts((previous) => previous[activeTabId] ? { [activeTabId]: previous[activeTabId] } : {});
+  }, [activeTabId]);
 
   const handleGoHome = () => {
     handleNavigate(settings.homePage || 'chrome://newtab');
@@ -478,8 +669,10 @@ export default function App() {
   };
 
   const handleOpenReader = (url: string) => {
+    const decision = decideNavigation({ url, source: 'site' });
+    if (decision.action === 'deny') return;
     handleUpdateTab(activeTab.id, {
-      url,
+      url: decision.url,
       readerMode: true,
     });
   };
@@ -539,7 +732,7 @@ export default function App() {
     }
     // Really clears the logins/cookies the proxy keeps for this session
     if (options.cookies) {
-      fetch('/api/session/clear', { method: 'POST' }).catch(() => {});
+      clearServerSessionCookies();
     }
   };
 
@@ -687,13 +880,18 @@ export default function App() {
           />
         ) : activeTab.pageType === 'webpage' ? (
           <WebPageView
+            key={window.aegisDesktop?.browser ? activeTab.id : `${activeTab.id}-${reloadNonce}`}
             tab={activeTab}
+            reloadNonce={reloadNonce}
             shieldSettings={shieldSettings}
             sendDoNotTrack={settings.doNotTrack}
             onUpdateTabInfo={handleUpdateTab}
             onNavigate={handleNavigate}
             onOpenReader={handleOpenReader}
             onRecordRequest={handleRecordRequest}
+            onPageText={handlePageText}
+            pageScrollCommand={pageScrollCommand}
+            requestPageText={showLibi}
           />
         ) : activeTab.pageType === 'history' ? (
           <HistoryView
@@ -776,7 +974,7 @@ export default function App() {
       )}
 
       {/* 8. Floating Libi AI Assistant Button (Bottom Left) */}
-      {!showLibi && !vaultState.isLocked && (
+      {!showLibi && !vaultState.isLocked && !window.aegisDesktop?.browser && (
         <button
           type="button"
           onClick={() => setShowLibi(true)}
@@ -804,13 +1002,17 @@ export default function App() {
         onClose={() => {
           setShowLibi(false);
           setLibiContextQuery(undefined);
+          setPageTexts({});
         }}
         currentPageContext={{
           title: activeTab.title,
           url: activeTab.url,
+          tabId: activeTab.id,
+          text: pageTexts[activeTab.id] || '',
         }}
         initialQuery={libiContextQuery}
         onNavigate={handleNavigate}
+        onExecuteBrowserAction={handleLibiBrowserAction}
       />
     </div>
   );

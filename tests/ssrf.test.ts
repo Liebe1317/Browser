@@ -23,8 +23,10 @@ await new Promise<void>((resolve) =>
 
 // 3. Redirect handling, using local servers (only 10.x counts as "private" in this test fetcher)
 const hits: string[] = [];
+let crossOriginTarget = '';
 const srv = http.createServer((req, res) => {
   hits.push(req.method + ' ' + req.url);
+  if (req.url === '/cross-origin') { res.statusCode = 302; res.setHeader('Location', crossOriginTarget); return res.end(); }
   if (req.url === '/r1') { res.statusCode = 302; res.setHeader('Location', '/final'); res.setHeader('Set-Cookie', 'hop=1'); return res.end(); }
   if (req.url === '/to-private') { res.statusCode = 302; res.setHeader('Location', 'http://10.0.0.5/secret'); return res.end(); }
   if (req.url === '/post303') { res.statusCode = 303; res.setHeader('Location', '/final'); return res.end(); }
@@ -68,6 +70,34 @@ try { await readBodyCapped(r.response, 4000); } catch (e) { tooBig = e instanceo
 ok(tooBig, 'an oversized streamed body is aborted mid-download');
 r = await f(base + '/big');
 ok((await readBodyCapped(r.response, 10000)).length === 5000, 'a body under the cap is read completely');
+
+// A second local origin captures request headers after an origin-changing redirect.
+const receivedRedirectHeaders: Record<string, string | string[] | undefined> = {};
+const second = http.createServer((req, res) => {
+  Object.assign(receivedRedirectHeaders, req.headers);
+  res.end('second origin');
+});
+await new Promise<void>((resolve) => second.listen(0, '127.0.0.1', resolve));
+crossOriginTarget = `http://127.0.0.1:${(second.address() as any).port}/destination`;
+r = await f(base + '/cross-origin', {
+  headers: {
+    'X-CSRF-TOKEN': 'site-secret-token',
+    'X-Requested-With': 'XMLHttpRequest',
+    'Authorization': 'Bearer site-secret',
+    'Content-Type': 'application/json',
+    'Accept': 'application/json',
+    'Range': 'bytes=1048576-2097151',
+    'If-Range': '"media-etag-123"',
+  },
+});
+await r.response.text();
+ok(!receivedRedirectHeaders['x-csrf-token'], 'CSRF headers are stripped on cross-origin redirects');
+ok(!receivedRedirectHeaders['x-requested-with'], 'custom request headers are stripped on cross-origin redirects');
+ok(!receivedRedirectHeaders.authorization && !receivedRedirectHeaders.cookie, 'authorization and cookies are never leaked to the redirected origin');
+ok(receivedRedirectHeaders.accept === 'application/json', 'safe presentation headers survive a cross-origin redirect');
+ok(receivedRedirectHeaders.range === 'bytes=1048576-2097151', 'byte Range survives a cross-origin CDN redirect for video seeking');
+ok(receivedRedirectHeaders['if-range'] === '"media-etag-123"', 'If-Range validator survives a cross-origin CDN redirect');
+second.close();
 
 // 4. The default fetcher refuses the loopback server outright
 let strictBlocked = false;

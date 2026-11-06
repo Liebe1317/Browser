@@ -1,10 +1,9 @@
 /**
- * Minimal RFC 6265-style cookie jar, used by the proxy on behalf of ONE browser session.
- * Each session gets its own jar (see sessions.ts) so cookies never leak between users.
- *
- * Known limitation: there is no Public Suffix List, so a site could set a cookie for a
- * multi-part suffix like "co.uk" inside its own session's jar. Add `tldts`/`psl` if needed.
+ * Bounded cookie store for one Aegis browsing-context + top-level-host partition.
+ * Security attributes are retained and enforced when cookies are accepted and sent.
  */
+import net from 'node:net';
+import { getDomain } from 'tldts';
 
 interface StoredCookie {
   name: string;
@@ -12,12 +11,21 @@ interface StoredCookie {
   domain: string;
   hostOnly: boolean;
   path: string;
-  expires: number | null; // epoch ms, null = session cookie
+  expires: number | null;
+  secure: boolean;
+  httpOnly: boolean;
+  sameSite: 'strict' | 'lax' | 'none' | null;
+}
+
+export interface CookieRequestContext {
+  /** Exact hostname of the top-level page whose partition owns this jar. */
+  topLevelHost?: string;
 }
 
 const MAX_COOKIE_BYTES = 4096;
 const MAX_COOKIES_PER_JAR = 500;
 const MAX_LIFETIME_MS = 400 * 24 * 60 * 60 * 1000;
+const COOKIE_NAME = /^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/;
 
 function domainMatches(host: string, domain: string, hostOnly: boolean): boolean {
   if (host === domain) return true;
@@ -36,8 +44,13 @@ function defaultPath(requestPath: string): string {
   return idx <= 0 ? '/' : requestPath.slice(0, idx);
 }
 
+function isPublicSuffix(domain: string): boolean {
+  if (!domain || net.isIP(domain) !== 0) return true;
+  return getDomain(domain, { allowPrivateDomains: true }) === null;
+}
+
 export class CookieJar {
-  private cookies = new Map<string, StoredCookie>(); // key: domain|path|name
+  private cookies = new Map<string, StoredCookie>();
 
   get size(): number {
     return this.cookies.size;
@@ -47,70 +60,91 @@ export class CookieJar {
     this.cookies.clear();
   }
 
-  /** Stores cookies from the Set-Cookie headers of a response to `requestUrl`. */
+  /** Stores separate Set-Cookie response headers from the given upstream URL. */
   setFromResponse(requestUrl: URL, setCookieHeaders: string[], now: number = Date.now()): void {
-    const host = requestUrl.hostname.toLowerCase();
+    const host = requestUrl.hostname.toLowerCase().replace(/\.$/, '');
+    const secureTransport = requestUrl.protocol === 'https:' || host === 'localhost' || host === '127.0.0.1' || host === '::1';
     for (const header of setCookieHeaders) {
-      this.storeOne(host, requestUrl.pathname, header, now);
+      this.storeOne(host, requestUrl.pathname, header, secureTransport, now);
     }
   }
 
-  private storeOne(host: string, requestPath: string, header: string, now: number): void {
+  private storeOne(host: string, requestPath: string, header: string, secureTransport: boolean, now: number): void {
     if (header.length > MAX_COOKIE_BYTES) return;
+
     const parts = header.split(';');
     const first = parts.shift() ?? '';
     const eq = first.indexOf('=');
     if (eq <= 0) return;
+
     const name = first.slice(0, eq).trim();
     const value = first.slice(eq + 1).trim();
-    if (!name) return;
+    if (!COOKIE_NAME.test(name) || /[\u0000-\u001f\u007f;]/.test(value)) return;
 
     let domainAttr: string | null = null;
     let pathAttr: string | null = null;
     let expires: number | null = null;
     let maxAge: number | null = null;
+    let secure = false;
+    let httpOnly = false;
+    let sameSite: StoredCookie['sameSite'] = null;
 
     for (const raw of parts) {
       const i = raw.indexOf('=');
       const key = (i === -1 ? raw : raw.slice(0, i)).trim().toLowerCase();
       const val = i === -1 ? '' : raw.slice(i + 1).trim();
-      if (key === 'domain') domainAttr = val.replace(/^\./, '').toLowerCase();
+      if (key === 'domain') domainAttr = val.replace(/^\.+/, '').toLowerCase();
       else if (key === 'path') pathAttr = val;
       else if (key === 'expires') {
-        const t = Date.parse(val);
-        if (!Number.isNaN(t)) expires = t;
+        const timestamp = Date.parse(val);
+        if (!Number.isNaN(timestamp)) expires = timestamp;
       } else if (key === 'max-age') {
-        if (/^-?\d+$/.test(val)) maxAge = parseInt(val, 10);
+        if (/^-?\d+$/.test(val)) maxAge = Number.parseInt(val, 10);
+      } else if (key === 'secure') secure = true;
+      else if (key === 'httponly') httpOnly = true;
+      else if (key === 'samesite') {
+        const normalized = val.toLowerCase();
+        if (normalized === 'strict' || normalized === 'lax' || normalized === 'none') sameSite = normalized;
       }
     }
 
-    // Domain attribute must cover the request host and must not be a bare TLD / single label.
+    // Secure cookies must originate from a secure transport.
+    if (secure && !secureTransport) return;
+    if (sameSite === 'none' && !secure) return;
+
+    // Aegis jars are partitioned by the exact top-level hostname. Accepting a parent
+    // Domain cookie here would let a page share credentials with sibling hosts from this jar.
+    // Domain cookies wider than the exact response host are intentionally rejected.
     let domain = host;
-    let hostOnly = true;
-    if (domainAttr) {
-      const covers = host === domainAttr || host.endsWith('.' + domainAttr);
-      if (!covers || !domainAttr.includes('.')) return;
-      domain = domainAttr;
-      hostOnly = false;
+    const hostOnly = true;
+    if (domainAttr !== null) {
+      if (domainAttr !== host || isPublicSuffix(domainAttr)) return;
+      // Treat Domain=<exact-host> as host-only inside this stricter partition.
     }
 
     const path = pathAttr && pathAttr.startsWith('/') ? pathAttr : defaultPath(requestPath);
 
-    // Cookie name prefixes (the proxy always talks https upstream, so Secure is satisfied)
-    if (name.startsWith('__Host-') && (domainAttr || path !== '/')) return;
+    // Enforce the cookie-prefix contracts before storing the cookie.
+    if (name.startsWith('__Secure-') && !secure) return;
+    if (
+      name.startsWith('__Host-') &&
+      (!secure || domainAttr !== null || path !== '/' || !hostOnly)
+    ) return;
 
-    // Max-Age wins over Expires
-    if (maxAge !== null) expires = now + maxAge * 1000;
+    // Max-Age takes precedence over Expires.
+    if (maxAge !== null) {
+      expires = now + Math.max(-1, Math.min(maxAge, MAX_LIFETIME_MS / 1000)) * 1000;
+    }
     if (expires !== null) expires = Math.min(expires, now + MAX_LIFETIME_MS);
 
     const key = `${domain}|${path}|${name}`;
     if (expires !== null && expires <= now) {
-      this.cookies.delete(key); // expired/deleted by the server (e.g. logout)
+      this.cookies.delete(key);
       return;
     }
 
-    this.cookies.delete(key); // re-insert so insertion order = recency
-    this.cookies.set(key, { name, value, domain, hostOnly, path, expires });
+    this.cookies.delete(key);
+    this.cookies.set(key, { name, value, domain, hostOnly, path, expires, secure, httpOnly, sameSite });
 
     while (this.cookies.size > MAX_COOKIES_PER_JAR) {
       const oldest = this.cookies.keys().next().value;
@@ -119,22 +153,33 @@ export class CookieJar {
     }
   }
 
-  /** Builds the Cookie header value for a request to `requestUrl` ('' if none apply). */
-  headerFor(requestUrl: URL, now: number = Date.now()): string {
-    const host = requestUrl.hostname.toLowerCase();
+  /** Builds a Cookie header while enforcing Secure and SameSite restrictions. */
+  headerFor(
+    requestUrl: URL,
+    now: number = Date.now(),
+    context: CookieRequestContext = {}
+  ): string {
+    const host = requestUrl.hostname.toLowerCase().replace(/\.$/, '');
+    const topLevelHost = (context.topLevelHost ?? host).toLowerCase().replace(/\.$/, '');
+    const secureTransport = requestUrl.protocol === 'https:' || host === 'localhost' || host === '127.0.0.1' || host === '::1';
     const matched: StoredCookie[] = [];
 
-    for (const [key, c] of this.cookies) {
-      if (c.expires !== null && c.expires <= now) {
+    for (const [key, cookie] of this.cookies) {
+      if (cookie.expires !== null && cookie.expires <= now) {
         this.cookies.delete(key);
         continue;
       }
-      if (domainMatches(host, c.domain, c.hostOnly) && pathMatches(requestUrl.pathname, c.path)) {
-        matched.push(c);
-      }
+      if (cookie.secure && !secureTransport) continue;
+      if (!domainMatches(host, cookie.domain, cookie.hostOnly)) continue;
+      if (!pathMatches(requestUrl.pathname, cookie.path)) continue;
+
+      // Aegis intentionally applies a stricter host boundary than browser SameSite's eTLD+1
+      // rule. Strict/Lax cookies are never sent to sibling hosts through the proxy.
+      if (cookie.sameSite !== 'none' && host !== topLevelHost) continue;
+      matched.push(cookie);
     }
-    // Longer paths first (stable, so older cookies stay first among equals)
+
     matched.sort((a, b) => b.path.length - a.path.length);
-    return matched.map((c) => `${c.name}=${c.value}`).join('; ');
+    return matched.map((cookie) => `${cookie.name}=${cookie.value}`).join('; ');
   }
 }

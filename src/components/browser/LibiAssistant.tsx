@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { LibiBrowserAction, isLibiBrowserAction, LibiSearchResult, parseLibiSearchResults } from '../../types/libi';
+import { fetchWithAegisCsrf } from '../../utils/sessionSecurity';
 import { 
   Sparkles, Send, X, Shield, Lock, RefreshCw, MessageSquare, 
   ExternalLink, CheckCircle2, ChevronDown, Minimize2, Maximize2 
@@ -9,6 +11,7 @@ interface ChatMessage {
   role: 'user' | 'model';
   text: string;
   timestamp: number;
+  results?: LibiSearchResult[];
 }
 
 interface LibiAssistantProps {
@@ -17,9 +20,12 @@ interface LibiAssistantProps {
   currentPageContext?: {
     title: string;
     url: string;
+    tabId?: string;
+    text?: string;
   };
   initialQuery?: string;
   onNavigate?: (url: string) => void;
+  onExecuteBrowserAction?: (action: LibiBrowserAction) => void;
 }
 
 export const LibiAssistant: React.FC<LibiAssistantProps> = ({
@@ -28,12 +34,13 @@ export const LibiAssistant: React.FC<LibiAssistantProps> = ({
   currentPageContext,
   initialQuery,
   onNavigate,
+  onExecuteBrowserAction,
 }) => {
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       id: 'welcome',
       role: 'model',
-      text: 'مرحباً بك يا صديقي! 🇵🇸 أنا "ليبي"، مساعدك الذكي وحارس خصوصيتك في متصفح Aegis. اسألني عن أي شيء، أو اطلب مني تلخيص أي موقع أو البحث عن أفضل الروابط والأنميات، وكن مطمئناً أن كل محادثاتنا مشفرة ولا يتم تخزين أي شيء منها إطلاقاً!',
+      text: 'مرحباً بك! 🇵🇸 أنا ليبي، مساعدك في متصفح Aegis. أستطيع الإجابة عن أسئلتك ومساعدتك في بعض أوامر المتصفح. لن أنفذ أي أمر تحكّم قبل تأكيدك.',
       timestamp: Date.now(),
     },
   ]);
@@ -42,12 +49,23 @@ export const LibiAssistant: React.FC<LibiAssistantProps> = ({
   const [suggestions, setSuggestions] = useState<string[]>([
     'ما هي أفضل مواقع الأنمي الموثوقة؟',
     'لخّص لي الصفحة الحالية',
+    'ابحث عن أدوات حماية الخصوصية',
     'كيف يحميني متصفح Aegis من التتبع؟',
   ]);
   const [isMinimized, setIsMinimized] = useState(false);
+  const [pendingAction, setPendingAction] = useState<LibiBrowserAction | null>(null);
+  const [sharePageContext, setSharePageContext] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!isOpen) setSharePageContext(false);
+  }, [isOpen]);
+
+  useEffect(() => {
+    setSharePageContext(false);
+  }, [currentPageContext?.url, currentPageContext?.tabId]);
 
   useEffect(() => {
     if (isOpen && initialQuery) {
@@ -74,6 +92,7 @@ export const LibiAssistant: React.FC<LibiAssistantProps> = ({
     };
 
     setMessages((prev) => [...prev, userMessage]);
+    setPendingAction(null);
     if (!customText) setInputText('');
     setIsLoading(true);
 
@@ -84,13 +103,17 @@ export const LibiAssistant: React.FC<LibiAssistantProps> = ({
         text: m.text,
       }));
 
-      const res = await fetch('/api/libi/chat', {
+      const res = await fetchWithAegisCsrf('/api/libi/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          message: textToSend,
-          history: historyPayload,
-          pageContext: currentPageContext,
+          message: textToSend.slice(0, 4000),
+          history: historyPayload.slice(-8),
+          pageContext: currentPageContext ? {
+            title: currentPageContext.title,
+            url: currentPageContext.url,
+            ...(sharePageContext && currentPageContext.text ? { text: currentPageContext.text.slice(0, 12000) } : {}),
+          } : undefined,
         }),
       });
 
@@ -106,16 +129,17 @@ export const LibiAssistant: React.FC<LibiAssistantProps> = ({
 
       setMessages((prev) => [...prev, botMessage]);
       if (Array.isArray(data.suggestions) && data.suggestions.length > 0) {
-        setSuggestions(data.suggestions);
+        setSuggestions(data.suggestions.filter((item: unknown) => typeof item === 'string').slice(0, 4));
       }
+      if (isLibiBrowserAction(data.action)) setPendingAction(data.action);
     } catch (err: any) {
-      console.warn('Libi error:', err);
+      setPendingAction(null);
       setMessages((prev) => [
         ...prev,
         {
           id: `bot-err-${Date.now()}`,
           role: 'model',
-          text: 'أعتذر منك، حدث اضطراب طفيف في الاتصال. خصوصيتك ما زالت في أمان تام، يرجى المحاولة مرة أخرى.',
+          text: 'تعذر الاتصال بخدمة ليبي حالياً. لم يتم تنفيذ أي أمر؛ حاول مرة أخرى لاحقاً.',
           timestamp: Date.now(),
         },
       ]);
@@ -156,7 +180,7 @@ export const LibiAssistant: React.FC<LibiAssistantProps> = ({
             </div>
             <p className="text-[11px] text-slate-400 flex items-center gap-1">
               <Lock className="w-3 h-3 text-emerald-400 inline" />
-              <span>خصوصية تامة وبدون أي تتبع</span>
+              <span>قد تُرسل الرسائل إلى Google Gemini عند تفعيل الخدمة؛ لا تُرسل كلمات المرور أو الكوكيز.</span>
             </p>
           </div>
         </div>
@@ -183,10 +207,22 @@ export const LibiAssistant: React.FC<LibiAssistantProps> = ({
         <>
           {/* Privacy Guarantee Ribbon */}
           <div className="px-4 py-1.5 bg-emerald-950/40 border-b border-emerald-500/20 flex items-center justify-between text-[11px] text-emerald-300">
-            <div className="flex items-center gap-1.5">
-              <Shield className="w-3.5 h-3.5 text-emerald-400" />
-              <span>تشفير محلي فوري • لا يتم تسجيل استفساراتك على أي خادم</span>
+            <div className="flex items-center gap-2 min-w-0">
+              <Shield className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+              <span>ليبي لا يقرأ كلمات المرور أو كوكيز المواقع أو ملفات الجهاز.</span>
             </div>
+            {currentPageContext?.url && /^https?:\/\//i.test(currentPageContext.url) && (
+              <label className={`flex items-center gap-1.5 text-[10px] shrink-0 ${currentPageContext.text?.trim() ? 'text-emerald-200 cursor-pointer' : 'text-slate-400'}`}>
+                <input
+                  type="checkbox"
+                  checked={sharePageContext}
+                  disabled={!currentPageContext.text?.trim()}
+                  onChange={(e) => setSharePageContext(e.target.checked)}
+                  className="accent-emerald-500 disabled:opacity-40"
+                />
+                <span>{currentPageContext.text?.trim() ? 'السماح بمشاركة نص الصفحة مع Gemini' : 'نص الصفحة غير متاح بعد — تحقق من إعدادات السكربتات وأعد التحميل'}</span>
+              </label>
+            )}
             {currentPageContext?.url && !currentPageContext.url.startsWith('chrome://') && (
               <span className="text-slate-400 text-[10px] truncate max-w-[140px]" title={currentPageContext.title}>
                 {currentPageContext.title || currentPageContext.url}
@@ -209,14 +245,28 @@ export const LibiAssistant: React.FC<LibiAssistantProps> = ({
                     </div>
                   )}
 
-                  <div 
-                    className={`max-w-[82%] rounded-2xl px-3.5 py-2.5 leading-relaxed break-words whitespace-pre-wrap shadow-sm ${
-                      isUser
-                        ? 'bg-indigo-600 text-white rounded-br-none'
-                        : 'bg-slate-800/90 text-slate-100 border border-slate-700/60 rounded-bl-none'
-                    }`}
-                  >
+                  <div className={`max-w-[82%] min-w-0 rounded-2xl px-3.5 py-2.5 leading-relaxed break-words whitespace-pre-wrap shadow-sm ${
+                    isUser
+                      ? 'bg-indigo-600 text-white rounded-br-none'
+                      : 'bg-slate-800/90 text-slate-100 border border-slate-700/60 rounded-bl-none'
+                  }`}>
                     {m.text}
+                    {m.results && m.results.length > 0 && (
+                      <div className="mt-3 space-y-2">
+                        {m.results.map((result, index) => (
+                          <button
+                            key={result.url + index}
+                            type="button"
+                            onClick={() => onNavigate?.(result.url)}
+                            className="w-full text-right rounded-xl border border-slate-700 bg-slate-900/80 hover:border-indigo-400/60 p-2.5 transition-colors whitespace-normal"
+                          >
+                            <span className="block text-indigo-300 font-semibold leading-snug">{result.title}</span>
+                            <span className="block text-[10px] text-emerald-300/80 mt-1 break-all">{new URL(result.url).hostname}</span>
+                            <span className="block text-[11px] text-slate-400 mt-1 leading-relaxed">{result.snippet}</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
               );
@@ -236,6 +286,30 @@ export const LibiAssistant: React.FC<LibiAssistantProps> = ({
               </div>
             )}
 
+            {pendingAction && (
+              <div className="rounded-2xl border border-indigo-500/40 bg-indigo-950/40 p-3 space-y-2" role="group" aria-label="تأكيد أمر المتصفح">
+                <p className="text-xs text-indigo-100">ليبي يقترح تنفيذ أمر في المتصفح. لن يحدث شيء قبل موافقتك.</p>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onExecuteBrowserAction?.(pendingAction);
+                      setPendingAction(null);
+                    }}
+                    className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold"
+                  >
+                    تأكيد التنفيذ
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPendingAction(null)}
+                    className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs"
+                  >
+                    إلغاء
+                  </button>
+                </div>
+              </div>
+            )}
             <div ref={messagesEndRef} />
           </div>
 

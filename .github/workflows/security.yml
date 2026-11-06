@@ -1,0 +1,56 @@
+name: Aegis Security CI
+
+on:
+  push:
+    branches:
+      - main
+      - 'security/**'
+      - 'Cloud-Aiges'
+
+concurrency:
+  group: aegis-security-v2-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  electron-windows-smoke:
+    runs-on: windows-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Run native Electron Chromium smoke test
+        run: npx --yes electron@45.2.2 --no-sandbox --disable-gpu tests/electron-smoke
+
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Audit dependencies
+        run: npm audit --audit-level=high
+      - name: Run unit and proxy integration tests
+        run: npm test
+      - name: Type-check
+        run: npm run lint
+      - name: Build production bundle
+        run: npm run build
+      - name: Verify client bundle contains no server AI secrets
+        run: node scripts/check-client-bundle.mjs
