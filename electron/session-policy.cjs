@@ -2,7 +2,6 @@
 
 const { isIP } = require('node:net');
 const { createChromiumShieldsAdapter } = require('../lebe/adapters/chromium/session-policy-adapter.cjs');
-const { LebeCosmeticFilters } = require('../lebe/core/cosmetic-filters.cjs');
 
 // Domain reputation rules plus narrow YouTube ad endpoints. Video delivery hosts are
 // never blanket-blocked: only requests carrying explicit ad markers are denied.
@@ -123,7 +122,7 @@ function isPrivateOrLocalUrl(rawUrl) {
     if (isPrivateIpv4(host)) return true;
     if (isIP(host) === 6) {
       const ipv6 = host.toLowerCase();
-      if (ipv6 === '::' || ipv6 === '::1' || /^f[cd][0-9a-f]{2}:/.test(ipv6) || /^fe[89ab][0-9a-f]:/.test(ipv6)) return true;
+      if (ipv6 === '::' || ipv6 === '::1' || /^f[cd][0-9a-f]{2}:/ .test(ipv6) || /^fe[89ab][0-9a-f]:/.test(ipv6)) return true;
       if (ipv6.startsWith('::ffff:')) {
         const mapped = ipv6.slice('::ffff:'.length);
         if (isPrivateIpv4(mapped)) return true;
@@ -143,24 +142,21 @@ function isPrivateOrLocalUrl(rawUrl) {
 }
 
 const lebeShieldsAdapter = createChromiumShieldsAdapter(shieldRules);
-const cosmeticFilters = new LebeCosmeticFilters();
 
 function isBlockedAdOrTracker(rawUrl, requestDetails = {}) {
   return lebeShieldsAdapter.evaluateRequest({ ...requestDetails, url: rawUrl }).action === 'block';
 }
 
 function addShieldFilterList(content, source = 'custom') {
-  const networkRulesAdded = lebeShieldsAdapter.addFilterList(content, source);
-  cosmeticFilters.addFilterList(content, source);
-  return networkRulesAdded;
+  return lebeShieldsAdapter.addFilterList(content, source);
 }
 
 function getCosmeticCss(rawUrl) {
-  return cosmeticFilters.getCss(rawUrl);
+  return lebeShieldsAdapter.getCosmeticCss(rawUrl);
 }
 
 function getShieldStats() {
-  return { ruleCount: lebeShieldsAdapter.ruleCount, networkRuleCount: lebeShieldsAdapter.networkRuleCount };
+  return lebeShieldsAdapter.getStats();
 }
 
 /**
@@ -206,8 +202,6 @@ function createBrowserSessionPolicy({ getVpnState, isAppRequest, onNetworkEvent 
         : (getVpnState().enabled && !getVpnState().connected && !isApp) ? 'vpn-disconnected' : '';
       const base = {
         webContentsId: details.webContentsId,
-        // Electron exposes WebRequestDetails.id as a number; the renderer pipeline
-        // deliberately accepts a bounded string identifier only.
         requestId: String(details.id),
         url: safeRequestUrl(details.url),
         method: typeof details.method === 'string' ? details.method : 'GET',
@@ -237,15 +231,12 @@ function createBrowserSessionPolicy({ getVpnState, isAppRequest, onNetworkEvent 
       if (/ERR_PROXY|ERR_TUNNEL_CONNECTION_FAILED/i.test(details.error || '')) getVpnState().onProxyFailure?.();
     });
 
-    // Electron's permission-request details do not expose a userGesture flag for fullscreen.
-    // Chromium gates the Fullscreen API on transient user activation; automatic-fullscreen stays denied.
     browserSession.setPermissionRequestHandler((_contents, permission, callback) => {
       callback(permission === 'fullscreen');
     });
     browserSession.setPermissionCheckHandler((_contents, permission, _origin, details) => {
       return permission === 'fullscreen';
     });
-    // Downloads are denied until a separate, user-confirmed download flow is implemented.
     browserSession.on('will-download', (event, item) => {
       event.preventDefault();
       item.cancel();
