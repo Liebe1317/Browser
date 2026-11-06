@@ -16,6 +16,7 @@ declare class LebeShieldManager {
   removeFilterList(id: string): boolean;
   listFilterLists(): ReturnType<LebeShieldManager["addFilterList"]>[];
   evaluateRequest(request?: Record<string, unknown>): Readonly<Record<string, unknown>>;
+  evaluate(request?: Record<string, unknown>): Readonly<Record<string, unknown>>;
   getCosmeticCss(rawUrl: string): string;
   setModuleEnabled(module: "network" | "cosmetic", enabled: boolean): Readonly<{ network: boolean; cosmetic: boolean }>;
   getModuleStates(): Readonly<{ network: boolean; cosmetic: boolean }>;
