@@ -24,7 +24,7 @@ const metadata = manager.addFilterList({
   ].join('\n'),
 });
 check(metadata.networkRuleCount === 1, 'manager registers network rules');
-check(metadata.cosmeticRuleCount === 2, 'manager registers cosmetic rules and exceptions');
+check(metadata.cosmeticRuleCount === 3, 'manager registers cosmetic rules and exceptions');
 check(manager.evaluateRequest({
   url: 'https://ads.example/ad.js',
   method: 'GET',
