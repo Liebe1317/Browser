@@ -20,7 +20,7 @@ export const DevTools: React.FC<DevToolsProps> = ({
 
   const filteredRequests = networkRequests.filter((req) => {
     if (networkFilter === 'blocked') return req.status === 'blocked';
-    if (networkFilter === 'allowed') return req.status === 'allowed';
+    if (networkFilter === 'allowed') return req.status === 'allowed' || req.status === 'pending';
     return true;
   });
 
@@ -143,9 +143,9 @@ export const DevTools: React.FC<DevToolsProps> = ({
               <thead>
                 <tr className="text-slate-500 border-b border-slate-800 text-[10px]">
                   <th className="py-1 px-2">الحالة</th>
-                  <th className="py-1 px-2">الاسم / النطاق</th>
+                  <th className="py-1 px-2">الطلب / URL</th>
+                  <th className="py-1 px-2">الطريقة</th>
                   <th className="py-1 px-2">النوع</th>
-                  <th className="py-1 px-2">السبب</th>
                   <th className="py-1 px-2">الحجم</th>
                   <th className="py-1 px-2">الزمن</th>
                 </tr>
@@ -155,32 +155,24 @@ export const DevTools: React.FC<DevToolsProps> = ({
                   <tr
                     key={req.id}
                     className={`hover:bg-slate-900/60 ${
-                      req.status === 'blocked'
-                        ? 'text-rose-400 bg-rose-950/15'
+                      req.status === 'blocked' ? 'text-rose-400 bg-rose-950/15'
+                        : req.status === 'failed' ? 'text-amber-300 bg-amber-950/10'
                         : 'text-slate-300'
                     }`}
                   >
                     <td className="py-1 px-2 font-mono">
-                      {req.status === 'blocked' ? (
-                        <span className="px-1.5 py-0.5 rounded bg-rose-950 text-rose-400 border border-rose-900/40 text-[9px]">
-                          (blocked:shield)
-                        </span>
-                      ) : (
-                        <span className="px-1.5 py-0.5 rounded bg-emerald-950 text-emerald-400 border border-emerald-900/40 text-[9px]">
-                          200 OK
-                        </span>
-                      )}
+                      <span className={`px-1.5 py-0.5 rounded border text-[9px] ${
+                        req.status === 'blocked' ? 'bg-rose-950 text-rose-400 border-rose-900/40'
+                        : req.status === 'failed' ? 'bg-amber-950 text-amber-300 border-amber-900/40'
+                        : req.status === 'pending' ? 'bg-sky-950 text-sky-300 border-sky-900/40'
+                        : 'bg-emerald-950 text-emerald-400 border-emerald-900/40'
+                      }`}>
+                        {req.status === 'blocked' ? 'BLOCKED' : req.status === 'failed' ? 'FAILED' : req.status === 'pending' ? 'PENDING' : (req.statusCode ? `${req.statusCode}` : 'DONE')}
+                      </span>
                     </td>
-                    <td className="py-1 px-2 truncate max-w-[240px]" dir="ltr">
-                      {req.domain}
-                    </td>
+                    <td className="py-1 px-2 truncate max-w-[360px]" dir="ltr" title={req.url}>{req.url}</td>
+                    <td className="py-1 px-2 text-slate-400">{req.method || '—'}</td>
                     <td className="py-1 px-2 text-slate-400">{req.type}</td>
-                    <td className="py-1 px-2 text-slate-400">
-                      {req.reason === 'ad' && 'إعلان تجاري'}
-                      {req.reason === 'tracker' && 'برمجية تعقب'}
-                      {req.reason === 'fingerprinting' && 'بصمة رقمية'}
-                      {!req.reason && '-'}
-                    </td>
                     <td className="py-1 px-2 text-slate-500">{req.size}</td>
                     <td className="py-1 px-2 text-slate-500">{req.duration}ms</td>
                   </tr>
