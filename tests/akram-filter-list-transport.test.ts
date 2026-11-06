@@ -66,6 +66,15 @@ await assert.rejects(() => vpnBlocked(target), /Aksa VPN is enabled/);
 assert.equal(callsWhileVpnEnabled, 0, 'VPN-enabled updates fail closed before network dispatch');
 console.log('PASS - filter transport never falls back directly while Aksa VPN is enabled');
 
+let callsWhileVpnDisconnected = 0;
+const vpnDisconnected = createAkramFilterListFetcher({
+  vpnStatus: () => ({ enabled: true, connected: false } as any),
+  safeFetch: async () => { callsWhileVpnDisconnected++; throw new Error('must not be called'); },
+});
+await assert.rejects(() => vpnDisconnected(target), /Aksa VPN is enabled/);
+assert.equal(callsWhileVpnDisconnected, 0, 'an enabled but disconnected VPN also blocks direct updates');
+console.log('PASS - disconnected Aksa cannot trigger a direct filter-list fallback');
+
 const redirected = response(302, { location: 'https://other.example/list.txt' }, 'redirect', true);
 const redirectFetcher = createAkramFilterListFetcher({
   vpnStatus: () => ({ enabled: false } as any),
