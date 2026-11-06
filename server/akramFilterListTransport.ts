@@ -1,5 +1,5 @@
 import { createSafeFetcher, readBodyCapped, type SafeResponse } from './ssrf.ts';
-import { getAksaVpnStatus, type AksaVpnStatus } from './aksaVpn.ts';
+import type { AksaVpnStatus } from './aksaVpn.ts';
 
 const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
 const MAX_FILTER_BYTES = 10 * 1024 * 1024;
@@ -29,7 +29,8 @@ export interface AkramFilterListTransportResult {
 export interface AkramFilterListTransportDependencies {
   /** Test seam. Production uses the guarded Undici fetcher below. */
   safeFetch?: ReturnType<typeof createSafeFetcher>;
-  vpnStatus?: () => AksaVpnStatus;
+  /** Must be the authoritative VPN state from the runtime that owns this fetcher. */
+  vpnStatus: () => AksaVpnStatus;
   readBody?: typeof readBodyCapped;
 }
 
@@ -59,7 +60,10 @@ function safeFilterHeaders(input: Record<string, string> | undefined): Record<st
 export function createAkramFilterListFetcher(
   dependencies: AkramFilterListTransportDependencies = {}
 ) {
-  const vpnStatus = dependencies.vpnStatus ?? getAksaVpnStatus;
+  const vpnStatus = dependencies.vpnStatus;
+  if (typeof vpnStatus !== 'function') {
+    throw new TypeError('The owning runtime must inject its authoritative Aksa VPN state.');
+  }
   const readBody = dependencies.readBody ?? readBodyCapped;
   const guardedFetch = dependencies.safeFetch ?? createSafeFetcher({
     getDispatcher: () => {
