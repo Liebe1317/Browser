@@ -87,4 +87,33 @@ let listCapRejected = false;
 try { capped.addFilterList({ id: 'two', content: '||two.example^' }); } catch { listCapRejected = true; }
 check(listCapRejected && capped.getStats().filterListCount === 1, 'filter-list count limits reject additions without changing active policy');
 
+const rollback = new AkramShieldManager({ limits: { maxListBytes: 64 } });
+rollback.addFilterList({ id: 'stable', content: '||stable.example^' });
+let invalidUpdateRejected = false;
+try {
+  rollback.updateFilterList({ id: 'stable', content: '||this-rule-is-far-too-long.example^' });
+} catch {
+  invalidUpdateRejected = true;
+}
+check(invalidUpdateRejected && rollback.evaluateRequest({
+  url: 'https://stable.example/ad.js', method: 'GET', resourceType: 'script',
+}).action === 'block', 'a rejected replacement preserves the previously active list');
+
+const totalLimited = new AkramShieldManager({ limits: { maxListBytes: 64, maxTotalBytes: 24 } });
+totalLimited.addFilterList({ id: 'first', content: '||first.example^' });
+let totalBytesRejected = false;
+try { totalLimited.addFilterList({ id: 'second', content: '||second.example^' }); } catch { totalBytesRejected = true; }
+check(totalBytesRejected && totalLimited.getStats().filterListCount === 1, 'combined byte limits reject additions without changing active policy');
+
+const lineLimited = new AkramShieldManager({ limits: { maxLinesPerList: 2 } });
+let lineCountRejected = false;
+try { lineLimited.addFilterList({ id: 'many-lines', content: '||one.example^\\n||two.example^\\n||three.example^' }); } catch { lineCountRejected = true; }
+check(lineCountRejected && lineLimited.getStats().filterListCount === 0, 'per-list line limits reject oversized lists before activation');
+
+const cosmeticToggle = new AkramShieldManager();
+cosmeticToggle.setModuleEnabled('cosmetic', false);
+check(cosmeticToggle.getCosmeticCss('https://example.com/').length === 0, 'disabling cosmetic protection suppresses generated CSS');
+cosmeticToggle.setModuleEnabled('cosmetic', true);
+check(cosmeticToggle.getCosmeticCss('https://example.com/').length > 0, 're-enabling cosmetic protection restores generated CSS');
+
 if (checks.some(([ok]) => !ok)) process.exitCode = 1;
