@@ -40,7 +40,7 @@ assert.equal(
 );
 const paths = getAksaPaths('/tmp/aegis-test', 'linux');
 assert.ok(paths.executable.split(String.fromCharCode(92)).join('/').endsWith('/aksa/bin/wireproxy'));
-assert.ok(paths.generatedConfig.endsWith('/aksa/wireproxy.conf'));
+assert.ok(paths.generatedConfig.split(String.fromCharCode(92)).join('/').endsWith('/aksa/wireproxy.conf'));
 
 const parsed = parseSections(config);
 assert.equal(parsed.filter((section) => section.name === 'peer').length, 1);
