@@ -25,7 +25,7 @@ interface SearchResultsViewProps {
   onAddBlockedCount: (ads: number, trackers: number, domain: string) => void;
   searchEngine?: keyof typeof SEARCH_ENGINES;
   onChangeSearchEngine?: (engine: keyof typeof SEARCH_ENGINES) => void;
-  onOpenLibi?: (contextQuery?: string) => void;
+  onOpenAkramAI?: (contextQuery?: string) => void;
 }
 
 export const SearchResultsView: React.FC<SearchResultsViewProps> = ({
@@ -35,7 +35,7 @@ export const SearchResultsView: React.FC<SearchResultsViewProps> = ({
   onAddBlockedCount,
   searchEngine = 'google',
   onChangeSearchEngine,
-  onOpenLibi,
+  onOpenAkramAI,
 }) => {
   const [results, setResults] = useState<SearchResult[]>([]);
   const [relatedQueries, setRelatedQueries] = useState<string[]>([]);
@@ -288,7 +288,7 @@ export const SearchResultsView: React.FC<SearchResultsViewProps> = ({
                 <div className="flex items-center justify-between gap-3 flex-wrap">
                   <div className="flex items-center gap-2.5">
                     <div className="w-9 h-9 rounded-full overflow-hidden border border-indigo-400/50 bg-indigo-950/60 shrink-0 shadow-sm">
-                      <img src="/assets/libi.png" alt="ليبي" className="w-full h-full object-cover" />
+                      <img src="/assets/akramAI.png" alt="ليبي" className="w-full h-full object-cover" />
                     </div>
                     <div>
                       <div className="flex items-center gap-2">
@@ -298,9 +298,9 @@ export const SearchResultsView: React.FC<SearchResultsViewProps> = ({
                       <span className="text-[11px] text-slate-400">تمت مراجعة نتائج البحث واستبعاد الروابط المضللة</span>
                     </div>
                   </div>
-                  {onOpenLibi && (
+                  {onOpenAkramAI && (
                     <button
-                      onClick={() => onOpenLibi(query)}
+                      onClick={() => onOpenAkramAI(query)}
                       className="text-xs px-3 py-1.5 rounded-full bg-indigo-600/30 hover:bg-indigo-600/50 text-indigo-200 border border-indigo-500/40 flex items-center gap-1.5 transition-all shadow-sm"
                     >
                       <Sparkles className="w-3.5 h-3.5 text-indigo-300" />
