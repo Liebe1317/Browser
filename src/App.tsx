@@ -340,21 +340,31 @@ export default function App() {
     );
   };
 
-  // Record a simulated or real network request for DevTools
+  // Record shield decisions only in the web-only compatibility mode.
+  // Electron desktop requests are recorded from Chromium's native webRequest events.
   const handleRecordRequest = (domain: string, status: 'allowed' | 'blocked', reason?: 'ad' | 'tracker') => {
+    let safeDomain = 'unknown.invalid';
+    try {
+      const candidate = new URL(domain.includes('://') ? domain : `https://${domain}`);
+      if (candidate.protocol === 'http:' || candidate.protocol === 'https:') {
+        safeDomain = candidate.hostname;
+      }
+    } catch {
+      // Keep an inert placeholder rather than displaying untrusted input as a URL.
+    }
     const newReq: NetworkRequest = {
-      id: `req-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
-      url: `https://${domain}/resource`,
-      domain,
-      type: 'script',
+      id: `shield-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      url: `https://${safeDomain}/`,
+      domain: safeDomain,
+      type: 'other',
       status,
       reason,
       timestamp: Date.now(),
-      size: `${Math.floor(Math.random() * 80 + 10)} KB`,
-      duration: Math.floor(Math.random() * 50 + 5),
+      size: '—',
+      duration: 0,
     };
 
-    setNetworkRequests((prev) => [newReq, ...prev.slice(0, 49)]);
+    setNetworkRequests((prev) => [newReq, ...prev.slice(0, 299)]);
 
     if (status === 'blocked') {
       if (reason === 'ad') setTotalAdsBlocked((c) => c + 1);
