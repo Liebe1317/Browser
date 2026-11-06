@@ -24,4 +24,5 @@ check(engine.evaluate({url:'https://media.example/stream',resourceType:'media',d
 check(engine.evaluate({url:'https://media.example/stream',resourceType:'media',documentUrl:'https://site.example'}).action==='allow', 'tilde third-party option excludes cross-site media');
 check(engine.evaluate({url:'file:///tmp/page.html'}).action==='allow', 'unsupported schemes are left untouched');
 check(parseFilterLine('||x.example^') !== null, 'network filter parser exposes deterministic compiled rules');
+check(parseFilterLine('||x.example^$script,badfilter') === null, 'unsupported modifiers are skipped rather than broadened unsafely');
 if (checks.some(([ok])=>!ok)) process.exitCode=1;
