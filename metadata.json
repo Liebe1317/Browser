@@ -1,6 +1,6 @@
 {
-  "name": "Aegis Privacy Browser",
-  "description": "متصفح خصوصية متطور بواجهة كروم المألوفة مع حظر شامل للإعلانات وأدوات التتبع، وحماية البصمة الرقمية ووضع التصفح الخفي.",
+  "name": "Akram Browser",
+  "description": "متصفح أكرم للخصوصية بواجهة كروم المألوفة مع حظر شامل للإعلانات وأدوات التتبع، وحماية البصمة الرقمية ووضع التصفح الخفي.",
   "requestFramePermissions": [],
   "majorCapabilities": [
     "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
