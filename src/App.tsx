@@ -360,8 +360,6 @@ export default function App() {
       status,
       reason,
       timestamp: Date.now(),
-      size: '—',
-      duration: 0,
     };
 
     setNetworkRequests((prev) => [newReq, ...prev.slice(0, 299)]);
@@ -406,8 +404,7 @@ export default function App() {
       error: event.error,
       reason: event.blockedReason as NetworkRequest['reason'],
       timestamp: event.timestamp,
-      size: '—',
-      duration: Number.isFinite(event.duration) ? Math.max(0, event.duration || 0) : 0,
+      ...(Number.isFinite(event.duration) ? { duration: Math.max(0, event.duration as number) } : {}),
     };
     setNetworkRequests((previous) => {
       const index = previous.findIndex((item) => item.id === id);
