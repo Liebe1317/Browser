@@ -38,7 +38,7 @@ function cleanCommand(value: string): string {
     .replace(/ى/g, 'ي')
     .replace(/[\u064B-\u065F\u0670]/g, '')
     .replace(/[ًٌٍَُِّْـ]/g, '')
-    .replace(/^\s*ليبي[،,:؛-]?\s*/, '')
+    .replace(/^\s*(?:ليبي|أكرم|اكرم)[،,:؛-]?\s*/, '')
     .trim()
     .replace(/[.!؟،؛]+$/g, '')
     .trim();
