@@ -10,7 +10,7 @@ function createChromiumShieldsAdapter(rules, options = {}) {
       return shields.evaluate({
         url: details.url,
         method: details.method || 'GET',
-        resourceType: details.resourceType || 'other',
+        resourceType: ({ xhr: 'xmlhttprequest', mainFrame: 'document', subFrame: 'subdocument' })[details.resourceType] || details.resourceType || 'other',
         isMainFrame: details.resourceType === 'mainFrame',
         documentUrl: details.initiator || details.referrer || details.documentUrl || '',
       });
