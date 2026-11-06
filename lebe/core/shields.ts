@@ -3,7 +3,12 @@ import type { LebeRequest, LebeRequestPolicy, ShieldDecision } from "./contracts
 
 export interface LebeHostRule {
   readonly id: string;
-  readonly domain: string;
+  readonly domain?: string;
+  readonly domains?: readonly string[];
+  readonly pathIncludes?: readonly string[];
+  readonly queryKeysAny?: readonly string[];
+  readonly resourceTypes?: readonly string[];
+  readonly methods?: readonly string[];
 }
 
 /** Shared host matcher from the engine-neutral runtime implementation. */
