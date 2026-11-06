@@ -66,7 +66,24 @@ export const WebPageView: React.FC<WebPageViewProps> = ({
     const unsubscribe = nativeBrowser.onSiteViewEvent((event) => {
       if (!mounted || event.tabId !== tab.id) return;
       if (event.type === 'network-request') {
-        onNetworkRequest?.(event);
+        if (
+          typeof event.url === 'string' &&
+          typeof event.method === 'string' &&
+          typeof event.resourceType === 'string' &&
+          (event.phase === 'started' || event.phase === 'completed' || event.phase === 'failed' || event.phase === 'blocked')
+        ) {
+          onNetworkRequest?.({
+            url: event.url,
+            method: event.method,
+            resourceType: event.resourceType,
+            phase: event.phase,
+            statusCode: event.statusCode,
+            duration: event.duration,
+            error: event.error,
+            blockedReason: event.blockedReason,
+            timestamp: event.timestamp,
+          });
+        }
         return;
       }
       if (event.type === 'loading') {
