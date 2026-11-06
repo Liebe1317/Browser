@@ -75,18 +75,15 @@ function createSiteViewManager({
       send(tabId, 'process-gone', { reason: typeof details?.reason === 'string' ? details.reason.slice(0, 40) : 'unknown' });
     });
 
-    // Electron does not provide a browser-style context menu for WebContentsView.
-    // Build a small native menu here; never execute page-provided JavaScript.
+    // WebContentsView has no built-in browser context menu. Map the renderer's
+    // context coordinates into the owning BrowserWindow before showing a native menu.
     webContents.on('context-menu', (_event, params = {}) => {
       if (!Menu || typeof Menu.buildFromTemplate !== 'function') return;
       const template = [];
       const add = (label, click, enabled = true) => {
         if (enabled) template.push({ label, click });
       };
-      const safeClipboardUrl = (raw) => {
-        const safe = safeSiteUrl(raw, getTrustedAppOrigin());
-        return safe || null;
-      };
+      const safeClipboardUrl = (raw) => safeSiteUrl(raw, getTrustedAppOrigin());
 
       add('رجوع', () => webContents.goBack(), webContents.canGoBack());
       add('تقدّم', () => webContents.goForward(), webContents.canGoForward());
@@ -113,40 +110,23 @@ function createSiteViewManager({
         add('تحديد الكل', () => webContents.selectAll());
       }
 
-      if (template.length === 0) return;
-      const menu = Menu.buildFromTemplate(template);
+      if (!template.length) return;
       const window = getWindow();
-      if (window && !window.isDestroyed()) menu.popup({ window });
-    });
-    // Block pop-under/background windows and known ad-network destinations.
-    // Only an ordinary foreground-tab request is allowed; Chromium still applies
-    // its transient user-activation popup policy before this handler is reached.
-    // Popups remain isolated in the opener's profile partition.
-    webContents.setWindowOpenHandler((details) => {
-      const popupUrl = safeSiteUrl(details?.url, getTrustedAppOrigin());
-      if (!popupUrl || details?.disposition !== 'foreground-tab' || isBlockedAdOrTracker(popupUrl)) {
-        return { action: 'deny' };
+      if (!window || window.isDestroyed()) return;
+      const bounds = entry.view.getBounds?.() || { x: 0, y: 0 };
+      const x = Math.max(0, Math.round((Number(bounds.x) || 0) + (Number(params.x) || 0)));
+      const y = Math.max(0, Math.round((Number(bounds.y) || 0) + (Number(params.y) || 0)));
+      try {
+        Menu.buildFromTemplate(template).popup({ window, x, y });
+      } catch {
+        // Never fall back to executing page content or exposing privileged APIs.
       }
-      return {
-        action: 'allow',
-        overrideBrowserWindowOptions: {
-          parent: getWindow(),
-          width: 1100,
-          height: 760,
-          show: true,
-          webPreferences: {
-            partition: entry.partition,
-            nodeIntegration: false,
-            contextIsolation: true,
-            sandbox: true,
-            webSecurity: true,
-            allowRunningInsecureContent: false,
-            webviewTag: false,
-            spellcheck: false,
-          },
-        },
-      };
     });
+    // Default-deny all script-created windows and popups. This closes the
+    // foreground-tab loophole used by click-triggered ad/popunder scripts.
+    // Normal links remain navigable in the current tab; a dedicated safe new-tab
+    // flow can be added later with explicit user intent.
+    webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
     webContents.on('did-create-window', (popupWindow) => {
       const popupContents = popupWindow?.webContents;
       if (!popupContents || popupContents.isDestroyed?.()) return;
