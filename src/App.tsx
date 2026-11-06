@@ -996,7 +996,7 @@ export default function App() {
           type="button"
           onClick={() => setShowLibi(true)}
           className="fixed bottom-5 left-5 z-40 flex items-center gap-2.5 px-3.5 py-2 rounded-full bg-slate-900/95 hover:bg-slate-800 text-white border-2 border-indigo-500/60 shadow-[0_4px_24px_rgba(99,102,241,0.4)] transition-all hover:scale-105 group backdrop-blur-md cursor-pointer"
-          title="ليبي (Libi) - مساعد الخصوصية والذكاء الاصطناعي 🇵🇸"
+          title="أكرم (Akram) - مساعد الخصوصية والذكاء الاصطناعي 🇵🇸"
           dir="rtl"
         >
           <div className="relative w-8 h-8 rounded-full overflow-hidden border border-indigo-400 shrink-0 shadow-sm">
