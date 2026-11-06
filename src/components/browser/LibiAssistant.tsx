@@ -117,7 +117,7 @@ export const LibiAssistant: React.FC<LibiAssistantProps> = ({
         }),
       });
 
-      if (!res.ok) throw new Error('Failed to get Libi reply');
+      if (!res.ok) throw new Error('Failed to get Akram reply');
       const data = await res.json();
 
       const botMessage: ChatMessage = {
@@ -139,7 +139,7 @@ export const LibiAssistant: React.FC<LibiAssistantProps> = ({
         {
           id: `bot-err-${Date.now()}`,
           role: 'model',
-          text: 'تعذر الاتصال بخدمة ليبي حالياً. لم يتم تنفيذ أي أمر؛ حاول مرة أخرى لاحقاً.',
+          text: 'تعذر الاتصال بخدمة أكرم حالياً. لم يتم تنفيذ أي أمر؛ حاول مرة أخرى لاحقاً.',
           timestamp: Date.now(),
         },
       ]);
@@ -163,7 +163,7 @@ export const LibiAssistant: React.FC<LibiAssistantProps> = ({
           <div className="relative w-10 h-10 rounded-full overflow-hidden border-2 border-indigo-400/60 bg-purple-950/80 shrink-0 shadow-md">
             <img 
               src="/assets/libi.png" 
-              alt="ليبي بالكوفية الفلسطينية" 
+              alt="أكرم بالكوفية الفلسطينية" 
               className="w-full h-full object-cover"
             />
             <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-emerald-500 border-2 border-slate-900" />
@@ -171,7 +171,7 @@ export const LibiAssistant: React.FC<LibiAssistantProps> = ({
           <div>
             <div className="flex items-center gap-1.5">
               <h3 className="text-sm font-bold text-white flex items-center gap-1">
-                <span>ليبي (Libi)</span>
+                <span>أكرم (Akram)</span>
                 <span className="text-xs">🇵🇸</span>
               </h3>
               <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-400/30">
@@ -209,7 +209,7 @@ export const LibiAssistant: React.FC<LibiAssistantProps> = ({
           <div className="px-4 py-1.5 bg-emerald-950/40 border-b border-emerald-500/20 flex items-center justify-between text-[11px] text-emerald-300">
             <div className="flex items-center gap-2 min-w-0">
               <Shield className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-              <span>ليبي لا يقرأ كلمات المرور أو كوكيز المواقع أو ملفات الجهاز.</span>
+              <span>أكرم لا يقرأ كلمات المرور أو كوكيز المواقع أو ملفات الجهاز.</span>
             </div>
             {currentPageContext?.url && /^https?:\/\//i.test(currentPageContext.url) && (
               <label className={`flex items-center gap-1.5 text-[10px] shrink-0 ${currentPageContext.text?.trim() ? 'text-emerald-200 cursor-pointer' : 'text-slate-400'}`}>
@@ -241,7 +241,7 @@ export const LibiAssistant: React.FC<LibiAssistantProps> = ({
                 >
                   {!isUser && (
                     <div className="w-7 h-7 rounded-full overflow-hidden border border-indigo-400/40 shrink-0 self-end mb-1">
-                      <img src="/assets/libi.png" alt="ليبي" className="w-full h-full object-cover" />
+                      <img src="/assets/libi.png" alt="أكرم" className="w-full h-full object-cover" />
                     </div>
                   )}
 
@@ -275,20 +275,20 @@ export const LibiAssistant: React.FC<LibiAssistantProps> = ({
             {isLoading && (
               <div className="flex gap-2.5 items-end">
                 <div className="w-7 h-7 rounded-full overflow-hidden border border-indigo-400/40 shrink-0">
-                  <img src="/assets/libi.png" alt="ليبي" className="w-full h-full object-cover" />
+                  <img src="/assets/libi.png" alt="أكرم" className="w-full h-full object-cover" />
                 </div>
                 <div className="bg-slate-800/90 border border-slate-700/60 rounded-2xl rounded-bl-none px-3.5 py-2.5 text-slate-300 flex items-center gap-1.5">
                   <div className="w-2 h-2 rounded-full bg-indigo-400 animate-bounce" style={{ animationDelay: '0ms' }} />
                   <div className="w-2 h-2 rounded-full bg-indigo-400 animate-bounce" style={{ animationDelay: '150ms' }} />
                   <div className="w-2 h-2 rounded-full bg-indigo-400 animate-bounce" style={{ animationDelay: '300ms' }} />
-                  <span className="text-[11px] text-slate-400 mr-2">ليبي يفكّر بذكاء...</span>
+                  <span className="text-[11px] text-slate-400 mr-2">أكرم يفكّر بذكاء...</span>
                 </div>
               </div>
             )}
 
             {pendingAction && (
               <div className="rounded-2xl border border-indigo-500/40 bg-indigo-950/40 p-3 space-y-2" role="group" aria-label="تأكيد أمر المتصفح">
-                <p className="text-xs text-indigo-100">ليبي يقترح تنفيذ أمر في المتصفح. لن يحدث شيء قبل موافقتك.</p>
+                <p className="text-xs text-indigo-100">أكرم يقترح تنفيذ أمر في المتصفح. لن يحدث شيء قبل موافقتك.</p>
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
@@ -342,7 +342,7 @@ export const LibiAssistant: React.FC<LibiAssistantProps> = ({
               type="text"
               value={inputText}
               onChange={(e) => setInputText(e.target.value)}
-              placeholder="تحدث مع ليبي بأي سؤال أو اطلب مساعدة..."
+              placeholder="تحدث مع أكرم بأي سؤال أو اطلب مساعدة..."
               className="flex-1 bg-slate-800 border border-slate-700 focus:border-indigo-500 rounded-xl px-3.5 py-2 text-xs text-white placeholder-slate-400 outline-none transition-colors"
               disabled={isLoading}
             />
