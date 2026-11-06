@@ -102,6 +102,20 @@ ok(safePopup.overrideBrowserWindowOptions.webPreferences.sandbox === true
   'popup windows retain Chromium renderer isolation');
 ok(createdViews[0].webContents.openHandler({ url: 'javascript:alert(1)' }).action === 'deny', 'script popups remain blocked');
 ok(createdViews[0].webContents.openHandler({ url: 'http://127.0.0.1:3000/private' }).action === 'deny', 'popups cannot target the privileged app origin');
+const popupContents = new EventEmitter();
+popupContents.id = 900;
+popupContents.isDestroyed = () => false;
+popupContents.setWindowOpenHandler = (handler) => { popupContents.openHandler = handler; };
+const popupWindow = new EventEmitter();
+popupWindow.webContents = popupContents;
+popupWindow.isDestroyed = () => false;
+popupWindow.close = () => { popupWindow.closed = true; popupWindow.emit('closed'); };
+createdViews[0].webContents.emit('did-create-window', popupWindow);
+const popupNetworkRouted = manager.recordNetworkEvent({
+  webContentsId: 900, requestId: 'popup-network', url: 'https://download.example/file',
+  method: 'GET', resourceType: 'document', phase: 'started', timestamp: 122,
+});
+ok(popupNetworkRouted, 'popup network events remain associated with their owning tab');
 const routed = manager.recordNetworkEvent({
   webContentsId: createdViews[0].webContents.id,
   requestId: 'network-1',
@@ -162,6 +176,7 @@ const second = await manager.create({
 });
 ok(second.ok && registered.length === 2 && registered[0] === registered[1], 'private tabs share one profile session and reuse the registered session policy');
 await manager.close('tab-a');
+ok(popupWindow.closed === true, 'closing a tab also closes its popup windows');
 ok(sessionFor('aegis-private-main').clearStorage === 0, 'private profile data is retained while another private tab remains open');
 await manager.close('tab-b');
 ok(sessionFor('aegis-private-main').clearStorage === 1, 'private profile storage is cleared after its last tab closes');
