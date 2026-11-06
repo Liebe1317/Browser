@@ -38,6 +38,36 @@ const RELEASE_ASSETS = Object.freeze({
   },
 });
 
+
+function parseAksaLocalProxy(value) {
+  if (typeof value !== 'string' || !value.trim()) return null;
+
+  let parsed;
+  try {
+    parsed = new URL(value.trim());
+  } catch {
+    return null;
+  }
+
+  // Wireproxy binds only to this exact loopback endpoint.
+  // Never permit a remote proxy, alternate port, credentials or URL parameters.
+  if (
+    parsed.protocol !== 'http:'
+    || parsed.hostname !== '127.0.0.1'
+    || parsed.port !== '19090'
+    || parsed.username
+    || parsed.password
+    || (parsed.pathname !== '/' && parsed.pathname !== '')
+    || parsed.search
+    || parsed.hash
+  ) return null;
+
+  return Object.freeze({
+    proxyRules: `http=${HTTP_PROXY_ADDRESS};https=${HTTP_PROXY_ADDRESS}`,
+    proxyBypassRules: 'localhost;127.0.0.1;[::1]',
+  });
+}
+
 function getReleaseAsset(platform = process.platform, arch = process.arch) {
   const asset = RELEASE_ASSETS[`${platform}-${arch}`];
   return asset ? { ...asset, version: WIREPROXY_VERSION } : null;
@@ -217,6 +247,7 @@ module.exports = {
   HEALTH_MAX_AGE_SECONDS,
   RELEASE_ASSETS,
   getReleaseAsset,
+  parseAksaLocalProxy,
   getAegisUserDataPath,
   getAksaPaths,
   parseSections,
