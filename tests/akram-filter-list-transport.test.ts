@@ -3,12 +3,12 @@ import { ReadableStream } from 'node:stream/web';
 import { BodyTooLargeError } from '../server/ssrf.ts';
 import { createAkramFilterListFetcher } from '../server/akramFilterListTransport.ts';
 
-function response(status: number, headers: Record<string, string> = {}, body: Uint8Array | string | null = null) {
+function response(status: number, headers: Record<string, string> = {}, body: Uint8Array | string | null = null, holdOpen = false) {
   const bytes = typeof body === 'string' ? new TextEncoder().encode(body) : body;
   let cancelled = false;
   const stream = bytes
     ? new ReadableStream<Uint8Array>({
-        start(controller) { controller.enqueue(bytes); controller.close(); },
+        start(controller) { controller.enqueue(bytes); if (!holdOpen) controller.close(); },
         cancel() { cancelled = true; },
       })
     : null;
@@ -66,7 +66,7 @@ await assert.rejects(() => vpnBlocked(target), /Aksa VPN is enabled/);
 assert.equal(callsWhileVpnEnabled, 0, 'VPN-enabled updates fail closed before network dispatch');
 console.log('PASS - filter transport never falls back directly while Aksa VPN is enabled');
 
-const redirected = response(302, { location: 'https://other.example/list.txt' }, 'redirect');
+const redirected = response(302, { location: 'https://other.example/list.txt' }, 'redirect', true);
 const redirectFetcher = createAkramFilterListFetcher({
   vpnStatus: () => ({ enabled: false } as any),
   safeFetch: async (url: any) => ({ response: redirected as any, finalUrl: new URL(url) }),
