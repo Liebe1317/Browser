@@ -11,6 +11,7 @@ function check(value, label) {
 const manager = new LebeShieldManager();
 check(manager.getStats().profile === 'lebe-default', 'Lebe Default is the built-in protection profile');
 check(manager.getModuleStates().network && manager.getModuleStates().cosmetic, 'network and cosmetic protection start enabled');
+check(manager.evaluateRequest({ url: 'https://doubleclick.net/ad.js', method: 'GET', resourceType: 'script' }).action === 'block', 'built-in network protection rules are owned by the central Shield core');
 
 const metadata = manager.addFilterList({
   id: 'starter',
@@ -21,10 +22,11 @@ const metadata = manager.addFilterList({
     'example.com##.sponsored-card',
     'example.com#@#.sponsored-card',
     'youtube.com#@#.ytp-ad-overlay-container',
+    'example.com#@#.ad-container',
   ].join('\n'),
 });
 check(metadata.networkRuleCount === 1, 'manager registers network rules');
-check(metadata.cosmeticRuleCount === 3, 'manager registers cosmetic rules and exceptions');
+check(metadata.cosmeticRuleCount === 4, 'manager registers cosmetic rules and exceptions');
 check(manager.evaluateRequest({
   url: 'https://ads.example/ad.js',
   method: 'GET',
@@ -32,6 +34,8 @@ check(manager.evaluateRequest({
   documentUrl: 'https://publisher.example',
 }).action === 'block', 'central manager evaluates network requests');
 check(manager.getCosmeticCss('https://example.com/').includes('.sponsored-card') === false, 'cosmetic exception is honored through the manager');
+check(!manager.getCosmeticCss('https://example.com/').includes('.ad-container{'), 'site exceptions can override built-in global cosmetic selectors');
+check(manager.getCosmeticCss('https://unrelated.example/').includes('.ad-container{'), 'built-in global cosmetic selectors remain active on other sites');
 check(manager.getCosmeticCss('https://www.youtube.com/').includes('.ytp-ad-overlay-container') === false, 'site exception can disable a built-in YouTube cosmetic rule');
 check(!manager.getCosmeticCss('https://unrelated.example/').includes('.ytp-ad-overlay-container'), 'YouTube built-ins do not leak to unrelated sites');
 check(manager.getCosmeticCss('https://youtube.com/').includes('.ytp-ad-overlay-container{'), 'YouTube built-ins apply on YouTube');
