@@ -72,7 +72,7 @@ function isBlockedAdOrTracker(rawUrl) {
  * Applies the same network and permission boundary to every Chromium session.
  * New profile partitions must be registered before their WebContents is created.
  */
-function createBrowserSessionPolicy({ getVpnState, isAppRequest }) {
+function createBrowserSessionPolicy({ getVpnState, isAppRequest, onNetworkEvent }) {
   const sessions = new Set();
   const installed = new WeakSet();
   const sessionMetadata = new WeakMap();
