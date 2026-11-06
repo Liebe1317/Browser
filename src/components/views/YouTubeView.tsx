@@ -137,9 +137,9 @@ export const YouTubeView: React.FC<YouTubeViewProps> = ({
   };
 
   const handleSelectVideo = (video: YouTubeVideo) => {
-    setCurrentVideoId(video.id);
-    setActiveVideo(video);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    // Video playback belongs in the isolated native Chromium site view, not an
+    // iframe hosted by the privileged React application shell.
+    onNavigate(`https://www.youtube.com/watch?v=${encodeURIComponent(video.id)}`);
   };
 
   const handleShare = async () => {
