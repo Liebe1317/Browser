@@ -11,6 +11,7 @@ interface WebPageViewProps {
   onNavigate: (url: string) => void;
   onOpenReader: (url: string) => void;
   onRecordRequest: (domain: string, status: 'allowed' | 'blocked', reason?: 'ad' | 'tracker') => void;
+  onNetworkRequest?: (event: { url: string; method: string; resourceType: string; phase: string; statusCode?: number; duration?: number; error?: string; blockedReason?: string; timestamp?: number }) => void;
   onPageText?: (id: string, text: string) => void;
   pageScrollCommand?: { id: number; direction: 'top' | 'bottom' } | null;
   requestPageText?: boolean;
@@ -26,6 +27,7 @@ export const WebPageView: React.FC<WebPageViewProps> = ({
   onNavigate,
   onOpenReader,
   onRecordRequest,
+  onNetworkRequest,
   onPageText,
   pageScrollCommand,
   requestPageText = false,
@@ -63,6 +65,10 @@ export const WebPageView: React.FC<WebPageViewProps> = ({
     setIsIframeLoading(true);
     const unsubscribe = nativeBrowser.onSiteViewEvent((event) => {
       if (!mounted || event.tabId !== tab.id) return;
+      if (event.type === 'network-request') {
+        onNetworkRequest?.(event);
+        return;
+      }
       if (event.type === 'loading') {
         const loading = event.isLoading === true;
         setIsIframeLoading(loading);
@@ -293,7 +299,7 @@ export const WebPageView: React.FC<WebPageViewProps> = ({
     };
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
-  }, [nativeBrowser, requestPageText, tab.id, onPageText, onRecordRequest]);
+  }, [nativeBrowser, requestPageText, tab.id, onPageText, onRecordRequest, onNetworkRequest]);
 
   const handleIframeLoad = () => {
     if (requestPageText) iframeRef.current?.contentWindow?.postMessage({ type: 'AEGIS_EXTRACT_PAGE_TEXT' }, '*');
