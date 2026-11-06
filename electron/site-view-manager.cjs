@@ -62,7 +62,10 @@ function createSiteViewManager({
       if (safeUrl) send(tabId, 'navigation', { url: safeUrl, canGoBack: webContents.canGoBack(), canGoForward: webContents.canGoForward() });
     });
     webContents.on('did-fail-load', (_event, errorCode, _description, _url, isMainFrame) => {
-      if (isMainFrame) send(tabId, 'error', { code: Number.isInteger(errorCode) ? errorCode : -1 });
+      // Chromium reports ERR_ABORTED (-3) for superseded navigations, redirects,
+      // and user-initiated navigation changes. It is not a page-load failure.
+      if (!isMainFrame || errorCode === -3) return;
+      send(tabId, 'error', { code: Number.isInteger(errorCode) ? errorCode : -1 });
     });
     webContents.on('render-process-gone', (_event, details) => {
       send(tabId, 'process-gone', { reason: typeof details?.reason === 'string' ? details.reason.slice(0, 40) : 'unknown' });
