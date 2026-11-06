@@ -282,7 +282,7 @@ export const SearchResultsView: React.FC<SearchResultsViewProps> = ({
         {/* Results List */}
         {!isLoading && results.length > 0 && (
           <div className="space-y-6 max-w-3xl">
-            {/* AI Overview Banner from Libi */}
+            {/* AI Overview Banner from Akram */}
             {aiOverview && (
               <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-br from-indigo-950/50 via-[#1e293b]/80 to-purple-950/40 border border-indigo-500/30 shadow-md space-y-3">
                 <div className="flex items-center justify-between gap-3 flex-wrap">
