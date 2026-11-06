@@ -2,6 +2,7 @@
 
 const { LebeShields } = require('./shields.cjs');
 const { LebeCosmeticFilters } = require('./cosmetic-filters.cjs');
+const { DEFAULT_SHIELD_RULES } = require('./default-rules.cjs');
 
 const DEFAULT_LIMITS = Object.freeze({
   maxListBytes: 5 * 1024 * 1024,
@@ -43,7 +44,7 @@ class LebeShieldManager {
   #modules = { network: true, cosmetic: true };
 
   constructor(options = {}) {
-    this.#legacyRules = Array.isArray(options.legacyRules) ? options.legacyRules : [];
+    this.#legacyRules = Array.isArray(options.legacyRules) ? options.legacyRules : DEFAULT_SHIELD_RULES;
     this.#limits = { ...DEFAULT_LIMITS, ...(options.limits || {}) };
     for (const key of Object.keys(DEFAULT_LIMITS)) {
       if (!Number.isSafeInteger(this.#limits[key]) || this.#limits[key] < 1) {
