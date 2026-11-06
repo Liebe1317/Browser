@@ -79,4 +79,10 @@ const limited = new LebeShieldManager({ limits: { maxListBytes: 8, maxLinesPerLi
 try { limited.addFilterList({ id: 'large', content: '||long.example^' }); } catch { oversizedRejected = true; }
 check(oversizedRejected, 'oversized filter lists are rejected before activation');
 
+const capped = new LebeShieldManager({ limits: { maxFilterLists: 1 } });
+capped.addFilterList({ id: 'one', content: '||one.example^' });
+let listCapRejected = false;
+try { capped.addFilterList({ id: 'two', content: '||two.example^' }); } catch { listCapRejected = true; }
+check(listCapRejected && capped.getStats().filterListCount === 1, 'filter-list count limits reject additions without changing active policy');
+
 if (checks.some(([ok]) => !ok)) process.exitCode = 1;
