@@ -1,6 +1,6 @@
 'use strict';
 
-const { LebeShieldManager } = require('../../core/shield-manager.cjs');
+const { LebeShieldManager } = require('../../../akram/core/shield-manager.cjs');
 
 function createChromiumShieldsAdapter(rules, options = {}) {
   const manager = options.manager || new LebeShieldManager({
