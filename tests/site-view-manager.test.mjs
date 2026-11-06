@@ -95,6 +95,9 @@ ok(createdViews[0].options.webPreferences.session === sessionFor('aegis-private-
 ok(createdViews[0].visible === false, 'new native views start hidden until layout activates them');
 const safePopup = createdViews[0].webContents.openHandler({ url: 'https://download.example/file', disposition: 'foreground-tab' });
 ok(safePopup.action === 'allow', 'safe HTTPS popups can open in an isolated child window');
+ok(createdViews[0].webContents.openHandler({ url: 'https://download.example/file', disposition: 'background-tab' }).action === 'deny', 'background pop-under windows are blocked');
+ok(createdViews[0].webContents.openHandler({ url: 'https://clickadu.com/redirect', disposition: 'foreground-tab' }).action === 'deny', 'known ad-network popup destinations are blocked');
+ok(createdViews[0].webContents.openHandler({ url: 'https://download.example/file', disposition: 'new-window' }).action === 'deny', 'unsolicited new-window requests are blocked');
 ok(safePopup.overrideBrowserWindowOptions.webPreferences.partition === 'aegis-private-main', 'popup windows reuse only the opener profile partition');
 ok(safePopup.overrideBrowserWindowOptions.webPreferences.sandbox === true
   && safePopup.overrideBrowserWindowOptions.webPreferences.nodeIntegration === false
