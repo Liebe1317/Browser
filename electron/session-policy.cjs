@@ -3,97 +3,7 @@
 const { isIP } = require('node:net');
 const { createChromiumShieldsAdapter } = require('../lebe/adapters/chromium/session-policy-adapter.cjs');
 
-// Domain reputation rules plus narrow YouTube ad endpoints. Video delivery hosts are
-// never blanket-blocked: only requests carrying explicit ad markers are denied.
-const blockedDomains = [
-  'doubleclick.net',
-  'googleadservices.com',
-  'googlesyndication.com',
-  'adservice.google.com',
-  'amazon-adsystem.com',
-  'criteo.com',
-  'criteo.net',
-  'taboola.com',
-  'outbrain.com',
-  'adroll.com',
-  'appnexus.com',
-  'adnxs.com',
-  'pubmatic.com',
-  'rubiconproject.com',
-  'openx.net',
-  'media.net',
-  'popads.net',
-  'popcash.net',
-  'propellerads.com',
-  'adsterra.com',
-  'monetag.com',
-  'clickadu.com',
-  'yllix.com',
-  'exoclick.com',
-  'trafficjunky.com',
-  'google-analytics.com',
-  'googletagmanager.com',
-  'connect.facebook.net',
-  'pixel.facebook.com',
-  'hotjar.com',
-  'clarity.ms',
-  'scorecardresearch.com',
-  'moatads.com',
-  'adsafeprotected.com',
-  'adform.net',
-  'advertising.com',
-  'adsrvr.org',
-  '33across.com',
-  'bidswitch.net',
-  'casalemedia.com',
-  'contextweb.com',
-  'demdex.net',
-  'lijit.com',
-  'quantserve.com',
-  'serving-sys.com',
-  'sharethrough.com',
-  'smartadserver.com',
-  'sovrn.com',
-  'yieldmo.com',
-  'triplelift.com',
-  'undertone.com',
-  'zemanta.com',
-  'revcontent.com',
-  'mgid.com',
-  'infolinks.com',
-  'teads.tv',
-  'imrworldwide.com',
-  'onclickads.net',
-  'juicyads.com',
-  'hilltopads.net',
-  'adskeeper.co.uk',
-  'adskeeper.com',
-  'ad-maven.com',
-  'adf.ly',
-  'clk.sh',
-  'popunder.net',
-  'popunderjs.com',
-  'propeller-tracking.com',
-];
-
-const shieldRules = [
-  ...blockedDomains.map((domain) => ({ id: domain, domain })),
-  {
-    id: 'youtube-ad-endpoints',
-    domains: ['youtube.com', 'youtube-nocookie.com'],
-    pathIncludes: ['/pagead/', '/api/stats/ads', '/get_midroll_info'],
-    resourceTypes: ['xmlhttprequest', 'xhr', 'script', 'image', 'other'],
-    reason: 'youtube-ad-request',
-  },
-  {
-    id: 'youtube-googlevideo-ad-markers',
-    domains: ['googlevideo.com'],
-    pathIncludes: ['/videoplayback'],
-    queryKeysAny: ['oad', 'adformat', 'ad_type', 'adurl', 'adtag'],
-    resourceTypes: ['media', 'other', 'xmlhttprequest', 'xhr'],
-    reason: 'youtube-ad-media',
-  },
-];
+// Protection rules are owned by Lebe Shield core; Electron only adapts engine callbacks.
 
 function isPrivateIpv4(host) {
   if (isIP(host) !== 4) return false;
@@ -141,7 +51,7 @@ function isPrivateOrLocalUrl(rawUrl) {
   }
 }
 
-const lebeShieldsAdapter = createChromiumShieldsAdapter(shieldRules);
+const lebeShieldsAdapter = createChromiumShieldsAdapter();
 
 function isBlockedAdOrTracker(rawUrl, requestDetails = {}) {
   return lebeShieldsAdapter.evaluateRequest({ ...requestDetails, url: rawUrl }).action === 'block';
