@@ -37,7 +37,9 @@ export interface LebeShieldManagerOptions {
   readonly legacyRules?: readonly Record<string, unknown>[];
   readonly limits?: {
     readonly maxListBytes?: number;
+    readonly maxTotalBytes?: number;
     readonly maxLinesPerList?: number;
+    readonly maxFilterLists?: number;
   };
 }
 
