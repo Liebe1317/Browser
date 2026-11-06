@@ -55,6 +55,8 @@ check(fetchCalls.at(-1).init.headers['If-None-Match'] === '"v1"', 'ETag is sent 
 
 async function rejected(label, mutate) {
   const before = manager.evaluateRequest({ url: 'https://ads.remote.example/ad.js', resourceType: 'script' }).action;
+  // Each rejection case is an HTTP 200 validation case; do not inherit the prior 304.
+  responseStatus = 200;
   mutate();
   let failed = false;
   try { await updater.update('community'); } catch { failed = true; }
