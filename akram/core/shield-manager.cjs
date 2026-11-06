@@ -11,19 +11,21 @@ const DEFAULT_LIMITS = Object.freeze({
   maxFilterLists: 64,
 });
 
-function validateListInput(input, limits) {
+function validateListInput(input, limits, fallbackEnabled = true) {
   if (!input || typeof input !== 'object') throw new TypeError('A filter-list descriptor is required.');
   const id = String(input.id || '').trim();
   const source = String(input.source || id).trim();
   const content = input.content;
+  const enabled = input.enabled === undefined ? fallbackEnabled : input.enabled;
   if (!/^[a-z0-9][a-z0-9._-]{0,63}$/i.test(id)) throw new TypeError('Filter-list id must be 1-64 safe characters.');
   if (!source || source.length > 160) throw new TypeError('Filter-list source must be 1-160 characters.');
   if (typeof content !== 'string' || !content.trim()) throw new TypeError('Filter-list content must be a non-empty string.');
+  if (typeof enabled !== 'boolean') throw new TypeError('Filter-list enabled state must be boolean.');
   const byteLength = new TextEncoder().encode(content).length;
   if (byteLength > limits.maxListBytes) throw new RangeError('Filter list exceeds the configured byte limit.');
   const lines = content.split(/\r?\n/);
   if (lines.length > limits.maxLinesPerList) throw new RangeError('Filter list exceeds the configured line limit.');
-  return { id, source, content, lineCount: lines.length, byteLength };
+  return { id, source, content, enabled, lineCount: lines.length, byteLength };
 }
 
 function countCandidateLines(content) {
@@ -66,8 +68,15 @@ class AkramShieldManager {
     const metadata = new Map();
 
     for (const list of lists.values()) {
-      const networkRuleCount = network.addFilterList(list.content, list.source);
-      const cosmeticRuleCount = cosmetic.addFilterList(list.content, list.source);
+      // Count each list independently so disabled lists retain useful metadata.
+      const listNetwork = new AkramShields([]);
+      const listCosmetic = new AkramCosmeticFilters();
+      const networkRuleCount = listNetwork.addFilterList(list.content, list.source);
+      const cosmeticRuleCount = listCosmetic.addFilterList(list.content, list.source);
+      if (list.enabled) {
+        network.addFilterList(list.content, list.source);
+        cosmetic.addFilterList(list.content, list.source);
+      }
       const candidateLineCount = countCandidateLines(list.content);
       metadata.set(list.id, Object.freeze({
         id: list.id,
@@ -76,7 +85,7 @@ class AkramShieldManager {
         networkRuleCount,
         cosmeticRuleCount,
         unsupportedLineCount: Math.max(0, candidateLineCount - networkRuleCount - cosmeticRuleCount),
-        enabled: true,
+        enabled: list.enabled,
       }));
     }
     return { network, cosmetic, metadata };
@@ -104,17 +113,29 @@ class AkramShieldManager {
     const next = new Map(this.#lists);
     next.set(list.id, list);
     this.#assertCollectionLimits(next);
-    const metadata = this.#commitLists(next).get(list.id);
-    return metadata;
+    return this.#commitLists(next).get(list.id);
   }
 
   updateFilterList(input) {
-    const list = validateListInput(input, this.#limits);
-    if (!this.#lists.has(list.id)) throw new Error('Cannot update a filter list that is not registered.');
+    const id = String(input?.id || '').trim();
+    const current = this.#lists.get(id);
+    if (!current) throw new Error('Cannot update a filter list that is not registered.');
+    const list = validateListInput(input, this.#limits, current.enabled);
     const next = new Map(this.#lists);
     next.set(list.id, list);
     this.#assertCollectionLimits(next);
     return this.#commitLists(next).get(list.id);
+  }
+
+  setFilterListEnabled(id, enabled) {
+    if (typeof enabled !== 'boolean') throw new TypeError('Filter-list enabled state must be boolean.');
+    const key = String(id || '').trim();
+    const current = this.#lists.get(key);
+    if (!current) return false;
+    if (current.enabled === enabled) return this.#metadata.get(key);
+    const next = new Map(this.#lists);
+    next.set(key, { ...current, enabled });
+    return this.#commitLists(next).get(key);
   }
 
   removeFilterList(id) {

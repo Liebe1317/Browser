@@ -3,7 +3,7 @@ declare class AkramShieldManager {
     legacyRules?: readonly Record<string, unknown>[];
     limits?: { maxListBytes?: number; maxTotalBytes?: number; maxLinesPerList?: number; maxFilterLists?: number };
   });
-  addFilterList(input: { id: string; source?: string; content: string }): {
+  addFilterList(input: { id: string; source?: string; content: string; enabled?: boolean }): {
     readonly id: string;
     readonly source: string;
     readonly lineCount: number;
@@ -12,7 +12,8 @@ declare class AkramShieldManager {
     readonly unsupportedLineCount: number;
     readonly enabled: boolean;
   };
-  updateFilterList(input: { id: string; source?: string; content: string }): ReturnType<AkramShieldManager["addFilterList"]>;
+  updateFilterList(input: { id: string; source?: string; content: string; enabled?: boolean }): ReturnType<AkramShieldManager["addFilterList"]>;
+  setFilterListEnabled(id: string, enabled: boolean): ReturnType<AkramShieldManager["addFilterList"]> | false;
   removeFilterList(id: string): boolean;
   listFilterLists(): ReturnType<AkramShieldManager["addFilterList"]>[];
   evaluateRequest(request?: Record<string, unknown>): Readonly<Record<string, unknown>>;

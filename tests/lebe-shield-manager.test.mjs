@@ -110,6 +110,29 @@ let lineCountRejected = false;
 try { lineLimited.addFilterList({ id: 'many-lines', content: '||one.example^\n||two.example^\n||three.example^' }); } catch { lineCountRejected = true; }
 check(lineCountRejected && lineLimited.getStats().filterListCount === 0, 'per-list line limits reject oversized lists before activation');
 
+const listToggle = new AkramShieldManager();
+listToggle.addFilterList({
+  id: 'toggle-a',
+  content: '||toggle-a.example^$script\ntoggle.example##.toggle-ad',
+});
+listToggle.addFilterList({ id: 'toggle-b', content: '||toggle-b.example^$script' });
+const disabledList = listToggle.setFilterListEnabled('toggle-a', false);
+check(disabledList.enabled === false, 'individual filter list can be disabled without removal');
+check(listToggle.evaluateRequest({ url: 'https://toggle-a.example/ad.js', resourceType: 'script' }).action === 'allow', 'disabled list network rules are not enforced');
+check(listToggle.evaluateRequest({ url: 'https://toggle-b.example/ad.js', resourceType: 'script' }).action === 'block', 'other enabled lists remain enforced');
+check(!listToggle.getCosmeticCss('https://toggle.example/').includes('.toggle-ad{'), 'disabled list cosmetic rules are not injected');
+check(listToggle.listFilterLists().find((item) => item.id === 'toggle-a').networkRuleCount === 1, 'disabled list metadata retains parsed rule counts');
+const stillDisabled = listToggle.updateFilterList({ id: 'toggle-a', content: '||toggle-a-new.example^$script' });
+check(stillDisabled.enabled === false, 'updating a disabled list preserves its disabled state');
+check(listToggle.evaluateRequest({ url: 'https://toggle-a-new.example/ad.js', resourceType: 'script' }).action === 'allow', 'updated disabled list stays out of the active policy');
+const reenabled = listToggle.setFilterListEnabled('toggle-a', true);
+check(reenabled.enabled === true, 'individual filter list can be re-enabled');
+check(listToggle.evaluateRequest({ url: 'https://toggle-a-new.example/ad.js', resourceType: 'script' }).action === 'block', 're-enabling a list atomically restores its network rules');
+check(listToggle.setFilterListEnabled('unknown', false) === false, 'unknown filter-list toggle is a safe no-op');
+let invalidEnabledRejected = false;
+try { listToggle.setFilterListEnabled('toggle-a', 'false'); } catch { invalidEnabledRejected = true; }
+check(invalidEnabledRejected && listToggle.evaluateRequest({ url: 'https://toggle-a-new.example/ad.js', resourceType: 'script' }).action === 'block', 'invalid toggle input cannot change the active policy');
+
 const cosmeticToggle = new AkramShieldManager();
 cosmeticToggle.setModuleEnabled('cosmetic', false);
 check(cosmeticToggle.getCosmeticCss('https://example.com/').length === 0, 'disabling cosmetic protection suppresses generated CSS');

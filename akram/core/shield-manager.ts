@@ -12,6 +12,7 @@ export interface AkramShieldFilterListInput {
   readonly id: string;
   readonly source?: string;
   readonly content: string;
+  readonly enabled?: boolean;
 }
 
 export interface AkramShieldFilterListMetadata {
@@ -59,6 +60,10 @@ export class AkramShieldManager implements AkramRequestPolicy {
 
   updateFilterList(input: AkramShieldFilterListInput): AkramShieldFilterListMetadata {
     return this.#runtime.updateFilterList(input);
+  }
+
+  setFilterListEnabled(id: string, enabled: boolean): AkramShieldFilterListMetadata | false {
+    return this.#runtime.setFilterListEnabled(id, enabled);
   }
 
   removeFilterList(id: string): boolean {

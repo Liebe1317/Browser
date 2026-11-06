@@ -14,6 +14,7 @@ function createChromiumShieldsAdapter(rules, options = {}) {
       id: list.id || 'initial-' + index,
       source: list.source || 'subscription',
       content: list.content,
+      enabled: list.enabled,
     });
   }
 
@@ -39,6 +40,9 @@ function createChromiumShieldsAdapter(rules, options = {}) {
     },
     updateFilterList(list) {
       return manager.updateFilterList(list);
+    },
+    setFilterListEnabled(id, enabled) {
+      return manager.setFilterListEnabled(id, enabled);
     },
     removeFilterList(id) {
       return manager.removeFilterList(id);
