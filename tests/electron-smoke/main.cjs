@@ -4,12 +4,14 @@ const { app, BrowserWindow, session } = require('electron');
 const http = require('node:http');
 const assert = require('node:assert/strict');
 const { createSiteViewManager } = require('../../electron/site-view-manager.cjs');
+const { createBrowserSessionPolicy } = require('../../electron/session-policy.cjs');
 
 app.disableHardwareAcceleration();
 
 let server;
 let browserWindow;
 let manager;
+const networkEvents = [];
 const sessionPartitionByInstance = new WeakMap();
 
 function waitForServer(serverInstance) {
@@ -66,7 +68,7 @@ async function run() {
     response.end('<!doctype html><html><head><title>Aegis Chromium Smoke</title></head><body><main id="fixture">native Chromium is alive</main></body></html>');
   });
   const address = await waitForServer(server);
-  const url = 'http://127.0.0.1:' + address.port + '/fixture';
+  const url = 'http://127.0.0.1:' + address.port + '/fixture?token=' + 'a'.repeat(40);
 
   browserWindow = new BrowserWindow({
     show: false,
@@ -80,6 +82,12 @@ async function run() {
     },
   });
 
+  const sessionPolicy = createBrowserSessionPolicy({
+    getVpnState: () => ({ enabled: false, connected: true }),
+    // This isolated smoke fixture deliberately allows its loopback test server.
+    isAppRequest: () => true,
+    onNetworkEvent: (payload) => { manager?.recordNetworkEvent(payload); },
+  });
   manager = createSiteViewManager({
     WebContentsView: require('electron').WebContentsView,
     getWindow: () => browserWindow,
@@ -88,14 +96,19 @@ async function run() {
       sessionPartitionByInstance.set(browserSession, partition);
       return browserSession;
     },
-    registerSession: () => {},
+    registerSession: (browserSession) => sessionPolicy.register(browserSession, { trustedAppSession: true }),
     prepareSession: async () => {},
     getTrustedAppOrigin: () => null,
-    onEvent: () => {},
+    onEvent: (event) => networkEvents.push(event),
   });
 
   // Regular profile storage must persist across tabs and remain isolated from private mode.
   const regularFirst = await openTab('regular', 'regular-first', url);
+  const firstRequestEvents = networkEvents.filter((event) => event.tabId === 'regular-first' && event.type === 'network-request');
+  assert.ok(firstRequestEvents.some((event) => event.phase === 'started'), 'real Chromium webRequest start event must reach its owning tab');
+  assert.ok(firstRequestEvents.some((event) => event.phase === 'completed' && event.statusCode === 200), 'real Chromium completion and status must reach the owning tab');
+  assert.equal(JSON.stringify(firstRequestEvents).includes('a'.repeat(40)), false, 'network event forwarding must not expose URL query tokens');
+  assert.ok(firstRequestEvents.every((event) => !Object.hasOwn(event, 'webContentsId')), 'renderer network events must omit internal WebContents identifiers');
   const regularPrefs = regularFirst.webContents.getLastWebPreferences();
   assert.equal(regularPrefs.nodeIntegration, false);
   assert.equal(regularPrefs.contextIsolation, true);
@@ -140,6 +153,7 @@ async function run() {
   browserWindow = null;
   await new Promise((resolve) => server.close(resolve));
   server = null;
+  console.log('PASS - real Chromium webRequest events reach the owning tab with query tokens redacted');
   console.log('PASS - native WebContentsView loads a real local HTTP page');
   console.log('PASS - remote view has no Node, preload, or privileged desktop bridge');
   console.log('PASS - regular and private views use their exact Chromium partitions');
