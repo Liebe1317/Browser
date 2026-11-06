@@ -6,6 +6,8 @@ export type {
   LebeResourceType,
   ShieldDecision,
   ShieldReason,
+  ShieldCategory,
+  ShieldProfileId,
 } from "./contracts";
 
 export { hostMatchesDomain, LebeShields } from "./shields";
