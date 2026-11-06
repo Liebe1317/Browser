@@ -23,6 +23,8 @@ function safeSiteUrl(rawUrl, trustedAppOrigin) {
 
 function createSiteViewManager({
   WebContentsView,
+  Menu,
+  clipboard,
   getWindow,
   getSession,
   registerSession,
@@ -71,6 +73,50 @@ function createSiteViewManager({
     });
     webContents.on('render-process-gone', (_event, details) => {
       send(tabId, 'process-gone', { reason: typeof details?.reason === 'string' ? details.reason.slice(0, 40) : 'unknown' });
+    });
+
+    // Electron does not provide a browser-style context menu for WebContentsView.
+    // Build a small native menu here; never execute page-provided JavaScript.
+    webContents.on('context-menu', (_event, params = {}) => {
+      if (!Menu || typeof Menu.buildFromTemplate !== 'function') return;
+      const template = [];
+      const add = (label, click, enabled = true) => {
+        if (enabled) template.push({ label, click });
+      };
+      const safeClipboardUrl = (raw) => {
+        const safe = safeSiteUrl(raw, getTrustedAppOrigin());
+        return safe || null;
+      };
+
+      add('رجوع', () => webContents.goBack(), webContents.canGoBack());
+      add('تقدّم', () => webContents.goForward(), webContents.canGoForward());
+      add('إعادة تحميل', () => webContents.reload());
+      if (template.length) template.push({ type: 'separator' });
+
+      const linkUrl = safeClipboardUrl(params.linkURL);
+      const mediaUrl = safeClipboardUrl(params.srcURL);
+      if (linkUrl) add('نسخ عنوان الرابط', () => clipboard?.writeText?.(linkUrl));
+      if (mediaUrl) add('نسخ عنوان الوسيط', () => clipboard?.writeText?.(mediaUrl));
+      if (params.selectionText && params.editFlags?.canCopy !== false) {
+        add('نسخ التحديد', () => webContents.copy());
+      }
+
+      if (params.isEditable) {
+        template.push({ type: 'separator' });
+        add('تراجع', () => webContents.undo(), params.editFlags?.canUndo !== false);
+        add('إعادة', () => webContents.redo(), params.editFlags?.canRedo !== false);
+        add('قص', () => webContents.cut(), params.editFlags?.canCut !== false);
+        add('نسخ', () => webContents.copy(), params.editFlags?.canCopy !== false);
+        add('لصق', () => webContents.paste(), params.editFlags?.canPaste !== false);
+        add('تحديد الكل', () => webContents.selectAll());
+      } else {
+        add('تحديد الكل', () => webContents.selectAll());
+      }
+
+      if (template.length === 0) return;
+      const menu = Menu.buildFromTemplate(template);
+      const window = getWindow();
+      if (window && !window.isDestroyed()) menu.popup({ window });
     });
     // Block pop-under/background windows and known ad-network destinations.
     // Only an ordinary foreground-tab request is allowed; Chromium still applies
