@@ -1,5 +1,7 @@
 'use strict';
 
+const { isBlockedAdOrTracker } = require('./session-policy.cjs');
+
 const SAFE_ID = /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,63}$/;
 const SITE_PROTOCOLS = new Set(['http:', 'https:']);
 const PRIVATE_STORAGE_TYPES = [
@@ -70,15 +72,15 @@ function createSiteViewManager({
     webContents.on('render-process-gone', (_event, details) => {
       send(tabId, 'process-gone', { reason: typeof details?.reason === 'string' ? details.reason.slice(0, 40) : 'unknown' });
     });
-    // Allow ordinary web popups as separate, sandboxed windows that reuse the
-    // opener's exact profile partition. Chromium still applies its transient
-    // user-activation popup policy; unsafe schemes and the privileged app origin
-    // are rejected before a window is created.
+    // Block pop-under/background windows and known ad-network destinations.
+    // Only an ordinary foreground-tab request is allowed; Chromium still applies
+    // its transient user-activation popup policy before this handler is reached.
+    // Popups remain isolated in the opener's profile partition.
     webContents.setWindowOpenHandler((details) => {
-      const popupUrl = details && details.url === 'about:blank'
-        ? 'about:blank'
-        : safeSiteUrl(details?.url, getTrustedAppOrigin());
-      if (!popupUrl) return { action: 'deny' };
+      const popupUrl = safeSiteUrl(details?.url, getTrustedAppOrigin());
+      if (!popupUrl || details?.disposition !== 'foreground-tab' || isBlockedAdOrTracker(popupUrl)) {
+        return { action: 'deny' };
+      }
       return {
         action: 'allow',
         overrideBrowserWindowOptions: {
