@@ -7,6 +7,7 @@ const { createBrowserSessionPolicy } = require('../electron/session-policy.cjs')
 const listeners = {};
 const events = [];
 const browserSession = {
+  setProxy: async () => {},
   webRequest: {
     onBeforeRequest: (_filter, listener) => { listeners.before = listener; },
     onCompleted: (_filter, listener) => { listeners.completed = listener; },
