@@ -42,7 +42,7 @@ export default function App() {
       try {
         const initial = new URL(initialUrl);
         const host = initial.hostname.toLowerCase();
-        pageType = (host === 'youtube.com' || host === 'www.youtube.com' || host === 'm.youtube.com')
+        pageType = (host === 'youtube.com' || host === 'www.youtube.com')
           && initial.pathname === '/' && !initial.searchParams.has('v') ? 'youtube' : 'webpage';
       } catch {
         pageType = 'webpage';
