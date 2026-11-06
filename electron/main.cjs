@@ -31,6 +31,7 @@ const browserSessionPolicy = createBrowserSessionPolicy({
     },
   }),
   isAppRequest,
+  onNetworkEvent: (payload) => { siteViewManager?.recordNetworkEvent(payload); },
 });
 
 // The browser UI needs the local Express/Vite API; a file:// renderer cannot use same-origin /api.
