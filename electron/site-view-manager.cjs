@@ -75,6 +75,23 @@ function createSiteViewManager({
       send(tabId, 'process-gone', { reason: typeof details?.reason === 'string' ? details.reason.slice(0, 40) : 'unknown' });
     });
 
+    // Cosmetic layer: hide common ad slots and known YouTube ad overlays.
+    // Network filtering remains the primary control; CSS only removes visual residue.
+    webContents.on('dom-ready', () => {
+      if (typeof webContents.insertCSS !== 'function') return;
+      const cosmeticRules = [
+        '[data-ad]', '[data-ad-slot]', '[data-advertisement]',
+        'ins.adsbygoogle', '.adsbygoogle', '.ad-container', '.ad-wrapper',
+        '.ad-banner', '.banner-ad', '.advertisement', '.adsbox', '.ad-box',
+        '.popup-ad', '.popup-overlay', 'iframe[src*="doubleclick.net"]',
+        'iframe[src*="googlesyndication.com"]',
+        '#player-ads', '.video-ads', '.ytp-ad-overlay-container',
+        '.ytp-ad-text-overlay', '.ytp-ad-player-overlay',
+        'ytd-display-ad-renderer', 'ytd-promoted-sparkles-web-renderer',
+      ].join(',');
+      void webContents.insertCSS(cosmeticRules + '{display:none!important;visibility:hidden!important;pointer-events:none!important;}').catch(() => {});
+    });
+
     // WebContentsView has no built-in browser context menu. Map the renderer's
     // context coordinates into the owning BrowserWindow before showing a native menu.
     webContents.on('context-menu', (_event, params = {}) => {
