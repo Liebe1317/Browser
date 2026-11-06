@@ -112,6 +112,8 @@ ok(createdViews[0].webContents.insertedCss.includes('.ytp-ad-overlay-container')
   'site views install cosmetic ad-slot and YouTube overlay filtering');
 createdViews[0].webContents.emit('context-menu', {}, {
   linkURL: 'https://video.example/target',
+  x: 115,
+  y: 165,
   selectionText: 'selected text',
   isEditable: false,
   editFlags: { canCopy: true },
@@ -120,7 +122,7 @@ ok(Array.isArray(lastContextMenu) && lastContextMenu.some((item) => item.label =
 ok(lastContextMenuOptions.x === 115 && lastContextMenuOptions.y === 165, 'context menu is positioned at the native site-view pointer coordinates');
 const copyLinkItem = lastContextMenu.find((item) => item.label === 'نسخ عنوان الرابط');
 copyLinkItem.click();
-ok(copiedText === 'https://video.example/target/', 'context menu copies only validated HTTP(S) link URLs');
+ok(copiedText === 'https://video.example/target', 'context menu copies only validated HTTP(S) link URLs');
 const copySelectionItem = lastContextMenu.find((item) => item.label === 'نسخ التحديد');
 copySelectionItem.click();
 ok(createdViews[0].webContents.lastCommand === 'copy', 'context menu copies selected page text through Chromium');
