@@ -46,6 +46,10 @@ ok(isBlockedAdOrTracker('https://sub.google-analytics.com/pixel'), 'tracker subd
 ok(isBlockedAdOrTracker('https://cdn.popads.net/pop.js'), 'known pop-under ad networks are identified');
 ok(isBlockedAdOrTracker('https://static.exoclick.com/player.js'), 'known in-player ad networks are identified');
 ok(isBlockedAdOrTracker('https://connect.facebook.net/en_US/fbevents.js'), 'social tracking endpoints are identified');
+ok(isBlockedAdOrTracker('https://servedby.smartadserver.com/banner.js'), 'additional display-ad networks are identified');
+ok(isBlockedAdOrTracker('https://track.adsrvr.org/event'), 'additional programmatic ad networks are identified');
+ok(!isBlockedAdOrTracker('https://www.youtube.com/watch?v=example'), 'YouTube content domains are not blocked by the ad filter');
+ok(!isBlockedAdOrTracker('https://rr.googlevideo.com/videoplayback'), 'video delivery domains are not blocked by the ad filter');
 ok(!isBlockedAdOrTracker('https://notgoogle-analytics.com/'), 'lookalike domains are not blocked');
 ok(isPrivateOrLocalUrl('http://127.0.0.1:3000/'), 'loopback IP URLs are recognized as local');
 ok(isPrivateOrLocalUrl('http://10.0.0.8/'), 'RFC1918 IPv4 URLs are recognized as private');
