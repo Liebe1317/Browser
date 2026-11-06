@@ -167,8 +167,11 @@ let titlePrevented = false;
 titleHandler({ preventDefault: () => { titlePrevented = true; } }, 'A'.repeat(250));
 ok(titlePrevented && events.at(-1).title.length === 200, 'page titles are prevented from changing the native window and are length-bounded');
 const failHandler = createdViews[0].webContents.listeners('did-fail-load')[0];
+const eventCountBeforeAbort = events.length;
+failHandler({}, -3, 'net::ERR_ABORTED', 'https://video.example/redirected', true);
+ok(events.length === eventCountBeforeAbort, 'superseded or aborted main-frame navigations do not surface as page-load failures');
 failHandler({}, -105, 'private error text token=secret', 'https://video.example/private?token=secret', true);
-ok(events.at(-1).type === 'error' && events.at(-1).code === -105 && !JSON.stringify(events.at(-1)).includes('secret'), 'load errors expose only a numeric code, never URLs or error text');
+ok(events.at(-1).type === 'error' && events.at(-1).code === -105 && !JSON.stringify(events.at(-1)).includes('secret'), 'real load errors expose only a numeric code, never URLs or error text');
 
 const second = await manager.create({
   tabId: 'tab-b', profileKind: 'private', profileId: 'main',
