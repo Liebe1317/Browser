@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { ChromeTabs } from './components/browser/ChromeTabs';
 import { ChromeNavbar } from './components/browser/ChromeNavbar';
 import { BookmarksBar } from './components/browser/BookmarksBar';
@@ -153,6 +153,8 @@ export default function App() {
   const [showLibi, setShowLibi] = useState(false);
   const [libiContextQuery, setLibiContextQuery] = useState<string | undefined>(undefined);
   const [networkRequests, setNetworkRequests] = useState<NetworkRequest[]>([]);
+  const pendingNetworkRequestsRef = useRef<Map<string, NetworkRequest>>(new Map());
+  const networkFlushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [reloadNonce, setReloadNonce] = useState(0);
   const [pageTexts, setPageTexts] = useState<Record<string, string>>({});
   const [pageScrollCommand, setPageScrollCommand] = useState<{ id: number; direction: 'top' | 'bottom' } | null>(null);
@@ -406,13 +408,30 @@ export default function App() {
       timestamp: event.timestamp,
       ...(Number.isFinite(event.duration) ? { duration: Math.max(0, event.duration as number) } : {}),
     };
-    setNetworkRequests((previous) => {
-      const index = previous.findIndex((item) => item.id === id);
-      if (index < 0) return [request, ...previous].slice(0, 300);
-      const next = previous.slice();
-      next[index] = request;
-      return next;
-    });
+    pendingNetworkRequestsRef.current.set(id, request);
+    if (networkFlushTimerRef.current === null) {
+      networkFlushTimerRef.current = setTimeout(() => {
+        networkFlushTimerRef.current = null;
+        const pending = [...pendingNetworkRequestsRef.current.values()];
+        pendingNetworkRequestsRef.current.clear();
+        if (pending.length === 0) return;
+        setNetworkRequests((previous) => {
+          const next = previous.slice();
+          for (const update of pending) {
+            const index = next.findIndex((item) => item.id === update.id);
+            if (index < 0) next.unshift(update);
+            else next[index] = update;
+          }
+          return next.slice(0, 300);
+        });
+      }, 75);
+    }
+  }, []);
+
+  useEffect(() => () => {
+    if (networkFlushTimerRef.current !== null) clearTimeout(networkFlushTimerRef.current);
+    networkFlushTimerRef.current = null;
+    pendingNetworkRequestsRef.current.clear();
   }, []);
 
   useEffect(() => {
