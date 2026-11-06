@@ -146,7 +146,7 @@ export const DevTools: React.FC<DevToolsProps> = ({
                   <th className="py-1 px-2">الطلب / URL</th>
                   <th className="py-1 px-2">الطريقة</th>
                   <th className="py-1 px-2">النوع</th>
-                  <th className="py-1 px-2">الحجم</th>
+                  <th className="py-1 px-2">HTTP</th>
                   <th className="py-1 px-2">الزمن</th>
                 </tr>
               </thead>
@@ -173,8 +173,8 @@ export const DevTools: React.FC<DevToolsProps> = ({
                     <td className="py-1 px-2 truncate max-w-[360px]" dir="ltr" title={req.url}>{req.url}</td>
                     <td className="py-1 px-2 text-slate-400">{req.method || '—'}</td>
                     <td className="py-1 px-2 text-slate-400">{req.type}</td>
-                    <td className="py-1 px-2 text-slate-500">{req.size}</td>
-                    <td className="py-1 px-2 text-slate-500">{req.duration}ms</td>
+                    <td className="py-1 px-2 text-slate-500">{req.statusCode ?? '—'}</td>
+                    <td className="py-1 px-2 text-slate-500">{req.duration !== undefined ? `${Math.round(req.duration)}ms` : '—'}</td>
                   </tr>
                 ))}
               </tbody>
