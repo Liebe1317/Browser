@@ -14,6 +14,7 @@ function fakeSession() {
     state,
     webRequest: {
       onBeforeRequest: (_filter, handler) => { handlers.before = handler; },
+      onCompleted: (_filter, handler) => { handlers.completed = handler; },
       onErrorOccurred: (_filter, handler) => { handlers.error = handler; },
     },
     setPermissionRequestHandler: (handler) => { state.permissionRequest = handler; },
@@ -22,6 +23,7 @@ function fakeSession() {
     setProxy: async (config) => { state.proxies.push(config); },
     closeAllConnections: async () => { state.closed += 1; },
     triggerBefore: (details) => new Promise((resolve) => handlers.before(details, resolve)),
+    triggerCompleted: (details) => handlers.completed(details),
     triggerError: (details) => handlers.error(details),
   };
 }
