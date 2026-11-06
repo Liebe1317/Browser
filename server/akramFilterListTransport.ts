@@ -35,12 +35,12 @@ export interface AkramFilterListTransportDependencies {
 
 function safeFilterHeaders(input: Record<string, string> | undefined): Record<string, string> {
   const headers: Record<string, string> = {
-    Accept: 'text/plain, text/*;q=0.9, application/octet-stream;q=0.8',
+    accept: 'text/plain, text/*;q=0.9, application/octet-stream;q=0.8',
   };
   for (const [rawName, rawValue] of Object.entries(input || {})) {
     const name = rawName.toLowerCase();
     if (!ALLOWED_REQUEST_HEADERS.has(name) || typeof rawValue !== 'string') continue;
-    if (rawValue.length > 2048 || /[\\r\\n]/.test(rawValue)) {
+    if (rawValue.length > 2048 || rawValue.includes(String.fromCharCode(10)) || rawValue.includes(String.fromCharCode(13))) {
       throw new TypeError('Filter transport received an invalid request header.');
     }
     headers[name] = rawValue;
