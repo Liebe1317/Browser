@@ -12,6 +12,7 @@ let server;
 let browserWindow;
 let manager;
 const networkEvents = [];
+const rawNetworkEvents = [];
 const sessionPartitionByInstance = new WeakMap();
 
 function waitForServer(serverInstance) {
@@ -86,7 +87,10 @@ async function run() {
     getVpnState: () => ({ enabled: false, connected: true }),
     // This isolated smoke fixture deliberately allows its loopback test server.
     isAppRequest: () => true,
-    onNetworkEvent: (payload) => { manager?.recordNetworkEvent(payload); },
+    onNetworkEvent: (payload) => {
+      rawNetworkEvents.push(payload);
+      manager?.recordNetworkEvent(payload);
+    },
   });
   manager = createSiteViewManager({
     WebContentsView: require('electron').WebContentsView,
@@ -104,9 +108,19 @@ async function run() {
 
   // Regular profile storage must persist across tabs and remain isolated from private mode.
   const regularFirst = await openTab('regular', 'regular-first', url);
-  const firstRequestEvents = networkEvents.filter((event) => event.tabId === 'regular-first' && event.type === 'network-request');
-  assert.ok(firstRequestEvents.some((event) => event.phase === 'started'), 'real Chromium webRequest start event must reach its owning tab');
-  assert.ok(firstRequestEvents.some((event) => event.phase === 'completed' && event.statusCode === 200), 'real Chromium completion and status must reach the owning tab');
+  // loadURL can resolve just before the webRequest completion callback is dispatched.
+  // Wait briefly for both native events, while retaining raw metadata for useful failures.
+  const networkDeadline = Date.now() + 5000;
+  let firstRequestEvents = [];
+  while (Date.now() < networkDeadline) {
+    firstRequestEvents = networkEvents.filter((event) => event.tabId === 'regular-first' && event.type === 'network-request');
+    if (firstRequestEvents.some((event) => event.phase === 'started')
+      && firstRequestEvents.some((event) => event.phase === 'completed' && event.statusCode === 200)) break;
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+  const networkDiagnostics = JSON.stringify(rawNetworkEvents);
+  assert.ok(firstRequestEvents.some((event) => event.phase === 'started'), 'real Chromium webRequest start event must reach its owning tab; raw events: ' + networkDiagnostics);
+  assert.ok(firstRequestEvents.some((event) => event.phase === 'completed' && event.statusCode === 200), 'real Chromium completion and status must reach the owning tab; raw events: ' + networkDiagnostics);
   assert.equal(JSON.stringify(firstRequestEvents).includes('a'.repeat(40)), false, 'network event forwarding must not expose URL query tokens');
   assert.ok(firstRequestEvents.every((event) => !Object.hasOwn(event, 'webContentsId')), 'renderer network events must omit internal WebContents identifiers');
   const regularPrefs = regularFirst.webContents.getLastWebPreferences();
