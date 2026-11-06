@@ -1573,25 +1573,31 @@ ${pageContext?.url ? `معلومات الصفحة المفتوحة حالياً 
                 return null;
               };` : ''}
 
-              // 2. Intercept fetch & XMLHttpRequest to route relative/same-origin calls through /api/proxy
+              // 2. Intercept fetch & XMLHttpRequest and route them through /api/proxy.
+              // The page itself is served from /api/proxy (and <base> is stripped), so relative URLs such as
+              // "data.json" or "../api/x" must be resolved against the REAL page URL, not against this server.
+              var AEGIS_REAL_URL = '${parsedTarget.href.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}';
+              var AEGIS_REAL_TOKEN = '${auth.token}';
+              function aegisProxify(raw, isAbsolute) {
+                try {
+                  var s = String(raw == null ? '' : raw).trim();
+                  if (!s || /^(data:|blob:|about:|javascript:|mailto:|tel:)/i.test(s)) return null;
+                  var here = new URL(s, window.location.href);
+                  if (here.origin === window.location.origin && here.pathname === '/api/proxy') return null; // already proxied
+                  // A Request object is already absolute against this server: map its path back onto the real site.
+                  var target = (isAbsolute && here.origin === window.location.origin)
+                    ? new URL(here.pathname + here.search + here.hash, AEGIS_REAL_URL)
+                    : new URL(s, AEGIS_REAL_URL);
+                  if (target.protocol !== 'http:' && target.protocol !== 'https:') return null;
+                  return '/api/proxy?t=' + encodeURIComponent(AEGIS_REAL_TOKEN) + '&url=' + encodeURIComponent(target.href);
+                } catch (e) { return null; }
+              }
               const origFetch = window.fetch;
-              window.fetch = async function(resource, init) {
-                var rawUrl = typeof resource === 'string' ? resource : (resource && resource.url ? resource.url : '');
-                if (rawUrl) {
-                  var absoluteUrl = rawUrl;
-                  if (rawUrl.startsWith('/')) {
-                    absoluteUrl = '${parsedTarget.origin}' + rawUrl;
-                  }
-                  if (absoluteUrl.startsWith('${parsedTarget.origin}') && !absoluteUrl.includes('/api/proxy')) {
-                    var proxied = '/api/proxy?url=' + encodeURIComponent(absoluteUrl);
-                    if (typeof resource === 'string') {
-                      return origFetch(proxied, init);
-                    } else {
-                      return origFetch(new Request(proxied, resource), init);
-                    }
-                  }
-                }
-                return origFetch(resource, init);
+              window.fetch = function(resource, init) {
+                var isReq = typeof Request !== 'undefined' && resource instanceof Request;
+                var proxied = aegisProxify(isReq ? resource.url : resource, isReq);
+                if (!proxied) return origFetch.call(this, resource, init);
+                return origFetch.call(this, isReq ? new Request(proxied, resource) : proxied, init);
               };
 
               // 2b. Route iframe sources through /api/proxy (a relative src would hit this server directly)
@@ -1630,14 +1636,8 @@ ${pageContext?.url ? `معلومات الصفحة المفتوحة حالياً 
               })();
               const origXHR = XMLHttpRequest.prototype.open;
               XMLHttpRequest.prototype.open = function(method, url, ...rest) {
-                var rawUrl = String(url || '');
-                if (rawUrl.startsWith('/')) {
-                  rawUrl = '${parsedTarget.origin}' + rawUrl;
-                }
-                if (rawUrl.startsWith('${parsedTarget.origin}') && !rawUrl.includes('/api/proxy')) {
-                  rawUrl = '/api/proxy?url=' + encodeURIComponent(rawUrl);
-                }
-                return origXHR.call(this, method, rawUrl, ...rest);
+                var proxied = aegisProxify(url, false);
+                return origXHR.call(this, method, proxied || url, ...rest);
               };
 
               // 3. Auto-Heal Images with Hotlink Protection

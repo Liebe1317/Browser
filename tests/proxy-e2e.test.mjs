@@ -3,6 +3,7 @@
 import https from 'node:https';
 import http from 'node:http';
 import path from 'node:path';
+import vm from 'node:vm';
 import { pathToFileURL } from 'node:url';
 import { spawn, execFileSync } from 'node:child_process';
 import { ok, freePort, makeCert } from './helpers/util.mjs';
@@ -80,6 +81,27 @@ try {
   ok(!/preconnect/.test(r.body), 'preconnect hints are removed');
   ok(new RegExp('<script[^>]*src="/api/proxy\\?t=' + tokA + '&url=[^"]*lib\\.js').test(r.body), 'a third-party <script> is routed through the proxy');
   ok(r.body.includes('Object.defineProperty(window, name'), 'the storage stand-in for the opaque origin is injected');
+
+  // Run the injected fetch/XHR URL resolver for real: relative URLs must resolve against the UPSTREAM page, not this server.
+  {
+    const start = r.body.indexOf('var AEGIS_REAL_URL');
+    const end = r.body.indexOf('const origFetch', start);
+    ok(start > 0 && end > start, 'the injected script contains the shared fetch/XHR URL resolver');
+    const here = `http://127.0.0.1:${APP}`;
+    const ctx = { URL, String, encodeURIComponent, window: { location: { href: `${here}/api/proxy?t=${tokA}&url=${encodeURIComponent(A + '/')}`, origin: here } } };
+    vm.createContext(ctx);
+    vm.runInContext(r.body.slice(start, end), ctx);
+    const back = (u) => (u ? decodeURIComponent(new URL(u, here).searchParams.get('url')) : u);
+    const f = (raw, abs = false) => vm.runInContext(`aegisProxify(${JSON.stringify(raw)}, ${abs})`, ctx);
+    ok(back(f('data.json')) === A + '/data.json', 'fetch("data.json") resolves against the upstream page, not /api/');
+    ok(back(f('../up.json')) === A + '/up.json', 'fetch("../up.json") resolves against the upstream page');
+    ok(back(f('/root.json?x=1')) === A + '/root.json?x=1', 'root-relative URLs map onto the upstream origin');
+    ok(back(f('https://api.other.test/v1')) === 'https://api.other.test/v1', 'absolute cross-origin URLs are proxied too (connect-src is self)');
+    ok(f('/api/proxy?t=x&url=abc') === null, 'already-proxied URLs are left alone');
+    ok(f('data:text/plain,hi') === null && f('blob:abc') === null && f('') === null, 'data:/blob:/empty URLs are not touched');
+    ok(back(f(`${here}/foo?y=2`, true)) === A + '/foo?y=2', 'a Request object (already absolute against this server) is mapped back onto the upstream site');
+    ok(f('data.json').includes('t=' + tokA), 'resolved URLs carry the page token');
+  }
 
   r = await req(proxy(A + '/style.css', `t=${tokA}&`), { headers: page });
   ok(r.status === 200 && r.body.includes('/api/proxy?t=' + tokA + '&url='), 'CSS loads via the token and its urls get the same token');
