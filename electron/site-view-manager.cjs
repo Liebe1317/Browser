@@ -1,6 +1,6 @@
 'use strict';
 
-const { isBlockedAdOrTracker } = require('./session-policy.cjs');
+const { isBlockedAdOrTracker, getCosmeticCss } = require('./session-policy.cjs');
 
 const SAFE_ID = /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,63}$/;
 const SITE_PROTOCOLS = new Set(['http:', 'https:']);
@@ -75,21 +75,12 @@ function createSiteViewManager({
       send(tabId, 'process-gone', { reason: typeof details?.reason === 'string' ? details.reason.slice(0, 40) : 'unknown' });
     });
 
-    // Cosmetic layer: hide common ad slots and known YouTube ad overlays.
-    // Network filtering remains the primary control; CSS only removes visual residue.
+    // Cosmetic filters are scoped to the committed page URL. The filter engine
+    // rejects broad/core-player selectors and applies site-specific exceptions.
     webContents.on('dom-ready', () => {
       if (typeof webContents.insertCSS !== 'function') return;
-      const cosmeticRules = [
-        '[data-ad]', '[data-ad-slot]', '[data-advertisement]',
-        'ins.adsbygoogle', '.adsbygoogle', '.ad-container', '.ad-wrapper',
-        '.ad-banner', '.banner-ad', '.advertisement', '.adsbox', '.ad-box',
-        '.popup-ad', '.popup-overlay', 'iframe[src*="doubleclick.net"]',
-        'iframe[src*="googlesyndication.com"]',
-        '#player-ads', '.video-ads', '.ytp-ad-overlay-container',
-        '.ytp-ad-text-overlay', '.ytp-ad-player-overlay',
-        'ytd-display-ad-renderer', 'ytd-promoted-sparkles-web-renderer',
-      ].join(',');
-      void webContents.insertCSS(cosmeticRules + '{display:none!important;visibility:hidden!important;pointer-events:none!important;}').catch(() => {});
+      const css = getCosmeticCss(webContents.getURL?.() || '');
+      if (css) void webContents.insertCSS(css).catch(() => {});
     });
 
     // WebContentsView has no built-in browser context menu. Map the renderer's
