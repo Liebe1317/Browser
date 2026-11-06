@@ -5,6 +5,7 @@ import {
   HTTP_PROXY_ADDRESS,
   INFO_ADDRESS,
   getReleaseAsset,
+  parseAksaLocalProxy,
   getAegisUserDataPath,
   getAksaPaths,
   parseSections,
@@ -30,6 +31,18 @@ PersistentKeepalive = 25
 assert.equal(WIREPROXY_VERSION, 'v1.1.3');
 assert.equal(HTTP_PROXY_ADDRESS, '127.0.0.1:19090');
 assert.equal(INFO_ADDRESS, '127.0.0.1:19091');
+
+const aksaProxy = parseAksaLocalProxy('http://127.0.0.1:19090');
+assert.deepEqual(aksaProxy, {
+  proxyRules: 'http=127.0.0.1:19090;https=127.0.0.1:19090',
+  proxyBypassRules: 'localhost;127.0.0.1;[::1]',
+});
+assert.equal(parseAksaLocalProxy('https://127.0.0.1:19090'), null);
+assert.equal(parseAksaLocalProxy('http://192.168.1.10:19090'), null);
+assert.equal(parseAksaLocalProxy('http://127.0.0.1:19091'), null);
+assert.equal(parseAksaLocalProxy('http://user:pass@127.0.0.1:19090'), null);
+assert.equal(parseAksaLocalProxy('not-a-url'), null);
+assert.equal(parseAksaLocalProxy(''), null);
 assert.equal(getReleaseAsset('win32', 'x64').file, 'wireproxy_windows_amd64.tar.gz');
 assert.equal(getReleaseAsset('linux', 'x64').sha256.length, 64);
 assert.equal(getReleaseAsset('darwin', 'arm64').executable, 'wireproxy');
