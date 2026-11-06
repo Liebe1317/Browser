@@ -103,7 +103,7 @@ export const LibiAssistant: React.FC<LibiAssistantProps> = ({
         text: m.text,
       }));
 
-      const res = await fetchWithAegisCsrf('/api/libi/chat', {
+      const res = await fetchWithAegisCsrf('/api/akram-ai/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
