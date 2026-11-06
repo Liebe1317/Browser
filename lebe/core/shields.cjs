@@ -135,7 +135,7 @@ class LebeShields {
   }
   evaluate(request = {}) {
     const url = parseRequest(request.url);
-    if (!url) return { action: 'allow', reason: 'unsupported-url' };
+    if (!url) return { action: 'allow' };
     const exception = this.#networkRules.find((r) => r.exception && matchesCompiled(r, url, request));
     if (exception) return { action: 'allow', reason: 'filter-exception', ruleId: exception.id, source: exception.listSource };
     const match = this.#networkRules.find((r) => !r.exception && matchesCompiled(r, url, request));
