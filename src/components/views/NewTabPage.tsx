@@ -184,7 +184,7 @@ export const NewTabPage: React.FC<NewTabPageProps> = ({
           </div>
           <div>
             <h2 className="text-2xl font-bold tracking-tight text-white flex items-center gap-2">
-              <span>متصفح Aegis</span>
+              <span>متصفح Akram</span>
               <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
                 درع الخصوصية
               </span>
