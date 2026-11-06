@@ -26,12 +26,18 @@ export interface LebeRequest {
   readonly timestamp?: number;
 }
 
-export type ShieldReason = "ad-or-tracker" | "network-filter" | "filter-exception" | "unsupported-url" | "popup" | "user-rule";
+export type ShieldReason = "ad-or-tracker" | "network-filter" | "filter-exception" | "unsupported-url" | "popup" | "user-rule" | "module-disabled";
+
+export type ShieldCategory = "network" | "cosmetic" | "popup" | "privacy" | "anti-cryptomining" | "malware" | "download" | "permissions";
+export type ShieldProfileId = "lebe-default" | "lebe-strict" | "lebe-custom";
 
 export interface ShieldDecision {
   readonly action: "allow" | "block";
   readonly reason?: ShieldReason;
   readonly ruleId?: string;
+  readonly source?: string;
+  readonly category?: ShieldCategory;
+  readonly profile?: ShieldProfileId;
 }
 
 export interface LebeRequestPolicy {
