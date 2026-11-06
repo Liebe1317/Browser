@@ -134,7 +134,7 @@ export const DevTools: React.FC<DevToolsProps> = ({
                 onClick={() => setNetworkFilter('allowed')}
                 className={`px-2 py-0.5 rounded ${networkFilter === 'allowed' ? 'bg-emerald-950 text-emerald-300 font-bold' : 'text-slate-400'}`}
               >
-                المصرح بها ({networkRequests.filter(r => r.status === 'allowed').length})
+                المصرح بها ({networkRequests.filter(r => r.status === 'allowed' || r.status === 'pending').length})
               </button>
             </div>
 
