@@ -2,13 +2,9 @@
 
 const { LebeShields } = require('../../core/shields.cjs');
 
-/**
- * Transitional adapter: translates native request metadata into engine-neutral
- * Lebe request contracts. Chromium-specific details stop at this boundary.
- */
-function createChromiumShieldsAdapter(rules) {
+function createChromiumShieldsAdapter(rules, options = {}) {
   const shields = new LebeShields(rules);
-
+  for (const list of options.filterLists || []) shields.addFilterList(list.content, list.source || 'subscription');
   return Object.freeze({
     evaluateRequest(details = {}) {
       return shields.evaluate({
@@ -16,15 +12,15 @@ function createChromiumShieldsAdapter(rules) {
         method: details.method || 'GET',
         resourceType: details.resourceType || 'other',
         isMainFrame: details.resourceType === 'mainFrame',
+        documentUrl: details.initiator || details.referrer || details.documentUrl || '',
       });
     },
     evaluateUrl(rawUrl) {
       return this.evaluateRequest({ url: rawUrl, method: 'GET', resourceType: 'other' });
     },
-    get ruleCount() {
-      return shields.ruleCount;
-    },
+    addFilterList(content, source) { return shields.addFilterList(content, source); },
+    get ruleCount() { return shields.ruleCount; },
+    get networkRuleCount() { return shields.networkRuleCount; },
   });
 }
-
 module.exports = { createChromiumShieldsAdapter };
