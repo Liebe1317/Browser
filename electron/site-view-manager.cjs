@@ -271,9 +271,25 @@ function createSiteViewManager({
     create, setBounds, setVisible, navigate, goBack, goForward, reload, setZoom, close, closeAll,
     has: (tabId) => views.has(tabId),
     recordNetworkEvent: (payload) => {
-      const tabId = webContentsToTab.get(payload?.webContentsId);
+      if (!payload || !Number.isInteger(payload.webContentsId)) return false;
+      const tabId = webContentsToTab.get(payload.webContentsId);
       if (!tabId) return false;
-      send(tabId, 'network-request', payload);
+      const phase = ['started', 'completed', 'failed', 'blocked'].includes(payload.phase) ? payload.phase : null;
+      if (!phase || typeof payload.requestId !== 'string' || typeof payload.url !== 'string'
+        || typeof payload.method !== 'string' || typeof payload.resourceType !== 'string'
+        || typeof payload.timestamp !== 'number') return false;
+      send(tabId, 'network-request', {
+        requestId: payload.requestId.slice(0, 160),
+        url: payload.url.slice(0, 2048),
+        method: payload.method.slice(0, 16),
+        resourceType: payload.resourceType.slice(0, 32),
+        phase,
+        timestamp: payload.timestamp,
+        ...(Number.isInteger(payload.statusCode) ? { statusCode: payload.statusCode } : {}),
+        ...(Number.isFinite(payload.duration) ? { duration: Math.max(0, payload.duration) } : {}),
+        ...(typeof payload.error === 'string' ? { error: payload.error.slice(0, 80) } : {}),
+        ...(typeof payload.blockedReason === 'string' ? { blockedReason: payload.blockedReason.slice(0, 40) } : {}),
+      });
       return true;
     },
     getCount: () => views.size,
