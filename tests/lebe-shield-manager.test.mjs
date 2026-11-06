@@ -87,7 +87,7 @@ let listCapRejected = false;
 try { capped.addFilterList({ id: 'two', content: '||two.example^' }); } catch { listCapRejected = true; }
 check(listCapRejected && capped.getStats().filterListCount === 1, 'filter-list count limits reject additions without changing active policy');
 
-const rollback = new AkramShieldManager({ limits: { maxListBytes: 64 } });
+const rollback = new AkramShieldManager({ limits: { maxListBytes: 24 } });
 rollback.addFilterList({ id: 'stable', content: '||stable.example^' });
 let invalidUpdateRejected = false;
 try {
