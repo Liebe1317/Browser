@@ -39,7 +39,7 @@ assert.equal(
   path.win32.join('C:\\Users\\test\\AppData\\Roaming', 'AegisBrowser')
 );
 const paths = getAksaPaths('/tmp/aegis-test', 'linux');
-assert.ok(paths.executable.replace(/\\\\/g, '/').endsWith('/aksa/bin/wireproxy'));
+assert.ok(paths.executable.split(String.fromCharCode(92)).join('/').endsWith('/aksa/bin/wireproxy'));
 assert.ok(paths.generatedConfig.endsWith('/aksa/wireproxy.conf'));
 
 const parsed = parseSections(config);
