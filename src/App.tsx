@@ -13,7 +13,6 @@ import { BookmarksView } from './components/views/BookmarksView';
 import { SettingsView } from './components/views/SettingsView';
 import { ShieldStatsView } from './components/views/ShieldStatsView';
 import { DownloadsView } from './components/views/DownloadsView';
-import { YouTubeView } from './components/views/YouTubeView';
 import { SecurityVaultView } from './components/views/SecurityVaultView';
 import { VaultLockScreen } from './components/browser/VaultLockScreen';
 import { isVaultSetUp, createVault, unlockVault, lockVault, saveVaultData, loadVaultData, destroyVault, UnlockResult } from './utils/vault';
@@ -896,23 +895,7 @@ export default function App() {
               handleRecordRequest(domain, 'blocked', 'tracker');
             }}
           />
-        ) : activeTab.pageType === 'youtube' ? (
-          <YouTubeView
-            initialVideoId={
-              activeTab.url.includes('watch?v=')
-                ? activeTab.url.split('watch?v=')[1]?.split('&')[0]
-                : activeTab.url.includes('youtu.be/')
-                ? activeTab.url.split('youtu.be/')[1]?.split('?')[0]
-                : undefined
-            }
-            onNavigate={handleNavigate}
-            onAddBlockedCount={(ads, trackers, domain) => {
-              setTotalAdsBlocked((c) => c + ads);
-              setTotalTrackersBlocked((c) => c + trackers);
-              handleRecordRequest(domain, 'blocked', 'ad');
-            }}
-          />
-        ) : activeTab.pageType === 'webpage' ? (
+        ) : (activeTab.pageType === 'webpage' || activeTab.pageType === 'youtube') ? (
           <WebPageView
             key={window.aegisDesktop?.browser ? activeTab.id : `${activeTab.id}-${reloadNonce}`}
             tab={activeTab}
