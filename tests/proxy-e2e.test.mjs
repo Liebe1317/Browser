@@ -29,6 +29,7 @@ const upstream = https.createServer(tls, (req, res) => {
     res.setHeader('Content-Type', 'text/html');
     return res.end(`<html><head><title>A</title><link rel="stylesheet" href="/style.css"><link rel="preconnect" href="https://direct.test"></head><body><img src="https://site-b.test:${UP}/pixel.png"><script src="https://site-b.test:${UP}/lib.js"></script></body></html>`);
   }
+  if (req.url === '/dir/page.html') { res.setHeader('Content-Type', 'text/html'); return res.end('<html><head></head><body><img src="img/a.png"><img srcset="img/b.png 1x, /c.png 2x" src="img/b.png"><img data-src="../d.png"></body></html>'); }
   if (req.url === '/style.css') { res.setHeader('Content-Type', 'text/css'); return res.end('body{background:url(/bg.png)}'); }
   if (req.url === '/pixel.png') { res.setHeader('Set-Cookie', 'track=B; Path=/'); res.setHeader('Content-Type', 'image/png'); return res.end('PNG'); }
   if (req.url === '/lib.js') { res.setHeader('Content-Type', 'application/javascript'); return res.end('window.lib=1'); }
@@ -101,6 +102,14 @@ try {
     ok(f('data:text/plain,hi') === null && f('blob:abc') === null && f('') === null, 'data:/blob:/empty URLs are not touched');
     ok(back(f(`${here}/foo?y=2`, true)) === A + '/foo?y=2', 'a Request object (already absolute against this server) is mapped back onto the upstream site');
     ok(f('data.json').includes('t=' + tokA), 'resolved URLs carry the page token');
+  }
+
+  {
+    const sub = await req(proxy(A + '/dir/page.html'), { headers: { ...app, Cookie: sid1 } });
+    const urls = [...sub.body.matchAll(/url=([^"&\s,]+)/g)].map((m) => decodeURIComponent(m[1]));
+    ok(urls.includes(A + '/dir/img/a.png'), 'a relative <img src> in a sub-directory resolves against the page path, not the site root');
+    ok(urls.includes(A + '/dir/img/b.png') && urls.includes(A + '/c.png'), 'srcset candidates resolve correctly (relative and root-relative)');
+    ok(urls.includes(A + '/d.png'), 'data-src with ../ resolves correctly');
   }
 
   r = await req(proxy(A + '/style.css', `t=${tokA}&`), { headers: page });

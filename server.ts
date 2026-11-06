@@ -1447,49 +1447,6 @@ ${pageContext?.url ? `معلومات الصفحة المفتوحة حالياً 
       html = html.replace(/\s+integrity=["'][^"']*["']/gi, '');
       html = html.replace(/\s+nonce=["'][^"']*["']/gi, '');
 
-      // 4. Rewrite hotlink-protected and relative image sources to route through root-relative Aegis proxy
-      html = html.replace(/<img\b([^>]*)\bsrc=["']([^"']+)["']([^>]*)>/gi, (match, prefix, src, suffix) => {
-        const trimmed = src.trim();
-        if (!trimmed || trimmed.startsWith('data:') || trimmed.includes('/api/proxy')) return match;
-        let absUrl = trimmed;
-        if (trimmed.startsWith('//')) absUrl = 'https:' + trimmed;
-        else if (trimmed.startsWith('/')) absUrl = `${parsedTarget.origin}${trimmed}`;
-        else if (!trimmed.startsWith('http://') && !trimmed.startsWith('https://')) absUrl = `${parsedTarget.origin}/${trimmed}`;
-        const proxiedSrc = `/api/proxy?url=${encodeURIComponent(absUrl)}`;
-        return `<img${prefix}src="${proxiedSrc}" data-aegis-src="${trimmed}" loading="lazy"${suffix}>`;
-      });
-
-      // Rewrite srcset
-      html = html.replace(/\bsrcset=["']([^"']+)["']/gi, (match, srcset) => {
-        const rewritten = srcset
-          .split(',')
-          .map((part: string) => {
-            const p = part.trim();
-            const spaceIdx = p.indexOf(' ');
-            const urlPart = spaceIdx > 0 ? p.substring(0, spaceIdx) : p;
-            const desc = spaceIdx > 0 ? p.substring(spaceIdx) : '';
-            if (urlPart.startsWith('data:') || urlPart.includes('/api/proxy')) return p;
-            let absUrl = urlPart;
-            if (urlPart.startsWith('//')) absUrl = 'https:' + urlPart;
-            else if (urlPart.startsWith('/')) absUrl = `${parsedTarget.origin}${urlPart}`;
-            else if (!urlPart.startsWith('http')) absUrl = `${parsedTarget.origin}/${urlPart}`;
-            return `/api/proxy?url=${encodeURIComponent(absUrl)}${desc}`;
-          })
-          .join(', ');
-        return `srcset="${rewritten}"`;
-      });
-
-      // Rewrite data-src and data-lazy-src
-      html = html.replace(/\b(data-src|data-lazy-src)=["']([^"']+)["']/gi, (match, attr, src) => {
-        const trimmed = src.trim();
-        if (!trimmed || trimmed.startsWith('data:') || trimmed.includes('/api/proxy')) return match;
-        let absUrl = trimmed;
-        if (trimmed.startsWith('//')) absUrl = 'https:' + trimmed;
-        else if (trimmed.startsWith('/')) absUrl = `${parsedTarget.origin}${trimmed}`;
-        else if (!trimmed.startsWith('http://') && !trimmed.startsWith('https://')) absUrl = `${parsedTarget.origin}/${trimmed}`;
-        return `${attr}="/api/proxy?url=${encodeURIComponent(absUrl)}"`;
-      });
-
       // Resolve a (possibly relative) URL against the page and point it at this proxy. Returns null for
       // URLs that must be left alone (data:, javascript:, already proxied, ...).
       const toProxyUrl = (raw: string): string | null => {
@@ -1501,6 +1458,35 @@ ${pageContext?.url ? `معلومات الصفحة المفتوحة حالياً 
           return null;
         }
       };
+
+      // 4. Rewrite hotlink-protected and relative image sources to route through root-relative Aegis proxy
+      html = html.replace(/<img\b([^>]*)\bsrc=["']([^"']+)["']([^>]*)>/gi, (match, prefix, src, suffix) => {
+        const proxiedSrc = toProxyUrl(src);
+        if (!proxiedSrc) return match;
+        return `<img${prefix}src="${proxiedSrc}" data-aegis-src="${src.trim()}" loading="lazy"${suffix}>`;
+      });
+
+      // Rewrite srcset
+      html = html.replace(/\bsrcset=["']([^"']+)["']/gi, (match, srcset) => {
+        const rewritten = srcset
+          .split(',')
+          .map((part: string) => {
+            const p = part.trim();
+            const spaceIdx = p.indexOf(' ');
+            const urlPart = spaceIdx > 0 ? p.substring(0, spaceIdx) : p;
+            const desc = spaceIdx > 0 ? p.substring(spaceIdx) : '';
+            const proxied = toProxyUrl(urlPart);
+            return proxied ? `${proxied}${desc}` : p;
+          })
+          .join(', ');
+        return `srcset="${rewritten}"`;
+      });
+
+      // Rewrite data-src and data-lazy-src
+      html = html.replace(/\b(data-src|data-lazy-src)=["']([^"']+)["']/gi, (match, attr, src) => {
+        const proxied = toProxyUrl(src);
+        return proxied ? `${attr}="${proxied}"` : match;
+      });
 
       // 5. Route <script src> through the proxy, including third-party scripts: the browser may only talk
       //    to the proxy (CSP), so this is what keeps CDN scripts working while hiding your IP from them.
@@ -1650,11 +1636,8 @@ ${pageContext?.url ? `معلومات الصفحة المفتوحة حالياً 
                       if (this._healed) return;
                       this._healed = true;
                       var s = this.getAttribute('data-aegis-src') || this.getAttribute('src') || this.src;
-                      if (s && !s.includes('/api/proxy') && !s.startsWith('data:')) {
-                        var abs = s;
-                        if (s.startsWith('/')) abs = '${parsedTarget.origin}' + s;
-                        this.src = '/api/proxy?url=' + encodeURIComponent(abs);
-                      }
+                      var healed = aegisProxify(s, false);
+                      if (healed) this.src = healed;
                     });
                   }
                 });
