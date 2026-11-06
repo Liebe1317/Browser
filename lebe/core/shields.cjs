@@ -53,7 +53,7 @@ class LebeShields {
     const match = this.#rules.find((rule) => matchesRule(rule, url, request));
     if (!match) return { action: 'allow' };
 
-    return { action: 'block', reason: match.reason || 'ad-or-tracker', ruleId: match.id };
+    return { action: 'block', reason: 'ad-or-tracker', ruleId: match.id };
   }
 
   get ruleCount() {
