@@ -27,6 +27,7 @@ const resourceTypes: { id: TypeFilter; label: string }[] = [
   { id: 'image', label: 'Img' },
   { id: 'media', label: 'Media' },
   { id: 'websocket', label: 'WS' },
+  { id: 'other', label: 'Other' },
 ];
 
 const statusLabel = (request: NetworkRequest) => {
