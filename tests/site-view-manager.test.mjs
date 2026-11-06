@@ -94,10 +94,10 @@ ok(unknownProfile.ok === false && unknownProfile.error === 'unknown-profile', 'r
 
 const first = await manager.create({
   tabId: 'tab-a', profileKind: 'private', profileId: 'main',
-  url: 'https://video.example/watch',
+  url: 'https://www.youtube.com/watch?v=test-video',
 });
 ok(first.ok && manager.has('tab-a'), 'a site view is created for a validated tab');
-const duplicate = await manager.create({ tabId: 'tab-a', profileKind: 'private', profileId: 'main', url: 'https://video.example/watch' });
+const duplicate = await manager.create({ tabId: 'tab-a', profileKind: 'private', profileId: 'main', url: 'https://www.youtube.com/watch?v=test-video' });
 ok(duplicate.ok && duplicate.existing === true && createdViews.length === 1, 're-activating an existing tab reuses its native view without duplication');
 ok(registered.length === 1 && prepared.length === 1, 'session policy and VPN preparation run before view creation');
 ok(createdViews[0].options.webPreferences.nodeIntegration === false, 'site view has Node integration disabled');
