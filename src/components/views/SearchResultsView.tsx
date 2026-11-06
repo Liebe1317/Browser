@@ -138,7 +138,7 @@ export const SearchResultsView: React.FC<SearchResultsViewProps> = ({
     },
     {
       q: `كيف أحصل على مساعدة إضافية في البحث أو التلخيص؟`,
-      a: `يمكنك فتح المساعد الذكي "ليبي" من الزر العائم في الأسفل لمساعدتك في أي سؤال أو تلخيص محتوى الموقع بنقرة واحدة مع الحفاظ الكامل على خصوصيتك.`,
+      a: `يمكنك فتح المساعد الذكي "أكرم" من الزر العائم في الأسفل لمساعدتك في أي سؤال أو تلخيص محتوى الموقع بنقرة واحدة مع الحفاظ الكامل على خصوصيتك.`,
     },
   ];
 
@@ -288,11 +288,11 @@ export const SearchResultsView: React.FC<SearchResultsViewProps> = ({
                 <div className="flex items-center justify-between gap-3 flex-wrap">
                   <div className="flex items-center gap-2.5">
                     <div className="w-9 h-9 rounded-full overflow-hidden border border-indigo-400/50 bg-indigo-950/60 shrink-0 shadow-sm">
-                      <img src="/assets/akramAI.png" alt="ليبي" className="w-full h-full object-cover" />
+                      <img src="/assets/akramAI.png" alt="أكرم" className="w-full h-full object-cover" />
                     </div>
                     <div>
                       <div className="flex items-center gap-2">
-                        <span className="text-xs font-bold text-indigo-300">نظرة عامة ذكية من "ليبي"</span>
+                        <span className="text-xs font-bold text-indigo-300">نظرة عامة ذكية من "أكرم"</span>
                         <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-400/30 font-medium">فرز ذكي</span>
                       </div>
                       <span className="text-[11px] text-slate-400">تمت مراجعة نتائج البحث واستبعاد الروابط المضللة</span>
@@ -304,7 +304,7 @@ export const SearchResultsView: React.FC<SearchResultsViewProps> = ({
                       className="text-xs px-3 py-1.5 rounded-full bg-indigo-600/30 hover:bg-indigo-600/50 text-indigo-200 border border-indigo-500/40 flex items-center gap-1.5 transition-all shadow-sm"
                     >
                       <Sparkles className="w-3.5 h-3.5 text-indigo-300" />
-                      <span>اسأل ليبي حول هذا</span>
+                      <span>اسأل أكرم حول هذا</span>
                     </button>
                   )}
                 </div>
