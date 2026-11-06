@@ -107,7 +107,7 @@ check(totalBytesRejected && totalLimited.getStats().filterListCount === 1, 'comb
 
 const lineLimited = new AkramShieldManager({ limits: { maxLinesPerList: 2 } });
 let lineCountRejected = false;
-try { lineLimited.addFilterList({ id: 'many-lines', content: '||one.example^\\n||two.example^\\n||three.example^' }); } catch { lineCountRejected = true; }
+try { lineLimited.addFilterList({ id: 'many-lines', content: '||one.example^\n||two.example^\n||three.example^' }); } catch { lineCountRejected = true; }
 check(lineCountRejected && lineLimited.getStats().filterListCount === 0, 'per-list line limits reject oversized lists before activation');
 
 const cosmeticToggle = new AkramShieldManager();
