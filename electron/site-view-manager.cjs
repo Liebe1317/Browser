@@ -99,6 +99,8 @@ function createSiteViewManager({
     webContents.on('did-create-window', (popupWindow) => {
       const popupContents = popupWindow?.webContents;
       if (!popupContents || popupContents.isDestroyed?.()) return;
+      entry.popupWindows.add(popupWindow);
+      popupWindow.once('closed', () => entry.popupWindows.delete(popupWindow));
       webContentsToTab.set(popupContents.id, tabId);
       attachEvents(tabId, popupContents, entry);
       popupContents.once('destroyed', () => webContentsToTab.delete(popupContents.id));
@@ -177,7 +179,7 @@ function createSiteViewManager({
       },
     });
 
-    const entry = { view, browserSession, partition, profileKind, profileId };
+    const entry = { view, browserSession, partition, profileKind, profileId, popupWindows: new Set() };
     views.set(tabId, entry);
     webContentsToTab.set(view.webContents.id, tabId);
     const partitionEntry = partitions.get(partition) || { browserSession, profileKind, count: 0 };
@@ -274,6 +276,10 @@ function createSiteViewManager({
     if (!entry) return false;
     views.delete(tabId);
     webContentsToTab.delete(entry.view.webContents.id);
+    for (const popupWindow of entry.popupWindows) {
+      try { if (!popupWindow.isDestroyed()) popupWindow.close(); } catch {}
+    }
+    entry.popupWindows.clear();
     const window = getWindow();
     if (window && !window.isDestroyed()) {
       try { window.contentView.removeChildView(entry.view); } catch {}
