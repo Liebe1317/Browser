@@ -895,7 +895,7 @@ export default function App() {
               handleRecordRequest(domain, 'blocked', 'tracker');
             }}
           />
-        ) : (activeTab.pageType === 'webpage' || activeTab.pageType === 'youtube') ? (
+        ) : activeTab.pageType === 'webpage' ? (
           <WebPageView
             key={window.aegisDesktop?.browser ? activeTab.id : `${activeTab.id}-${reloadNonce}`}
             tab={activeTab}
