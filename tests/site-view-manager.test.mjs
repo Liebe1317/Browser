@@ -109,6 +109,7 @@ ok(routed === true, 'Chromium network events are associated with their owning ta
 ok(events.at(-1).type === 'network-request' && events.at(-1).tabId === 'tab-a', 'network events are delivered to the correct tab');
 ok(!Object.hasOwn(events.at(-1), 'webContentsId') && !Object.hasOwn(events.at(-1), 'cookie'), 'internal identifiers and unexpected fields are not forwarded to the renderer');
 ok(manager.recordNetworkEvent({ webContentsId: 999999, requestId: 'orphan', url: 'https://video.example/', method: 'GET', resourceType: 'other', phase: 'started', timestamp: 124 }) === false, 'unowned WebContents network events are discarded');
+ok(manager.recordNetworkEvent({ webContentsId: createdViews[0].webContents.id, requestId: 314159, url: 'https://video.example/', method: 'GET', resourceType: 'other', phase: 'started', timestamp: 124 }) === false, 'the renderer boundary rejects unnormalized numeric request identifiers');
 ok(manager.recordNetworkEvent({ webContentsId: createdViews[0].webContents.id, requestId: 'bad-phase', url: 'https://video.example/', method: 'GET', resourceType: 'other', phase: 'unexpected', timestamp: 125 }) === false, 'malformed network event phases are rejected');
 
 createdViews[0].webContents.listeners('media-started-playing')[0]();
