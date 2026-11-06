@@ -1000,7 +1000,7 @@ export default function App() {
           dir="rtl"
         >
           <div className="relative w-8 h-8 rounded-full overflow-hidden border border-indigo-400 shrink-0 shadow-sm">
-            <img src="/assets/libi.png" alt="أكرم" className="w-full h-full object-cover" />
+            <img src="/assets/akram-ai.png" alt="أكرم" className="w-full h-full object-cover" />
             <span className="absolute bottom-0 right-0 w-2 h-2 rounded-full bg-emerald-400" />
           </div>
           <div className="flex flex-col text-right leading-none pr-0.5">
