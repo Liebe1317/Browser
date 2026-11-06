@@ -148,6 +148,5 @@ export interface NetworkRequest {
   error?: string;
   reason?: 'ad' | 'tracker' | 'fingerprinting' | 'insecure' | 'shield' | 'private-network' | 'vpn-disconnected';
   timestamp: number;
-  size: string;
-  duration: number;
+  duration?: number;
 }
