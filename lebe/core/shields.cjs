@@ -70,9 +70,11 @@ function parseFilterLine(line, index = 0) {
         else if (entry) domains.push(normalizeHost(entry));
       }
     } else {
+      if (!option) continue;
       const excluded = option.startsWith('~');
       const type = excluded ? option.slice(1) : option;
-      if (supported.has(type)) (excluded ? excludedTypes : types).push(type === 'xhr' ? 'xmlhttprequest' : type);
+      if (!supported.has(type)) return null;
+      (excluded ? excludedTypes : types).push(type === 'xhr' ? 'xmlhttprequest' : type);
     }
   }
   return { id: 'abp-' + index, source: raw, exception, matcher, types, excludedTypes, domains, excludedDomains, thirdParty };
