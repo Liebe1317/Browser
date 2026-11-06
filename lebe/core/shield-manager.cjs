@@ -142,6 +142,10 @@ class LebeShieldManager {
     });
   }
 
+  evaluate(request = {}) {
+    return this.evaluateRequest(request);
+  }
+
   getCosmeticCss(rawUrl) {
     return this.#modules.cosmetic ? this.#cosmetic.getCss(rawUrl) : '';
   }
