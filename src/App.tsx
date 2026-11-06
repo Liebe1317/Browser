@@ -16,8 +16,8 @@ import { DownloadsView } from './components/views/DownloadsView';
 import { SecurityVaultView } from './components/views/SecurityVaultView';
 import { VaultLockScreen } from './components/browser/VaultLockScreen';
 import { isVaultSetUp, createVault, unlockVault, lockVault, saveVaultData, loadVaultData, destroyVault, UnlockResult } from './utils/vault';
-import { LibiAssistant } from './components/browser/LibiAssistant';
-import { LibiBrowserAction } from './types/libi';
+import { AkramAIAssistant } from './components/browser/AkramAIAssistant';
+import { AkramAIBrowserAction } from './types/akramAI';
 import { fetchWithAegisCsrf } from './utils/sessionSecurity';
 
 import { Tab, Bookmark, HistoryItem, DownloadItem, BrowserSettings, ShieldSettings, NetworkRequest, NetworkRequestEvent, BrowserPageType, VaultState } from './types/browser';
@@ -149,8 +149,8 @@ export default function App() {
 
   const [showDevTools, setShowDevTools] = useState(false);
   const [showClearDataModal, setShowClearDataModal] = useState(false);
-  const [showLibi, setShowLibi] = useState(false);
-  const [libiContextQuery, setLibiContextQuery] = useState<string | undefined>(undefined);
+  const [showAkramAI, setShowAkramAI] = useState(false);
+  const [akramAIContextQuery, setAkramAIContextQuery] = useState<string | undefined>(undefined);
   const [networkRequests, setNetworkRequests] = useState<NetworkRequest[]>([]);
   const pendingNetworkRequestsRef = useRef<Map<string, NetworkRequest>>(new Map());
   const networkFlushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -637,8 +637,8 @@ export default function App() {
     handleUpdateTab(activeTab.id, { isLoading: true });
   };
 
-  // Libi can request only allowlisted UI actions; each request is confirmed inside its panel.
-  const handleLibiBrowserAction = (action: LibiBrowserAction) => {
+  // Akram AI can request only allowlisted UI actions; each request is confirmed inside its panel.
+  const handleAkramAIBrowserAction = (action: AkramAIBrowserAction) => {
     switch (action.type) {
       case 'navigate': handleNavigate(action.url); break;
       case 'new_tab': handleNewTab(); break;
@@ -842,8 +842,8 @@ export default function App() {
         }
         showEngineBadge={settings.showEngineBadgeInOmnibox ?? true}
         uiDensity={settings.uiDensity || 'standard'}
-        onToggleLibi={() => setShowLibi(!showLibi)}
-        isLibiOpen={showLibi}
+        onToggleAkramAI={() => setShowAkramAI(!showAkramAI)}
+        isAkramAIOpen={showAkramAI}
       />
 
       {/* 3. Bookmarks Bar (Quick Access Folders & Links) */}
@@ -885,9 +885,9 @@ export default function App() {
             onChangeSearchEngine={(engine) =>
               setSettings((s) => ({ ...s, defaultSearchEngine: engine }))
             }
-            onOpenLibi={(q) => {
-              setLibiContextQuery(q);
-              setShowLibi(true);
+            onOpenAkramAI={(q) => {
+              setAkramAIContextQuery(q);
+              setShowAkramAI(true);
             }}
             onAddBlockedCount={(ads, trackers, domain) => {
               setTotalAdsBlocked((c) => c + ads);
@@ -908,7 +908,7 @@ export default function App() {
             onRecordRequest={handleRecordRequest}
             onPageText={handlePageText}
             pageScrollCommand={pageScrollCommand}
-            requestPageText={showLibi}
+            requestPageText={showAkramAI}
           />
         ) : activeTab.pageType === 'history' ? (
           <HistoryView
@@ -990,17 +990,17 @@ export default function App() {
         <VaultLockScreen onUnlock={handleUnlockVault} />
       )}
 
-      {/* 8. Floating Libi AI Assistant Button (Bottom Left) */}
-      {!showLibi && !vaultState.isLocked && !window.aegisDesktop?.browser && (
+      {/* 8. Floating Akram AI Assistant Button (Bottom Left) */}
+      {!showAkramAI && !vaultState.isLocked && !window.aegisDesktop?.browser && (
         <button
           type="button"
-          onClick={() => setShowLibi(true)}
+          onClick={() => setShowAkramAI(true)}
           className="fixed bottom-5 left-5 z-40 flex items-center gap-2.5 px-3.5 py-2 rounded-full bg-slate-900/95 hover:bg-slate-800 text-white border-2 border-indigo-500/60 shadow-[0_4px_24px_rgba(99,102,241,0.4)] transition-all hover:scale-105 group backdrop-blur-md cursor-pointer"
           title="أكرم (Akram) - مساعد الخصوصية والذكاء الاصطناعي 🇵🇸"
           dir="rtl"
         >
           <div className="relative w-8 h-8 rounded-full overflow-hidden border border-indigo-400 shrink-0 shadow-sm">
-            <img src="/assets/libi.png" alt="أكرم" className="w-full h-full object-cover" />
+            <img src="/assets/akramAI.png" alt="أكرم" className="w-full h-full object-cover" />
             <span className="absolute bottom-0 right-0 w-2 h-2 rounded-full bg-emerald-400" />
           </div>
           <div className="flex flex-col text-right leading-none pr-0.5">
@@ -1013,12 +1013,12 @@ export default function App() {
         </button>
       )}
 
-      {/* 9. Libi AI Privacy Assistant Drawer */}
-      <LibiAssistant
-        isOpen={showLibi}
+      {/* 9. Akram AI Privacy Assistant Drawer */}
+      <AkramAIAssistant
+        isOpen={showAkramAI}
         onClose={() => {
-          setShowLibi(false);
-          setLibiContextQuery(undefined);
+          setShowAkramAI(false);
+          setAkramAIContextQuery(undefined);
           setPageTexts({});
         }}
         currentPageContext={{
@@ -1027,9 +1027,9 @@ export default function App() {
           tabId: activeTab.id,
           text: pageTexts[activeTab.id] || '',
         }}
-        initialQuery={libiContextQuery}
+        initialQuery={akramAIContextQuery}
         onNavigate={handleNavigate}
-        onExecuteBrowserAction={handleLibiBrowserAction}
+        onExecuteBrowserAction={handleAkramAIBrowserAction}
       />
     </div>
   );
