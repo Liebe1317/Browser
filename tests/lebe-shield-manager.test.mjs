@@ -39,7 +39,8 @@ check(!manager.getCosmeticCss('https://example.com/').includes('.ad-container{')
 check(manager.getCosmeticCss('https://unrelated.example/').includes('.ad-container{'), 'built-in global cosmetic selectors remain active on other sites');
 check(manager.getCosmeticCss('https://www.youtube.com/').includes('.ytp-ad-overlay-container') === false, 'site exception can disable a built-in YouTube cosmetic rule');
 check(!manager.getCosmeticCss('https://unrelated.example/').includes('.ytp-ad-overlay-container'), 'YouTube built-ins do not leak to unrelated sites');
-check(manager.getCosmeticCss('https://youtube.com/').includes('.ytp-ad-overlay-container{'), 'YouTube built-ins apply on YouTube');
+const youtubeDefaults = new LebeShieldManager();
+check(youtubeDefaults.getCosmeticCss('https://youtube.com/').includes('.ytp-ad-overlay-container{'), 'YouTube built-ins apply on YouTube when no site exception is configured');
 
 let duplicateRejected = false;
 try { manager.addFilterList({ id: 'starter', content: '||other.example^' }); } catch { duplicateRejected = true; }
