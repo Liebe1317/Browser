@@ -63,6 +63,7 @@ class FakeWebContentsView {
       this.webContents[method] = () => { this.webContents.lastCommand = method; };
     }
     this.webContents.loadURL = async (url) => { this.webContents.loadedUrl = url; };
+    this.webContents.getURL = () => this.webContents.loadedUrl || '';
     createdViews.push(this);
   }
   setBounds(bounds) { this.bounds = bounds; }
