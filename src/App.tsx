@@ -21,7 +21,7 @@ import { LibiAssistant } from './components/browser/LibiAssistant';
 import { LibiBrowserAction } from './types/libi';
 import { fetchWithAegisCsrf } from './utils/sessionSecurity';
 
-import { Tab, Bookmark, HistoryItem, DownloadItem, BrowserSettings, ShieldSettings, NetworkRequest, BrowserPageType, VaultState } from './types/browser';
+import { Tab, Bookmark, HistoryItem, DownloadItem, BrowserSettings, ShieldSettings, NetworkRequest, NetworkRequestEvent, BrowserPageType, VaultState } from './types/browser';
 import { DEFAULT_SETTINGS, DEFAULT_SHIELD_SETTINGS, DEFAULT_BOOKMARKS, SEARCH_ENGINES } from './data/initialData';
 import { THEME_PRESETS, applyCustomTheme, getSavedTheme } from './utils/theme';
 import { decideNavigation } from './core/browserPolicy';
@@ -361,6 +361,59 @@ export default function App() {
       if (reason === 'tracker') setTotalTrackersBlocked((c) => c + 1);
     }
   };
+
+  const handleNetworkRequest = useCallback((event: NetworkRequestEvent) => {
+    let parsedUrl: URL;
+    try { parsedUrl = new URL(event.url); } catch { return; }
+    const resourceType = event.resourceType.toLowerCase();
+    const type: NetworkRequest['type'] =
+      resourceType === 'mainframe' ? 'document'
+      : resourceType === 'subframe' ? 'iframe'
+      : resourceType === 'stylesheet' ? 'stylesheet'
+      : resourceType === 'script' ? 'script'
+      : resourceType === 'image' ? 'image'
+      : resourceType === 'font' ? 'font'
+      : resourceType === 'xhr' ? 'xhr'
+      : resourceType === 'fetch' ? 'fetch'
+      : resourceType === 'media' ? 'media'
+      : resourceType === 'websocket' ? 'websocket'
+      : 'other';
+    const status: NetworkRequest['status'] =
+      event.phase === 'blocked' ? 'blocked'
+      : event.phase === 'failed' ? 'failed'
+      : event.phase === 'started' ? 'pending'
+      : 'allowed';
+    const id = `${event.tabId}:${event.requestId}`;
+    const request: NetworkRequest = {
+      id,
+      tabId: event.tabId,
+      url: event.url,
+      domain: parsedUrl.hostname,
+      method: event.method,
+      type,
+      status,
+      statusCode: event.statusCode,
+      error: event.error,
+      reason: event.blockedReason as NetworkRequest['reason'],
+      timestamp: event.timestamp,
+      size: '—',
+      duration: Number.isFinite(event.duration) ? Math.max(0, event.duration || 0) : 0,
+    };
+    setNetworkRequests((previous) => {
+      const index = previous.findIndex((item) => item.id === id);
+      if (index < 0) return [request, ...previous].slice(0, 300);
+      const next = previous.slice();
+      next[index] = request;
+      return next;
+    });
+  }, []);
+
+  useEffect(() => {
+    const unsubscribe = window.aegisDesktop?.browser?.onSiteViewEvent((event) => {
+      if (event.type === 'network-request') handleNetworkRequest(event);
+    });
+    return () => unsubscribe?.();
+  }, [handleNetworkRequest]);
 
   // Central Navigation
   const handleNavigate = (input: string) => {
