@@ -1,5 +1,8 @@
-import React, { useState } from 'react';
-import { Terminal, Activity, Lock, Database, X, Trash2, Filter, AlertCircle, CheckCircle2 } from 'lucide-react';
+import React, { useMemo, useState } from 'react';
+import {
+  Activity, Terminal, ShieldCheck, Database, X, Trash2, Filter,
+  ChevronDown, Search, MoreVertical, CircleHelp, PanelTop, Columns3,
+} from 'lucide-react';
 import { NetworkRequest } from '../../types/browser';
 
 interface DevToolsProps {
@@ -9,238 +12,212 @@ interface DevToolsProps {
   onClearLogs: () => void;
 }
 
+type DevToolsTab = 'network' | 'console' | 'security' | 'storage';
+
 export const DevTools: React.FC<DevToolsProps> = ({
   currentUrl,
   networkRequests,
   onClose,
   onClearLogs,
 }) => {
-  const [activeTab, setActiveTab] = useState<'network' | 'console' | 'security' | 'storage'>('network');
+  const [activeTab, setActiveTab] = useState<DevToolsTab>('network');
   const [networkFilter, setNetworkFilter] = useState<'all' | 'blocked' | 'allowed'>('all');
+  const [filterText, setFilterText] = useState('');
 
-  const filteredRequests = networkRequests.filter((req) => {
-    if (networkFilter === 'blocked') return req.status === 'blocked';
-    if (networkFilter === 'allowed') return req.status === 'allowed' || req.status === 'pending';
-    return true;
-  });
+  const filteredRequests = useMemo(() => networkRequests.filter((req) => {
+    const statusMatches =
+      networkFilter === 'all' ||
+      (networkFilter === 'blocked' && req.status === 'blocked') ||
+      (networkFilter === 'allowed' && (req.status === 'allowed' || req.status === 'pending'));
+    const textMatches = !filterText ||
+      req.url.toLowerCase().includes(filterText.toLowerCase()) ||
+      (req.type || '').toLowerCase().includes(filterText.toLowerCase()) ||
+      (req.method || '').toLowerCase().includes(filterText.toLowerCase());
+    return statusMatches && textMatches;
+  }), [networkRequests, networkFilter, filterText]);
+
+  const tabs: { id: DevToolsTab; label: string; icon: React.ReactNode }[] = [
+    { id: 'elements' as DevToolsTab, label: 'Elements', icon: <PanelTop size={13} /> },
+    { id: 'console', label: 'Console', icon: <Terminal size={13} /> },
+    { id: 'network', label: 'Network', icon: <Activity size={13} /> },
+    { id: 'security', label: 'Security', icon: <ShieldCheck size={13} /> },
+    { id: 'storage', label: 'Application', icon: <Database size={13} /> },
+  ];
 
   return (
-    <div className="h-64 bg-slate-950 border-t border-slate-700/80 flex flex-col font-mono text-xs select-none shadow-2xl">
-      {/* DevTools Top Bar */}
-      <div className="flex items-center justify-between px-3 h-8 bg-slate-900 border-b border-slate-800 text-slate-300">
-        <div className="flex items-center gap-1">
-          <button
-            type="button"
-            onClick={() => setActiveTab('network')}
-            className={`flex items-center gap-1.5 px-3 py-1 rounded-t text-xs font-medium transition-colors ${
-              activeTab === 'network'
-                ? 'bg-slate-950 text-emerald-400 border-t-2 border-emerald-500'
-                : 'hover:text-white hover:bg-slate-800/60'
-            }`}
-          >
-            <Activity className="w-3.5 h-3.5" />
-            <span>الشبكة (Network)</span>
-            <span className="text-[10px] px-1 rounded bg-slate-800 text-slate-400">
-              {networkRequests.length}
-            </span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab('console')}
-            className={`flex items-center gap-1.5 px-3 py-1 rounded-t text-xs font-medium transition-colors ${
-              activeTab === 'console'
-                ? 'bg-slate-950 text-emerald-400 border-t-2 border-emerald-500'
-                : 'hover:text-white hover:bg-slate-800/60'
-            }`}
-          >
-            <Terminal className="w-3.5 h-3.5" />
-            <span>الطرفية (Console)</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab('security')}
-            className={`flex items-center gap-1.5 px-3 py-1 rounded-t text-xs font-medium transition-colors ${
-              activeTab === 'security'
-                ? 'bg-slate-950 text-emerald-400 border-t-2 border-emerald-500'
-                : 'hover:text-white hover:bg-slate-800/60'
-            }`}
-          >
-            <Lock className="w-3.5 h-3.5" />
-            <span>الأمان (Security)</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab('storage')}
-            className={`flex items-center gap-1.5 px-3 py-1 rounded-t text-xs font-medium transition-colors ${
-              activeTab === 'storage'
-                ? 'bg-slate-950 text-emerald-400 border-t-2 border-emerald-500'
-                : 'hover:text-white hover:bg-slate-800/60'
-            }`}
-          >
-            <Database className="w-3.5 h-3.5" />
-            <span>ملفات الارتباط (Cookies)</span>
-          </button>
+    <section
+      className="h-72 min-h-[250px] w-full shrink-0 flex flex-col border-t border-[#3c4043] bg-[#202124] text-[#e8eaed] shadow-[0_-8px_24px_rgba(0,0,0,0.28)] select-none"
+      aria-label="Developer Tools"
+    >
+      {/* Chrome DevTools-style window toolbar */}
+      <div className="h-9 min-h-9 flex items-center justify-between border-b border-[#3c4043] bg-[#292a2d] px-2">
+        <div className="flex min-w-0 items-center gap-1 overflow-hidden">
+          <span className="mr-2 flex items-center gap-1.5 whitespace-nowrap text-[11px] font-medium text-[#bdc1c6]">
+            <Columns3 size={14} className="text-[#8ab4f8]" />
+            DevTools
+          </span>
+          <div className="flex h-full min-w-0 items-center gap-0.5 overflow-x-auto">
+            {tabs.filter(tab => tab.id !== ('elements' as DevToolsTab)).map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setActiveTab(tab.id)}
+                className={`relative flex h-8 shrink-0 items-center gap-1.5 border-b-2 px-3 text-[11px] transition-colors ${
+                  activeTab === tab.id
+                    ? 'border-[#8ab4f8] bg-[#202124] text-[#8ab4f8]'
+                    : 'border-transparent text-[#bdc1c6] hover:bg-[#35363a] hover:text-[#e8eaed]'
+                }`}
+              >
+                {tab.icon}
+                {tab.label}
+              </button>
+            ))}
+          </div>
         </div>
-
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={onClearLogs}
-            className="p-1 text-slate-400 hover:text-slate-200 hover:bg-slate-800 rounded"
-            title="مسح السجلات"
-          >
-            <Trash2 className="w-3.5 h-3.5" />
+        <div className="ml-2 flex shrink-0 items-center gap-1 text-[#9aa0a6]">
+          <button type="button" className="rounded p-1.5 hover:bg-[#3c4043] hover:text-white" title="Help">
+            <CircleHelp size={14} />
           </button>
-          <button
-            type="button"
-            onClick={onClose}
-            className="p-1 text-slate-400 hover:text-rose-400 hover:bg-slate-800 rounded"
-            title="إغلاق DevTools"
-          >
-            <X className="w-3.5 h-3.5" />
+          <button type="button" className="rounded p-1.5 hover:bg-[#3c4043] hover:text-white" title="More options">
+            <MoreVertical size={14} />
+          </button>
+          <button type="button" onClick={onClose} className="rounded p-1.5 hover:bg-[#5f3033] hover:text-white" title="Close DevTools">
+            <X size={15} />
           </button>
         </div>
       </div>
 
-      {/* DevTools Body */}
-      <div className="flex-1 overflow-auto p-2 bg-slate-950 text-slate-300">
-        {activeTab === 'network' && (
-          <div className="space-y-2">
-            {/* Filter buttons */}
-            <div className="flex items-center gap-2 pb-2 border-b border-slate-800 text-[11px]">
-              <span className="text-slate-500 flex items-center gap-1">
-                <Filter className="w-3 h-3" />
-                <span>تصفية:</span>
-              </span>
-              <button
-                type="button"
-                onClick={() => setNetworkFilter('all')}
-                className={`px-2 py-0.5 rounded ${networkFilter === 'all' ? 'bg-slate-800 text-white font-bold' : 'text-slate-400'}`}
-              >
-                الكل ({networkRequests.length})
-              </button>
-              <button
-                type="button"
-                onClick={() => setNetworkFilter('blocked')}
-                className={`px-2 py-0.5 rounded ${networkFilter === 'blocked' ? 'bg-rose-950 text-rose-300 font-bold' : 'text-slate-400'}`}
-              >
-                المحظورة بالدرع ({networkRequests.filter(r => r.status === 'blocked').length})
-              </button>
-              <button
-                type="button"
-                onClick={() => setNetworkFilter('allowed')}
-                className={`px-2 py-0.5 rounded ${networkFilter === 'allowed' ? 'bg-emerald-950 text-emerald-300 font-bold' : 'text-slate-400'}`}
-              >
-                المصرح بها ({networkRequests.filter(r => r.status === 'allowed' || r.status === 'pending').length})
-              </button>
+      {activeTab === 'network' && (
+        <>
+          {/* Network controls */}
+          <div className="flex min-h-10 flex-wrap items-center gap-2 border-b border-[#3c4043] bg-[#202124] px-3 py-1.5 text-[11px]">
+            <button type="button" onClick={onClearLogs} title="Clear network log" className="rounded p-1.5 text-[#bdc1c6] hover:bg-[#3c4043] hover:text-white">
+              <Trash2 size={14} />
+            </button>
+            <button type="button" className="rounded p-1.5 text-[#bdc1c6] hover:bg-[#3c4043]" title="Filter requests">
+              <Filter size={14} />
+            </button>
+            <label className="flex h-7 min-w-[150px] max-w-[260px] flex-1 items-center gap-2 rounded border border-[#5f6368] bg-[#292a2d] px-2 text-[#9aa0a6] focus-within:border-[#8ab4f8]">
+              <Search size={13} />
+              <input
+                value={filterText}
+                onChange={(event) => setFilterText(event.target.value)}
+                placeholder="Filter"
+                className="w-full min-w-0 bg-transparent text-[11px] text-[#e8eaed] outline-none placeholder:text-[#9aa0a6]"
+              />
+            </label>
+            <div className="flex items-center gap-1 rounded border border-[#5f6368] bg-[#292a2d] p-0.5">
+              {([
+                ['all', `All · ${networkRequests.length}`],
+                ['blocked', `Blocked · ${networkRequests.filter(r => r.status === 'blocked').length}`],
+                ['allowed', `Allowed · ${networkRequests.filter(r => r.status === 'allowed' || r.status === 'pending').length}`],
+              ] as const).map(([value, label]) => (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => setNetworkFilter(value)}
+                  className={`rounded px-2 py-1 text-[10px] ${
+                    networkFilter === value ? 'bg-[#3c4043] text-[#e8eaed]' : 'text-[#bdc1c6] hover:text-white'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
             </div>
+            <span className="ml-auto whitespace-nowrap text-[10px] text-[#9aa0a6]">{filteredRequests.length} requests</span>
+          </div>
 
-            {/* Network Table */}
-            <table className="w-full text-right border-collapse">
-              <thead>
-                <tr className="text-slate-500 border-b border-slate-800 text-[10px]">
-                  <th className="py-1 px-2">الحالة</th>
-                  <th className="py-1 px-2">الطلب / URL</th>
-                  <th className="py-1 px-2">الطريقة</th>
-                  <th className="py-1 px-2">النوع</th>
-                  <th className="py-1 px-2">HTTP</th>
-                  <th className="py-1 px-2">الزمن</th>
+          {/* Current page context */}
+          <div className="flex min-h-7 items-center gap-2 border-b border-[#3c4043] bg-[#292a2d] px-3 text-[10px] text-[#9aa0a6]">
+            <span className="text-[#8ab4f8]">Page:</span>
+            <span className="truncate" dir="ltr" title={currentUrl}>{currentUrl || 'No page selected'}</span>
+          </div>
+
+          {/* Network request grid */}
+          <div className="min-h-0 flex-1 overflow-auto bg-[#202124]">
+            <table className="w-full border-collapse text-left text-[11px]">
+              <thead className="sticky top-0 z-10 bg-[#292a2d] text-[#bdc1c6]">
+                <tr className="h-7 border-b border-[#3c4043]">
+                  <th className="w-16 px-3 font-medium">Status</th>
+                  <th className="min-w-[220px] px-3 font-medium">Name</th>
+                  <th className="w-20 px-3 font-medium">Method</th>
+                  <th className="w-28 px-3 font-medium">Type</th>
+                  <th className="w-20 px-3 font-medium">HTTP</th>
+                  <th className="w-20 px-3 font-medium">Time</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-900 text-[11px]">
+              <tbody>
                 {filteredRequests.map((req) => (
                   <tr
                     key={req.id}
-                    className={`hover:bg-slate-900/60 ${
-                      req.status === 'blocked' ? 'text-rose-400 bg-rose-950/15'
-                        : req.status === 'failed' ? 'text-amber-300 bg-amber-950/10'
-                        : 'text-slate-300'
+                    className={`h-7 border-b border-[#303134] hover:bg-[#292a2d] ${
+                      req.status === 'blocked' ? 'text-[#f28b82]'
+                        : req.status === 'failed' ? 'text-[#fdd663]'
+                        : 'text-[#e8eaed]'
                     }`}
                   >
-                    <td className="py-1 px-2 font-mono">
-                      <span className={`px-1.5 py-0.5 rounded border text-[9px] ${
-                        req.status === 'blocked' ? 'bg-rose-950 text-rose-400 border-rose-900/40'
-                        : req.status === 'failed' ? 'bg-amber-950 text-amber-300 border-amber-900/40'
-                        : req.status === 'pending' ? 'bg-sky-950 text-sky-300 border-sky-900/40'
-                        : 'bg-emerald-950 text-emerald-400 border-emerald-900/40'
-                      }`}>
-                        {req.status === 'blocked' ? 'BLOCKED' : req.status === 'failed' ? 'FAILED' : req.status === 'pending' ? 'PENDING' : (req.statusCode ? `${req.statusCode}` : 'DONE')}
-                      </span>
+                    <td className="px-3 font-mono text-[10px]">
+                      {req.status === 'blocked' ? 'Blocked' : req.status === 'failed' ? 'Failed' : req.status === 'pending' ? 'Pending' : req.statusCode ?? 'Done'}
                     </td>
-                    <td className="py-1 px-2 truncate max-w-[360px]" dir="ltr" title={req.url}>{req.url}</td>
-                    <td className="py-1 px-2 text-slate-400">{req.method || '—'}</td>
-                    <td className="py-1 px-2 text-slate-400">{req.type}</td>
-                    <td className="py-1 px-2 text-slate-500">{req.statusCode ?? '—'}</td>
-                    <td className="py-1 px-2 text-slate-500">{req.duration !== undefined ? `${Math.round(req.duration)}ms` : '—'}</td>
+                    <td className="max-w-[520px] truncate px-3" dir="ltr" title={req.url}>{req.url}</td>
+                    <td className="px-3 text-[#bdc1c6]">{req.method || '—'}</td>
+                    <td className="px-3 text-[#bdc1c6]">{req.type || '—'}</td>
+                    <td className="px-3 text-[#bdc1c6]">{req.statusCode ?? '—'}</td>
+                    <td className="px-3 text-[#bdc1c6]">{req.duration !== undefined ? `${Math.round(req.duration)} ms` : '—'}</td>
                   </tr>
                 ))}
+                {filteredRequests.length === 0 && (
+                  <tr>
+                    <td colSpan={6} className="h-20 px-4 text-center text-[11px] text-[#9aa0a6]">
+                      {networkRequests.length === 0 ? 'No network activity recorded' : 'No requests match the current filters'}
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
-        )}
-
-        {activeTab === 'console' && (
-          <div className="space-y-1.5 font-mono text-[11px]">
-            <div className="text-emerald-400 flex items-center gap-1.5">
-              <CheckCircle2 className="w-3.5 h-3.5" />
-              <span>[AegisShield] الدرع يحجب الإعلانات والتتبع بحسب اسم النطاق، وكل الطلبات تمر عبر الوكيل.</span>
-            </div>
-            <div className="text-cyan-400">
-              [PrivacyGuard] إشارتا Sec-GPC وDNT تُرسلان إلى المواقع إذا كان الإعداد مفعّلاً.
-            </div>
-            {networkRequests
-              .filter((r) => r.status === 'blocked')
-              .map((r) => (
-                <div key={r.id} className="text-rose-400/90">
-                  [Blocked by Shield] Request to {r.domain} blocked (Rule: {r.reason || 'adware/tracker'}).
-                </div>
-              ))}
+          <div className="flex h-6 min-h-6 items-center gap-4 border-t border-[#3c4043] bg-[#292a2d] px-3 text-[10px] text-[#9aa0a6]">
+            <span>{filteredRequests.length} requests</span>
+            <span>{networkRequests.filter(r => r.status === 'blocked').length} blocked by Aegis Shield</span>
           </div>
-        )}
+        </>
+      )}
 
-        {activeTab === 'security' && (
-          <div className="p-3 bg-slate-900/80 rounded-lg border border-slate-800 space-y-2 text-xs">
-            <div className="flex items-center gap-2 text-emerald-400 font-bold">
-              <Lock className="w-4 h-4" />
-              <span>الاتصال بين الخادم والموقع</span>
+      {activeTab === 'console' && (
+        <div className="min-h-0 flex-1 overflow-auto bg-[#202124] p-3 font-mono text-[11px]">
+          <div className="mb-2 flex items-center gap-2 text-[#8ab4f8]"><Terminal size={13} /> Console</div>
+          <div className="border-b border-[#3c4043] py-2 text-[#bdc1c6]">Aegis browser diagnostics</div>
+          {networkRequests.filter(r => r.status === 'blocked' || r.status === 'failed').map((req) => (
+            <div key={req.id} className="border-b border-[#3c4043] py-1.5 text-[#f28b82]">
+              [{req.status.toUpperCase()}] {req.domain} — {req.reason || req.url}
             </div>
-            <div className="grid grid-cols-2 gap-4 text-slate-400 text-[11px] pt-2 border-t border-slate-800">
-              <div>
-                <span className="block text-slate-500">التشفير:</span>
-                <span className="text-slate-200">HTTPS، والتحقق من الشهادة يتم على الخادم</span>
-              </div>
-              <div>
-                <span className="block text-slate-500">الاتصال المباشر من الصفحات:</span>
-                <span className="text-slate-200">ممنوع، كل شيء عبر الوكيل</span>
-              </div>
-              <div>
-                <span className="block text-slate-500">عزل الصفحات:</span>
-                <span className="text-emerald-400">أصل معزول (Sandbox)</span>
-              </div>
-              <div>
-                <span className="block text-slate-500">تسريب WebRTC:</span>
-                <span className="text-amber-400">حماية جزئية، ويمكن تجاوزها</span>
-              </div>
-            </div>
-          </div>
-        )}
+          ))}
+          {networkRequests.every(r => r.status !== 'blocked' && r.status !== 'failed') && (
+            <div className="py-2 text-[#9aa0a6]">No captured errors or blocked requests.</div>
+          )}
+        </div>
+      )}
 
-        {activeTab === 'storage' && (
-          <div className="p-3 bg-slate-900/80 rounded-lg border border-slate-800 text-xs space-y-2">
-            <h4 className="font-bold text-slate-200">عزل ملفات تعريف الارتباط (Cookie Jar)</h4>
-            <p className="text-[11px] text-slate-400 leading-relaxed">
-              ملفات الارتباط تُحفظ على الخادم داخل جلستك، في قسم مستقل لكل موقع. لا يستطيع موقع استخدام ملفات موقع آخر.
-              عند تفعيل حجب ملفات الطرف الثالث لا تُرسَل ولا تُخزَّن ملفات الأطراف الخارجية.
-            </p>
-            <div className="p-2 rounded bg-slate-950 font-mono text-[10px] text-emerald-400">
-              تُمسح عند قفل الخزنة أو مسح البيانات أو التدمير الذاتي.
-            </div>
+      {activeTab === 'security' && (
+        <div className="min-h-0 flex-1 overflow-auto bg-[#202124] p-4 text-[11px]">
+          <div className="mb-3 flex items-center gap-2 text-[#8ab4f8]"><ShieldCheck size={15} /> Security overview</div>
+          <div className="rounded border border-[#3c4043] bg-[#292a2d] p-3">
+            <div className="mb-2 text-[#e8eaed]">Current page</div>
+            <div className="break-all text-[#bdc1c6]" dir="ltr">{currentUrl || 'No page selected'}</div>
+            <div className="mt-3 text-[#9aa0a6]">Transport and certificate details are not exposed by the current browser diagnostics API.</div>
           </div>
-        )}
-      </div>
-    </div>
+        </div>
+      )}
+
+      {activeTab === 'storage' && (
+        <div className="min-h-0 flex-1 overflow-auto bg-[#202124] p-4 text-[11px]">
+          <div className="mb-3 flex items-center gap-2 text-[#8ab4f8]"><Database size={15} /> Application</div>
+          <div className="rounded border border-[#3c4043] bg-[#292a2d] p-3">
+            <div className="mb-2 text-[#e8eaed]">Storage isolation</div>
+            <p className="leading-5 text-[#bdc1c6]">Aegis maintains isolated site storage partitions. Detailed cookie and storage inspection is not yet available in this panel.</p>
+          </div>
+        </div>
+      )}
+    </section>
   );
 };
