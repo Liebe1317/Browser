@@ -1,20 +1,20 @@
 import runtime from "./shield-manager.cjs";
 import type {
-  LebeRequest,
-  LebeRequestPolicy,
+  AkramRequest,
+  AkramRequestPolicy,
   ShieldDecision,
   ShieldProfileId,
 } from "./contracts";
 
-export type LebeShieldModule = "network" | "cosmetic";
+export type AkramShieldModule = "network" | "cosmetic";
 
-export interface LebeShieldFilterListInput {
+export interface AkramShieldFilterListInput {
   readonly id: string;
   readonly source?: string;
   readonly content: string;
 }
 
-export interface LebeShieldFilterListMetadata {
+export interface AkramShieldFilterListMetadata {
   readonly id: string;
   readonly source: string;
   readonly lineCount: number;
@@ -24,9 +24,9 @@ export interface LebeShieldFilterListMetadata {
   readonly enabled: boolean;
 }
 
-export interface LebeShieldStats {
+export interface AkramShieldStats {
   readonly profile: ShieldProfileId;
-  readonly modules: Readonly<Record<LebeShieldModule, boolean>>;
+  readonly modules: Readonly<Record<AkramShieldModule, boolean>>;
   readonly filterListCount: number;
   readonly networkRuleCount: number;
   readonly legacyRuleCount: number;
@@ -35,7 +35,7 @@ export interface LebeShieldStats {
   readonly unsupportedLineCount: number;
 }
 
-export interface LebeShieldManagerOptions {
+export interface AkramShieldManagerOptions {
   readonly legacyRules?: readonly Record<string, unknown>[];
   readonly limits?: {
     readonly maxListBytes?: number;
@@ -46,18 +46,18 @@ export interface LebeShieldManagerOptions {
 }
 
 /** Typed engine-neutral facade for the central Lebe Shield policy manager. */
-export class LebeShieldManager implements LebeRequestPolicy {
-  readonly #runtime: InstanceType<typeof runtime.LebeShieldManager>;
+export class AkramShieldManager implements AkramRequestPolicy {
+  readonly #runtime: InstanceType<typeof runtime.AkramShieldManager>;
 
-  constructor(options: LebeShieldManagerOptions = {}) {
-    this.#runtime = new runtime.LebeShieldManager(options);
+  constructor(options: AkramShieldManagerOptions = {}) {
+    this.#runtime = new runtime.AkramShieldManager(options);
   }
 
-  addFilterList(input: LebeShieldFilterListInput): LebeShieldFilterListMetadata {
+  addFilterList(input: AkramShieldFilterListInput): AkramShieldFilterListMetadata {
     return this.#runtime.addFilterList(input);
   }
 
-  updateFilterList(input: LebeShieldFilterListInput): LebeShieldFilterListMetadata {
+  updateFilterList(input: AkramShieldFilterListInput): AkramShieldFilterListMetadata {
     return this.#runtime.updateFilterList(input);
   }
 
@@ -65,15 +65,15 @@ export class LebeShieldManager implements LebeRequestPolicy {
     return this.#runtime.removeFilterList(id);
   }
 
-  listFilterLists(): readonly LebeShieldFilterListMetadata[] {
+  listFilterLists(): readonly AkramShieldFilterListMetadata[] {
     return this.#runtime.listFilterLists();
   }
 
-  evaluateRequest(request: LebeRequest): ShieldDecision {
+  evaluateRequest(request: AkramRequest): ShieldDecision {
     return this.#runtime.evaluateRequest(request as unknown as Record<string, unknown>) as unknown as ShieldDecision;
   }
 
-  evaluate(request: LebeRequest): ShieldDecision {
+  evaluate(request: AkramRequest): ShieldDecision {
     return this.evaluateRequest(request);
   }
 
@@ -81,15 +81,23 @@ export class LebeShieldManager implements LebeRequestPolicy {
     return this.#runtime.getCosmeticCss(rawUrl);
   }
 
-  setModuleEnabled(module: LebeShieldModule, enabled: boolean): Readonly<Record<LebeShieldModule, boolean>> {
+  setModuleEnabled(module: AkramShieldModule, enabled: boolean): Readonly<Record<AkramShieldModule, boolean>> {
     return this.#runtime.setModuleEnabled(module, enabled);
   }
 
-  getModuleStates(): Readonly<Record<LebeShieldModule, boolean>> {
+  getModuleStates(): Readonly<Record<AkramShieldModule, boolean>> {
     return this.#runtime.getModuleStates();
   }
 
-  getStats(): LebeShieldStats {
-    return this.#runtime.getStats() as unknown as LebeShieldStats;
+  getStats(): AkramShieldStats {
+    return this.#runtime.getStats() as unknown as AkramShieldStats;
   }
 }
+
+/** @deprecated Compatibility aliases; use Akram-prefixed types and class. */
+export type LebeShieldModule = AkramShieldModule;
+export type LebeShieldFilterListInput = AkramShieldFilterListInput;
+export type LebeShieldFilterListMetadata = AkramShieldFilterListMetadata;
+export type LebeShieldStats = AkramShieldStats;
+export type LebeShieldManagerOptions = AkramShieldManagerOptions;
+export { AkramShieldManager as LebeShieldManager };

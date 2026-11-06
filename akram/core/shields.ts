@@ -1,7 +1,7 @@
 import runtime from "./shields.cjs";
-import type { LebeRequest, LebeRequestPolicy, ShieldDecision } from "./contracts";
+import type { AkramRequest, AkramRequestPolicy, ShieldDecision } from "./contracts";
 
-export interface LebeHostRule {
+export interface AkramHostRule {
   readonly id: string;
   readonly domain?: string;
   readonly domains?: readonly string[];
@@ -18,14 +18,14 @@ export const hostMatchesDomain = runtime.hostMatchesDomain;
  * Typed TypeScript facade over the same runtime used by the temporary Chromium
  * adapter. This prevents the test/type surface and production policy from drifting.
  */
-export class LebeShields implements LebeRequestPolicy {
-  readonly #runtime: InstanceType<typeof runtime.LebeShields>;
+export class AkramShields implements AkramRequestPolicy {
+  readonly #runtime: InstanceType<typeof runtime.AkramShields>;
 
-  constructor(rules: readonly LebeHostRule[] = []) {
-    this.#runtime = new runtime.LebeShields(rules);
+  constructor(rules: readonly AkramHostRule[] = []) {
+    this.#runtime = new runtime.AkramShields(rules);
   }
 
-  evaluate(request: LebeRequest): ShieldDecision {
+  evaluate(request: AkramRequest): ShieldDecision {
     return this.#runtime.evaluate(request);
   }
 
@@ -41,3 +41,8 @@ export class LebeShields implements LebeRequestPolicy {
     return this.#runtime.ruleCount;
   }
 }
+
+/** @deprecated Use AkramHostRule. */
+export type LebeHostRule = AkramHostRule;
+/** @deprecated Use AkramShields. */
+export { AkramShields as LebeShields };

@@ -1,9 +1,9 @@
 'use strict';
 
-const { LebeShieldManager } = require('../../../akram/core/shield-manager.cjs');
+const { AkramShieldManager } = require('../../../akram/core/shield-manager.cjs');
 
 function createChromiumShieldsAdapter(rules, options = {}) {
-  const manager = options.manager || new LebeShieldManager({
+  const manager = options.manager || new AkramShieldManager({
     legacyRules: rules,
     limits: options.limits,
   });

@@ -59,7 +59,7 @@ function isSafeCosmeticSelector(rawSelector) {
   return true;
 }
 
-class LebeCosmeticFilters {
+class AkramCosmeticFilters {
   #rules = [];
 
   addFilterList(text, source = 'custom') {
@@ -125,4 +125,4 @@ class LebeCosmeticFilters {
   get ruleCount() { return this.#rules.length; }
 }
 
-module.exports = { LebeCosmeticFilters, isSafeCosmeticSelector };
+module.exports = { AkramCosmeticFilters, LebeCosmeticFilters: AkramCosmeticFilters, isSafeCosmeticSelector };

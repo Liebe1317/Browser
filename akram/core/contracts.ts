@@ -4,7 +4,7 @@
  * This module must remain independent from Electron, Chromium, DOM and Node APIs.
  */
 
-export type LebeResourceType =
+export type AkramResourceType =
   | "main-frame"
   | "sub-frame"
   | "stylesheet"
@@ -16,10 +16,10 @@ export type LebeResourceType =
   | "websocket"
   | "other";
 
-export interface LebeRequest {
+export interface AkramRequest {
   readonly url: string;
   readonly method: string;
-  readonly resourceType: LebeResourceType;
+  readonly resourceType: AkramResourceType;
   readonly isMainFrame: boolean;
   readonly initiator?: string;
   readonly tabId?: string;
@@ -29,7 +29,7 @@ export interface LebeRequest {
 export type ShieldReason = "ad-or-tracker" | "network-filter" | "filter-exception" | "unsupported-url" | "popup" | "user-rule" | "module-disabled";
 
 export type ShieldCategory = "network" | "cosmetic" | "popup" | "privacy" | "anti-cryptomining" | "malware" | "download" | "permissions";
-export type ShieldProfileId = "lebe-default" | "lebe-strict" | "lebe-custom";
+export type ShieldProfileId = "akram-default" | "akram-strict" | "akram-custom";
 
 export interface ShieldDecision {
   readonly action: "allow" | "block";
@@ -40,21 +40,28 @@ export interface ShieldDecision {
   readonly profile?: ShieldProfileId;
 }
 
-export interface LebeRequestPolicy {
-  evaluate(request: LebeRequest): ShieldDecision;
+export interface AkramRequestPolicy {
+  evaluate(request: AkramRequest): ShieldDecision;
 }
 
 /**
  * The rendering adapter is intentionally capability-oriented. Concrete adapters
  * translate these operations to their own engine APIs; Lebe Core never imports them.
  */
-export interface LebePageHandle {
+export interface AkramPageHandle {
   readonly id: string;
 }
 
-export interface LebeRenderAdapter {
+export interface AkramRenderAdapter {
   readonly engineName: string;
-  createPage(options: { readonly profileId: string; readonly privateMode: boolean }): Promise<LebePageHandle>;
-  navigate(page: LebePageHandle, url: string): Promise<void>;
-  closePage(page: LebePageHandle): Promise<void>;
+  createPage(options: { readonly profileId: string; readonly privateMode: boolean }): Promise<AkramPageHandle>;
+  navigate(page: AkramPageHandle, url: string): Promise<void>;
+  closePage(page: AkramPageHandle): Promise<void>;
 }
+
+/** @deprecated Temporary compatibility aliases. Use the Akram-prefixed contracts. */
+export type LebeResourceType = AkramResourceType;
+export type LebeRequest = AkramRequest;
+export type LebeRequestPolicy = AkramRequestPolicy;
+export type LebePageHandle = AkramPageHandle;
+export type LebeRenderAdapter = AkramRenderAdapter;

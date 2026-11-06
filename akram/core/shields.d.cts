@@ -1,6 +1,6 @@
-declare class LebeShields {
+declare class AkramShields {
   constructor(rules?: readonly { readonly id: string; readonly domain?: string; readonly domains?: readonly string[]; readonly pathIncludes?: readonly string[]; readonly queryKeysAny?: readonly string[]; readonly resourceTypes?: readonly string[]; readonly methods?: readonly string[] }[]);
-  evaluate(request: import("./contracts").LebeRequest): import("./contracts").ShieldDecision;
+  evaluate(request: import("./contracts").AkramRequest): import("./contracts").ShieldDecision;
   addFilterList(content: string, source?: string): number;
   readonly networkRuleCount: number;
   readonly ruleCount: number;
@@ -9,7 +9,8 @@ declare class LebeShields {
 declare function hostMatchesDomain(hostname: string, domain: string): boolean;
 
 declare const runtime: {
-  LebeShields: typeof LebeShields;
+  AkramShields: typeof AkramShields;
+  LebeShields: typeof AkramShields;
   hostMatchesDomain: typeof hostMatchesDomain;
 };
 

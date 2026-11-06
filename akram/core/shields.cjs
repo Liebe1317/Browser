@@ -124,7 +124,7 @@ function matchesLegacy(rule, url, request) {
   if (rule.methods && !rule.methods.includes(String(request.method || 'GET').toUpperCase())) return false;
   return true;
 }
-class LebeShields {
+class AkramShields {
   #legacyRules;
   #networkRules = [];
   constructor(rules = []) {
@@ -162,4 +162,4 @@ class LebeShields {
   get ruleCount() { return this.#legacyRules.length + this.#networkRules.length; }
   get networkRuleCount() { return this.#networkRules.length; }
 }
-module.exports = { LebeShields, hostMatchesDomain, parseFilterLine, compileNetworkPattern, isThirdParty };
+module.exports = { AkramShields, LebeShields: AkramShields, hostMatchesDomain, parseFilterLine, compileNetworkPattern, isThirdParty };

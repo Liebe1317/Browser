@@ -1,4 +1,4 @@
-declare class LebeShieldManager {
+declare class AkramShieldManager {
   constructor(options?: {
     legacyRules?: readonly Record<string, unknown>[];
     limits?: { maxListBytes?: number; maxTotalBytes?: number; maxLinesPerList?: number; maxFilterLists?: number };
@@ -12,9 +12,9 @@ declare class LebeShieldManager {
     readonly unsupportedLineCount: number;
     readonly enabled: boolean;
   };
-  updateFilterList(input: { id: string; source?: string; content: string }): ReturnType<LebeShieldManager["addFilterList"]>;
+  updateFilterList(input: { id: string; source?: string; content: string }): ReturnType<AkramShieldManager["addFilterList"]>;
   removeFilterList(id: string): boolean;
-  listFilterLists(): ReturnType<LebeShieldManager["addFilterList"]>[];
+  listFilterLists(): ReturnType<AkramShieldManager["addFilterList"]>[];
   evaluateRequest(request?: Record<string, unknown>): Readonly<Record<string, unknown>>;
   evaluate(request?: Record<string, unknown>): Readonly<Record<string, unknown>>;
   getCosmeticCss(rawUrl: string): string;
@@ -22,5 +22,5 @@ declare class LebeShieldManager {
   getModuleStates(): Readonly<{ network: boolean; cosmetic: boolean }>;
   getStats(): Readonly<Record<string, unknown>>;
 }
-declare const runtime: { LebeShieldManager: typeof LebeShieldManager };
+declare const runtime: { AkramShieldManager: typeof AkramShieldManager; LebeShieldManager: typeof AkramShieldManager };
 export default runtime;

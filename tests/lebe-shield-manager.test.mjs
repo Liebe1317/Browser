@@ -1,6 +1,6 @@
 import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
-const { LebeShieldManager } = require('../lebe/core/shield-manager.cjs');
+const { AkramShieldManager } = require('../akram/core/shield-manager.cjs');
 
 const checks = [];
 function check(value, label) {
@@ -8,8 +8,8 @@ function check(value, label) {
   console.log((value ? 'PASS' : 'FAIL') + ' - ' + label);
 }
 
-const manager = new LebeShieldManager();
-check(manager.getStats().profile === 'lebe-default', 'Lebe Default is the built-in protection profile');
+const manager = new AkramShieldManager();
+check(manager.getStats().profile === 'akram-default', 'Akram Default is the built-in protection profile');
 check(manager.getModuleStates().network && manager.getModuleStates().cosmetic, 'network and cosmetic protection start enabled');
 check(manager.evaluateRequest({ url: 'https://doubleclick.net/ad.js', method: 'GET', resourceType: 'script' }).action === 'block', 'built-in network protection rules are owned by the central Shield core');
 check(manager.evaluate({ url: 'https://doubleclick.net/ad.js', method: 'GET', resourceType: 'script' }).action === 'block', 'Shield manager implements the shared request-policy contract');
@@ -39,7 +39,7 @@ check(!manager.getCosmeticCss('https://example.com/').includes('.ad-container{')
 check(manager.getCosmeticCss('https://unrelated.example/').includes('.ad-container{'), 'built-in global cosmetic selectors remain active on other sites');
 check(manager.getCosmeticCss('https://www.youtube.com/').includes('.ytp-ad-overlay-container') === false, 'site exception can disable a built-in YouTube cosmetic rule');
 check(!manager.getCosmeticCss('https://unrelated.example/').includes('.ytp-ad-overlay-container'), 'YouTube built-ins do not leak to unrelated sites');
-const youtubeDefaults = new LebeShieldManager();
+const youtubeDefaults = new AkramShieldManager();
 check(youtubeDefaults.getCosmeticCss('https://youtube.com/').includes('.ytp-ad-overlay-container{'), 'YouTube built-ins apply on YouTube when no site exception is configured');
 
 let duplicateRejected = false;
@@ -77,11 +77,11 @@ check(manager.getStats().filterListCount === 0, 'removal rebuilds the active rul
 check(manager.removeFilterList('missing') === false, 'removing an unknown list is a safe no-op');
 
 let oversizedRejected = false;
-const limited = new LebeShieldManager({ limits: { maxListBytes: 8, maxLinesPerList: 2 } });
+const limited = new AkramShieldManager({ limits: { maxListBytes: 8, maxLinesPerList: 2 } });
 try { limited.addFilterList({ id: 'large', content: '||long.example^' }); } catch { oversizedRejected = true; }
 check(oversizedRejected, 'oversized filter lists are rejected before activation');
 
-const capped = new LebeShieldManager({ limits: { maxFilterLists: 1 } });
+const capped = new AkramShieldManager({ limits: { maxFilterLists: 1 } });
 capped.addFilterList({ id: 'one', content: '||one.example^' });
 let listCapRejected = false;
 try { capped.addFilterList({ id: 'two', content: '||two.example^' }); } catch { listCapRejected = true; }

@@ -1,9 +1,9 @@
 import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
-const { LebeShields, parseFilterLine } = require('../lebe/core/shields.cjs');
+const { AkramShields, parseFilterLine } = require('../akram/core/shields.cjs');
 const checks = [];
 function check(value, label) { checks.push([!!value,label]); console.log((value?'PASS':'FAIL')+' - '+label); }
-const engine = new LebeShields();
+const engine = new AkramShields();
 const count = engine.addFilterList([
   '! title: test',
   '||ads.example^$script,third-party',
@@ -26,16 +26,16 @@ check(engine.evaluate({url:'file:///tmp/page.html'}).action==='allow', 'unsuppor
 check(parseFilterLine('||x.example^') !== null, 'network filter parser exposes deterministic compiled rules');
 check(parseFilterLine('||x.example^$script,badfilter') === null, 'unsupported modifiers are skipped rather than broadened unsafely');
 
-const pslEngine = new LebeShields();
+const pslEngine = new AkramShields();
 pslEngine.addFilterList('||example.co.uk^$script,third-party', 'psl-test');
 check(pslEngine.evaluate({url:'https://cdn.example.co.uk/a.js',resourceType:'script',documentUrl:'https://shop.example.co.uk'}).action==='allow', 'PSL treats sibling subdomains under the same co.uk registrable domain as first-party');
 check(pslEngine.evaluate({url:'https://cdn.example.co.uk/a.js',resourceType:'script',documentUrl:'https://shop.other.co.uk'}).action==='block', 'PSL distinguishes different registrable domains under co.uk');
 check(pslEngine.evaluate({url:'https://cdn.example.co.uk/a.js',resourceType:'script',documentUrl:'https://news.example.co.uk'}).action==='allow', 'PSL treats distinct subdomains of one registrable domain as first-party');
-const privateSuffixEngine = new LebeShields();
+const privateSuffixEngine = new AkramShields();
 privateSuffixEngine.addFilterList('||tenant-a.github.io^$script,third-party', 'private-suffix-test');
 check(privateSuffixEngine.evaluate({url:'https://tenant-a.github.io/a.js',resourceType:'script',documentUrl:'https://tenant-b.github.io'}).action==='block', 'PSL private suffix rules isolate separate github.io tenants');
 check(privateSuffixEngine.evaluate({url:'https://tenant-a.github.io/a.js',resourceType:'script',documentUrl:'https://app.tenant-a.github.io'}).action==='allow', 'PSL private suffix rules keep subdomains within one hosted tenant first-party');
-const ipEngine = new LebeShields();
+const ipEngine = new AkramShields();
 ipEngine.addFilterList('||127.0.0.1^$script,third-party', 'ip-fallback-test');
 check(ipEngine.evaluate({url:'http://127.0.0.1/a.js',resourceType:'script',documentUrl:'http://127.0.0.2'}).action==='block', 'PSL fallback treats a different IP host as third-party');
 check(ipEngine.evaluate({url:'http://127.0.0.1/a.js',resourceType:'script',documentUrl:'http://127.0.0.1:8080'} ).action==='allow', 'PSL fallback treats an IP host with a different port as first-party');

@@ -1,7 +1,7 @@
 'use strict';
 
-const { LebeShields } = require('./shields.cjs');
-const { LebeCosmeticFilters } = require('./cosmetic-filters.cjs');
+const { AkramShields } = require('./shields.cjs');
+const { AkramCosmeticFilters } = require('./cosmetic-filters.cjs');
 const { DEFAULT_SHIELD_RULES } = require('./default-rules.cjs');
 
 const DEFAULT_LIMITS = Object.freeze({
@@ -37,7 +37,7 @@ function countCandidateLines(content) {
  * Central, engine-neutral authority for deterministic Akram Shield decisions.
  * Engine adapters should consume this API rather than maintain their own rules.
  */
-class LebeShieldManager {
+class AkramShieldManager {
   #legacyRules;
   #limits;
   #lists = new Map();
@@ -61,8 +61,8 @@ class LebeShieldManager {
   }
 
   #buildEngines(lists) {
-    const network = new LebeShields(this.#legacyRules);
-    const cosmetic = new LebeCosmeticFilters();
+    const network = new AkramShields(this.#legacyRules);
+    const cosmetic = new AkramCosmeticFilters();
     const metadata = new Map();
 
     for (const list of lists.values()) {
@@ -138,7 +138,7 @@ class LebeShieldManager {
     return Object.freeze({
       ...decision,
       category: 'network',
-      profile: 'lebe-default',
+      profile: 'akram-default',
     });
   }
 
@@ -166,7 +166,7 @@ class LebeShieldManager {
   getStats() {
     const lists = Array.from(this.#metadata.values());
     return Object.freeze({
-      profile: 'lebe-default',
+      profile: 'akram-default',
       modules: this.getModuleStates(),
       filterListCount: lists.length,
       networkRuleCount: this.#network.networkRuleCount,
@@ -178,4 +178,4 @@ class LebeShieldManager {
   }
 }
 
-module.exports = { LebeShieldManager };
+module.exports = { AkramShieldManager, LebeShieldManager: AkramShieldManager };

@@ -3,7 +3,7 @@
 const { isIP } = require('node:net');
 const { createChromiumShieldsAdapter } = require('../lebe/adapters/chromium/session-policy-adapter.cjs');
 
-// Protection rules are owned by Lebe Shield core; Electron only adapts engine callbacks.
+// Protection rules are owned by Akram Shield core; Electron only adapts engine callbacks.
 
 function isPrivateIpv4(host) {
   if (isIP(host) !== 4) return false;
@@ -51,22 +51,22 @@ function isPrivateOrLocalUrl(rawUrl) {
   }
 }
 
-const lebeShieldsAdapter = createChromiumShieldsAdapter();
+const akramShieldsAdapter = createChromiumShieldsAdapter();
 
 function isBlockedAdOrTracker(rawUrl, requestDetails = {}) {
-  return lebeShieldsAdapter.evaluateRequest({ ...requestDetails, url: rawUrl }).action === 'block';
+  return akramShieldsAdapter.evaluateRequest({ ...requestDetails, url: rawUrl }).action === 'block';
 }
 
 function addShieldFilterList(content, source = 'custom') {
-  return lebeShieldsAdapter.addFilterList(content, source);
+  return akramShieldsAdapter.addFilterList(content, source);
 }
 
 function getCosmeticCss(rawUrl) {
-  return lebeShieldsAdapter.getCosmeticCss(rawUrl);
+  return akramShieldsAdapter.getCosmeticCss(rawUrl);
 }
 
 function getShieldStats() {
-  return lebeShieldsAdapter.getStats();
+  return akramShieldsAdapter.getStats();
 }
 
 /**

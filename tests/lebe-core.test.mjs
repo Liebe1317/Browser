@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
-import { LebeShields, hostMatchesDomain } from "../lebe/core/shields.ts";
+import { AkramShields, hostMatchesDomain } from "../akram/core/shields.ts";
 
 const rules = [
   { id: "test-ad-network", domain: "ads.example.test" },
   { id: "tracker", domain: "tracker.example.test" },
 ];
-const shields = new LebeShields([
+const shields = new AkramShields([
   ...rules,
   { id: 'youtube-ad-path', domains: ['youtube.com'], pathIncludes: ['/pagead/'], resourceTypes: ['script', 'xmlhttprequest'] },
   { id: 'youtube-ad-media', domains: ['googlevideo.com'], pathIncludes: ['/videoplayback'], queryKeysAny: ['oad', 'adformat'], resourceTypes: ['media'] },
