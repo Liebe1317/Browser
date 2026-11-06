@@ -2,10 +2,43 @@
 
 const { isIP } = require('node:net');
 
+// Keep the native Electron site-view filter aligned with the proxy shield's known
+// ad-network and tracker coverage. This is a domain blocklist, not a claim to block every ad.
 const blockedDomains = [
-  'doubleclick.net', 'google-analytics.com', 'googletagmanager.com',
-  'googleadservices.com', 'googlesyndication.com', 'criteo.com',
-  'taboola.com', 'outbrain.com', 'hotjar.com', 'clarity.ms',
+  'doubleclick.net',
+  'googleadservices.com',
+  'googlesyndication.com',
+  'adservice.google.com',
+  'amazon-adsystem.com',
+  'criteo.com',
+  'criteo.net',
+  'taboola.com',
+  'outbrain.com',
+  'adroll.com',
+  'appnexus.com',
+  'adnxs.com',
+  'pubmatic.com',
+  'rubiconproject.com',
+  'openx.net',
+  'media.net',
+  'popads.net',
+  'popcash.net',
+  'propellerads.com',
+  'adsterra.com',
+  'monetag.com',
+  'clickadu.com',
+  'yllix.com',
+  'exoclick.com',
+  'trafficjunky.com',
+  'google-analytics.com',
+  'googletagmanager.com',
+  'connect.facebook.net',
+  'pixel.facebook.com',
+  'hotjar.com',
+  'clarity.ms',
+  'scorecardresearch.com',
+  'moatads.com',
+  'adsafeprotected.com',
 ];
 
 function hostMatches(host, domain) {
