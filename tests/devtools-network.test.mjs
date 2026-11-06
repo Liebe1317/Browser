@@ -60,10 +60,10 @@ assert.equal(JSON.stringify(events).includes('access_token'), false);
 
 
 listeners.completed({ id: 'request-1', statusCode: 200 });
-assert.equal(events.length, 2);
-assert.equal(events[1].phase, 'completed');
-assert.equal(events[1].statusCode, 200);
-assert.equal(typeof events[1].duration, 'number');
+assert.equal(events.length, 3);
+assert.equal(events[2].phase, 'completed');
+assert.equal(events[2].statusCode, 200);
+assert.equal(typeof events[2].duration, 'number');
 
 let blockedResult;
 listeners.before({
@@ -75,8 +75,8 @@ listeners.before({
 }, (result) => { blockedResult = result; });
 
 assert.deepEqual(blockedResult, { cancel: true });
-assert.equal(events[2].phase, 'blocked');
-assert.equal(events[2].blockedReason, 'shield');
-assert.equal(events[2].url, 'https://doubleclick.net/track.js');
+assert.equal(events[3].phase, 'blocked');
+assert.equal(events[3].blockedReason, 'shield');
+assert.equal(events[3].url, 'https://doubleclick.net/track.js');
 
 console.log('PASS native network request lifecycle and URL redaction');
