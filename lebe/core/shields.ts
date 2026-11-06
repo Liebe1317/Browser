@@ -29,6 +29,14 @@ export class LebeShields implements LebeRequestPolicy {
     return this.#runtime.evaluate(request);
   }
 
+  addFilterList(content: string, source = 'custom'): number {
+    return this.#runtime.addFilterList(content, source);
+  }
+
+  get networkRuleCount(): number {
+    return this.#runtime.networkRuleCount;
+  }
+
   get ruleCount(): number {
     return this.#runtime.ruleCount;
   }
