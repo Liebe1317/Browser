@@ -4,7 +4,7 @@ const { LebeShieldManager } = require('../../core/shield-manager.cjs');
 
 function createChromiumShieldsAdapter(rules, options = {}) {
   const manager = options.manager || new LebeShieldManager({
-    legacyRules: rules || [],
+    legacyRules: rules,
     limits: options.limits,
   });
   let generatedListId = 0;
