@@ -3,8 +3,8 @@
 const { isIP } = require('node:net');
 const { createChromiumShieldsAdapter } = require('../lebe/adapters/chromium/session-policy-adapter.cjs');
 
-// Keep the native Electron site-view filter aligned with the proxy shield's known
-// ad-network and tracker coverage. This is a domain blocklist, not a claim to block every ad.
+// Domain reputation rules plus narrow YouTube ad endpoints. Video delivery hosts are
+// never blanket-blocked: only requests carrying explicit ad markers are denied.
 const blockedDomains = [
   'doubleclick.net',
   'googleadservices.com',
@@ -63,6 +63,36 @@ const blockedDomains = [
   'infolinks.com',
   'teads.tv',
   'imrworldwide.com',
+  'onclickads.net',
+  'juicyads.com',
+  'hilltopads.net',
+  'adskeeper.co.uk',
+  'adskeeper.com',
+  'ad-maven.com',
+  'adf.ly',
+  'clk.sh',
+  'popunder.net',
+  'popunderjs.com',
+  'propeller-tracking.com',
+];
+
+const shieldRules = [
+  ...blockedDomains.map((domain) => ({ id: domain, domain })),
+  {
+    id: 'youtube-ad-endpoints',
+    domains: ['youtube.com', 'youtube-nocookie.com'],
+    pathIncludes: ['/pagead/', '/api/stats/ads', '/get_midroll_info'],
+    resourceTypes: ['xmlhttprequest', 'xhr', 'script', 'image', 'other'],
+    reason: 'youtube-ad-request',
+  },
+  {
+    id: 'youtube-googlevideo-ad-markers',
+    domains: ['googlevideo.com'],
+    pathIncludes: ['/videoplayback'],
+    queryKeysAny: ['oad', 'adformat', 'ad_type', 'adurl', 'adtag'],
+    resourceTypes: ['media', 'other', 'xmlhttprequest', 'xhr'],
+    reason: 'youtube-ad-media',
+  },
 ];
 
 function isPrivateIpv4(host) {
@@ -111,12 +141,10 @@ function isPrivateOrLocalUrl(rawUrl) {
   }
 }
 
-const lebeShieldsAdapter = createChromiumShieldsAdapter(
-  blockedDomains.map((domain) => ({ id: domain, domain })),
-);
+const lebeShieldsAdapter = createChromiumShieldsAdapter(shieldRules);
 
-function isBlockedAdOrTracker(rawUrl) {
-  return lebeShieldsAdapter.evaluateUrl(rawUrl).action === 'block';
+function isBlockedAdOrTracker(rawUrl, requestDetails = {}) {
+  return lebeShieldsAdapter.evaluateRequest({ ...requestDetails, url: rawUrl }).action === 'block';
 }
 
 /**
@@ -157,7 +185,7 @@ function createBrowserSessionPolicy({ getVpnState, isAppRequest, onNetworkEvent 
     };
     browserSession.webRequest.onBeforeRequest(requestFilter, (details, callback) => {
       const isApp = trustedAppSession && isAppRequest(details.url);
-      const blockedReason = isBlockedAdOrTracker(details.url) ? 'shield'
+      const blockedReason = isBlockedAdOrTracker(details.url, details) ? 'shield'
         : (isPrivateOrLocalUrl(details.url) && !isApp) ? 'private-network'
         : (getVpnState().enabled && !getVpnState().connected && !isApp) ? 'vpn-disconnected' : '';
       const base = {
