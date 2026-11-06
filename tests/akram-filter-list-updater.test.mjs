@@ -15,7 +15,7 @@ let responseBody = '||ads.remote.example^$script\nremote.example##.sponsored';
 let responseStatus = 200;
 let responseHeaders = { 'content-type': 'text/plain; charset=utf-8', etag: '"v1"' };
 let finalUrl = url;
-let fetchCalls = [];
+const fetchCalls = [];
 const manager = new AkramShieldManager();
 const updater = new AkramFilterListUpdater({
   manager, allowedHosts: [host], limits: { maxBytes: 128 },
@@ -69,12 +69,17 @@ await rejected('empty list', () => { responseBody = '  \n! comments only'; });
 await rejected('malformed unsupported-only list', () => { responseBody = 'this is not a supported rule'; });
 await rejected('non-text content type', () => { responseHeaders = { 'content-type': 'application/json' }; });
 await rejected('invalid UTF-8', () => { responseBody = new Uint8Array([0xc3, 0x28]); });
-await rejected('oversized streamed body', () => {
-  responseBody = 'x'.repeat(200);
-  responseHeaders = { 'content-type': 'text/plain', 'content-length': '200' };
-});
+await rejected('oversized streamed body', () => { responseBody = 'x'.repeat(200); });
 await rejected('cross-origin redirect', () => { finalUrl = 'https://evil.example/steal.txt'; });
 await rejected('HTTP downgrade', () => { finalUrl = 'http://filters.example.test/easylist.txt'; });
+
+manager.setFilterListEnabled('community', false);
+responseBody = '||updated.remote.example^$script';
+result = await updater.update('community');
+check(result.metadata.enabled === false, 'updating an already-disabled list preserves its disabled state');
+check(manager.evaluateRequest({ url: 'https://updated.remote.example/ad.js', resourceType: 'script' }).action === 'allow', 'new rules from a disabled list stay out of the active policy');
+manager.setFilterListEnabled('community', true);
+check(manager.evaluateRequest({ url: 'https://updated.remote.example/ad.js', resourceType: 'script' }).action === 'block', 're-enabling the updated list activates its validated rules');
 
 const strict = new AkramFilterListUpdater({
   manager: new AkramShieldManager(), allowedHosts: [host],
