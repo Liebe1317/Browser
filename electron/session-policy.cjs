@@ -147,6 +147,14 @@ function isBlockedAdOrTracker(rawUrl, requestDetails = {}) {
   return lebeShieldsAdapter.evaluateRequest({ ...requestDetails, url: rawUrl }).action === 'block';
 }
 
+function addShieldFilterList(content, source = 'custom') {
+  return lebeShieldsAdapter.addFilterList(content, source);
+}
+
+function getShieldStats() {
+  return { ruleCount: lebeShieldsAdapter.ruleCount, networkRuleCount: lebeShieldsAdapter.networkRuleCount };
+}
+
 /**
  * Applies the same network and permission boundary to every Chromium session.
  * New profile partitions must be registered before their WebContents is created.
@@ -284,4 +292,4 @@ function createBrowserSessionPolicy({ getVpnState, isAppRequest, onNetworkEvent 
   return Object.freeze({ register, getSessions, applyProxyToAll, applyFailClosedToAll, restoreSystemProxyToAll });
 }
 
-module.exports = { createBrowserSessionPolicy, isBlockedAdOrTracker, isPrivateOrLocalUrl };
+module.exports = { createBrowserSessionPolicy, isBlockedAdOrTracker, isPrivateOrLocalUrl, addShieldFilterList, getShieldStats };
