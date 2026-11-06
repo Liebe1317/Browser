@@ -171,6 +171,7 @@ class LebeShieldManager {
       filterListCount: lists.length,
       networkRuleCount: this.#network.networkRuleCount,
       legacyRuleCount: this.#network.ruleCount - this.#network.networkRuleCount,
+      ruleCount: this.#network.ruleCount,
       cosmeticRuleCount: this.#cosmetic.ruleCount,
       unsupportedLineCount: lists.reduce((sum, item) => sum + item.unsupportedLineCount, 0),
     });
