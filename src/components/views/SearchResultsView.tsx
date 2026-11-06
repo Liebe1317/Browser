@@ -288,7 +288,7 @@ export const SearchResultsView: React.FC<SearchResultsViewProps> = ({
                 <div className="flex items-center justify-between gap-3 flex-wrap">
                   <div className="flex items-center gap-2.5">
                     <div className="w-9 h-9 rounded-full overflow-hidden border border-indigo-400/50 bg-indigo-950/60 shrink-0 shadow-sm">
-                      <img src="/assets/akramAI.png" alt="أكرم" className="w-full h-full object-cover" />
+                      <img src="/assets/akram-ai.png" alt="أكرم" className="w-full h-full object-cover" />
                     </div>
                     <div>
                       <div className="flex items-center gap-2">
