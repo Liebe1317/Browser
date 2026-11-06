@@ -1,6 +1,6 @@
 'use strict';
 
-const { app, BrowserWindow, WebContentsView, session, ipcMain, Menu, dialog } = require('electron');
+const { app, BrowserWindow, WebContentsView, session, ipcMain, Menu, clipboard, dialog } = require('electron');
 const path = require('path');
 const { pathToFileURL } = require('url');
 const { parseAksaLocalProxy, getAegisUserDataPath } = require('./aksa-config.cjs');
@@ -212,6 +212,8 @@ function createWindow() {
 
   siteViewManager = createSiteViewManager({
     WebContentsView,
+    Menu,
+    clipboard,
     getWindow: () => mainWindow,
     getSession: (partition) => session.fromPartition(partition),
     registerSession: (browserSession) => browserSessionPolicy.register(browserSession),
