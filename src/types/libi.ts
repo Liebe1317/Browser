@@ -1,4 +1,4 @@
-export type LibiBrowserAction =
+export type AkramAIBrowserAction =
   | { type: 'navigate'; url: string }
   | { type: 'new_tab' }
   | { type: 'back' }
@@ -19,7 +19,7 @@ export type LibiBrowserAction =
   | { type: 'scroll_top' }
   | { type: 'scroll_bottom' };
 
-export function isLibiBrowserAction(value: unknown): value is LibiBrowserAction {
+export function isAkramAIBrowserAction(value: unknown): value is AkramAIBrowserAction {
   if (!value || typeof value !== 'object') return false;
   const candidate = value as Record<string, unknown>;
   const simple = new Set([
@@ -37,15 +37,15 @@ export function isLibiBrowserAction(value: unknown): value is LibiBrowserAction 
   }
 }
 
-export interface LibiSearchResult {
+export interface AkramAISearchResult {
   title: string;
   url: string;
   snippet: string;
 }
 
-export function parseLibiSearchResults(value: unknown): LibiSearchResult[] {
+export function parseAkramAISearchResults(value: unknown): AkramAISearchResult[] {
   if (!Array.isArray(value)) return [];
-  const results: LibiSearchResult[] = [];
+  const results: AkramAISearchResult[] = [];
   for (const item of value.slice(0, 6)) {
     if (!item || typeof item !== 'object') continue;
     const candidate = item as Record<string, unknown>;
@@ -71,3 +71,9 @@ export function parseLibiSearchResults(value: unknown): LibiSearchResult[] {
   }
   return results;
 }
+
+// Backward-compatible aliases while existing UI modules migrate to Akram AI names.
+export type LibiBrowserAction = AkramAIBrowserAction;
+export const isLibiBrowserAction = isAkramAIBrowserAction;
+export type LibiSearchResult = AkramAISearchResult;
+export const parseLibiSearchResults = parseAkramAISearchResults;
