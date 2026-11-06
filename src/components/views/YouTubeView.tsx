@@ -272,6 +272,7 @@ export const YouTubeView: React.FC<YouTubeViewProps> = ({
                 <iframe
                   src={`https://www.youtube-nocookie.com/embed/${currentVideoId}?autoplay=1&modestbranding=1&rel=0&iv_load_policy=3&playsinline=1`}
                   title={activeVideo?.title || 'YouTube Video Player'}
+                  referrerPolicy="strict-origin-when-cross-origin"
                   className="w-full h-full border-none"
                   allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen"
                   allowFullScreen
@@ -288,6 +289,7 @@ export const YouTubeView: React.FC<YouTubeViewProps> = ({
                     <iframe
                       src={`https://www.youtube-nocookie.com/embed/${currentVideoId}?autoplay=1&modestbranding=1&rel=0&iv_load_policy=3&playsinline=1`}
                       title={activeVideo?.title || 'YouTube Video Player'}
+                      referrerPolicy="strict-origin-when-cross-origin"
                       className="w-full h-full border-none"
                       allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen"
                       allowFullScreen
