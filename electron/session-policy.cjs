@@ -2,6 +2,7 @@
 
 const { isIP } = require('node:net');
 const { createChromiumShieldsAdapter } = require('../lebe/adapters/chromium/session-policy-adapter.cjs');
+const { LebeCosmeticFilters } = require('../lebe/core/cosmetic-filters.cjs');
 
 // Domain reputation rules plus narrow YouTube ad endpoints. Video delivery hosts are
 // never blanket-blocked: only requests carrying explicit ad markers are denied.
@@ -142,13 +143,20 @@ function isPrivateOrLocalUrl(rawUrl) {
 }
 
 const lebeShieldsAdapter = createChromiumShieldsAdapter(shieldRules);
+const cosmeticFilters = new LebeCosmeticFilters();
 
 function isBlockedAdOrTracker(rawUrl, requestDetails = {}) {
   return lebeShieldsAdapter.evaluateRequest({ ...requestDetails, url: rawUrl }).action === 'block';
 }
 
 function addShieldFilterList(content, source = 'custom') {
-  return lebeShieldsAdapter.addFilterList(content, source);
+  const networkRulesAdded = lebeShieldsAdapter.addFilterList(content, source);
+  cosmeticFilters.addFilterList(content, source);
+  return networkRulesAdded;
+}
+
+function getCosmeticCss(rawUrl) {
+  return cosmeticFilters.getCss(rawUrl);
 }
 
 function getShieldStats() {
@@ -292,4 +300,4 @@ function createBrowserSessionPolicy({ getVpnState, isAppRequest, onNetworkEvent 
   return Object.freeze({ register, getSessions, applyProxyToAll, applyFailClosedToAll, restoreSystemProxyToAll });
 }
 
-module.exports = { createBrowserSessionPolicy, isBlockedAdOrTracker, isPrivateOrLocalUrl, addShieldFilterList, getShieldStats };
+module.exports = { createBrowserSessionPolicy, isBlockedAdOrTracker, isPrivateOrLocalUrl, addShieldFilterList, getShieldStats, getCosmeticCss };
