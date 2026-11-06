@@ -6,7 +6,9 @@ const { DEFAULT_SHIELD_RULES } = require('./default-rules.cjs');
 
 const DEFAULT_LIMITS = Object.freeze({
   maxListBytes: 5 * 1024 * 1024,
+  maxTotalBytes: 20 * 1024 * 1024,
   maxLinesPerList: 100000,
+  maxFilterLists: 64,
 });
 
 function validateListInput(input, limits) {
@@ -17,10 +19,11 @@ function validateListInput(input, limits) {
   if (!/^[a-z0-9][a-z0-9._-]{0,63}$/i.test(id)) throw new TypeError('Filter-list id must be 1-64 safe characters.');
   if (!source || source.length > 160) throw new TypeError('Filter-list source must be 1-160 characters.');
   if (typeof content !== 'string' || !content.trim()) throw new TypeError('Filter-list content must be a non-empty string.');
-  if (new TextEncoder().encode(content).length > limits.maxListBytes) throw new RangeError('Filter list exceeds the configured byte limit.');
+  const byteLength = new TextEncoder().encode(content).length;
+  if (byteLength > limits.maxListBytes) throw new RangeError('Filter list exceeds the configured byte limit.');
   const lines = content.split(/\r?\n/);
   if (lines.length > limits.maxLinesPerList) throw new RangeError('Filter list exceeds the configured line limit.');
-  return { id, source, content, lineCount: lines.length };
+  return { id, source, content, lineCount: lines.length, byteLength };
 }
 
 function countCandidateLines(content) {
@@ -79,6 +82,12 @@ class LebeShieldManager {
     return { network, cosmetic, metadata };
   }
 
+  #assertCollectionLimits(nextLists) {
+    if (nextLists.size > this.#limits.maxFilterLists) throw new RangeError('Too many filter lists are registered.');
+    const totalBytes = Array.from(nextLists.values()).reduce((sum, list) => sum + list.byteLength, 0);
+    if (totalBytes > this.#limits.maxTotalBytes) throw new RangeError('Combined filter lists exceed the configured byte limit.');
+  }
+
   #commitLists(nextLists) {
     // Build and validate the complete replacement before swapping live engines.
     const candidate = this.#buildEngines(nextLists);
@@ -94,6 +103,7 @@ class LebeShieldManager {
     if (this.#lists.has(list.id)) throw new Error('Filter list already exists; use updateFilterList to replace it.');
     const next = new Map(this.#lists);
     next.set(list.id, list);
+    this.#assertCollectionLimits(next);
     const metadata = this.#commitLists(next).get(list.id);
     return metadata;
   }
@@ -103,6 +113,7 @@ class LebeShieldManager {
     if (!this.#lists.has(list.id)) throw new Error('Cannot update a filter list that is not registered.');
     const next = new Map(this.#lists);
     next.set(list.id, list);
+    this.#assertCollectionLimits(next);
     return this.#commitLists(next).get(list.id);
   }
 
