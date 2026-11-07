@@ -108,6 +108,9 @@ function createSiteViewManager({
         resourceType: 'other',
         selector: payload.selector,
         state: payload.state,
+        confidence: payload.confidence,
+        reasons: payload.reasons.filter((value) => typeof value === 'string').slice(0, 6),
+        tag: typeof payload.tag === 'string' ? payload.tag.slice(0, 16) : 'div',
         source: 'player-dom-observer',
         timestamp: Date.now(),
       };
