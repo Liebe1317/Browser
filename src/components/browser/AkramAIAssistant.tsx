@@ -46,6 +46,7 @@ export const AkramAIAssistant: React.FC<AkramAIAssistantProps> = ({
   ]);
   const [inputText, setInputText] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isLoadingPlayerAnalysis, setIsLoadingPlayerAnalysis] = useState(false);
   const [suggestions, setSuggestions] = useState<string[]>([
     'ما هي أفضل مواقع الأنمي الموثوقة؟',
     'لخّص لي الصفحة الحالية',
@@ -80,7 +81,7 @@ export const AkramAIAssistant: React.FC<AkramAIAssistantProps> = ({
     }
   }, [isOpen, messages]);
 
-  const handleSendMessage = async (customText?: string) => {
+  const handleSendMessage = async (customText?: string, shieldObservations?: unknown[]) => {
     const textToSend = (customText || inputText).trim();
     if (!textToSend || isLoading) return;
 
@@ -109,10 +110,11 @@ export const AkramAIAssistant: React.FC<AkramAIAssistantProps> = ({
         body: JSON.stringify({
           message: textToSend.slice(0, 4000),
           history: historyPayload.slice(-8),
-          pageContext: currentPageContext ? {
-            title: currentPageContext.title,
-            url: currentPageContext.url,
-            ...(sharePageContext && currentPageContext.text ? { text: currentPageContext.text.slice(0, 12000) } : {}),
+          pageContext: (currentPageContext || (shieldObservations && shieldObservations.length > 0)) ? {
+            title: currentPageContext?.title || '',
+            url: currentPageContext?.url || '',
+            ...(sharePageContext && currentPageContext?.text ? { text: currentPageContext.text.slice(0, 12000) } : {}),
+            ...(shieldObservations ? { shieldObservations: shieldObservations.slice(0, 40) } : {}),
           } : undefined,
         }),
       });
@@ -145,6 +147,38 @@ export const AkramAIAssistant: React.FC<AkramAIAssistantProps> = ({
       ]);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleAnalyzePlayerAds = async () => {
+    if (isLoading || isLoadingPlayerAnalysis) return;
+    const shield = (window as any).aegisDesktop?.shield;
+    if (!shield?.getPlayerCandidates) {
+      setMessages((prev) => [...prev, {
+        id: `player-analysis-unavailable-${Date.now()}`, role: 'model',
+        text: 'تحليل المشغّل متاح في نسخة سطح المكتب بعد تحديث Akram Browser.', timestamp: Date.now(),
+      }]);
+      return;
+    }
+    setIsLoadingPlayerAnalysis(true);
+    try {
+      const result = await shield.getPlayerCandidates(40);
+      if (!result?.ok || !Array.isArray(result.candidates)) throw new Error('player-candidates-unavailable');
+      if (result.candidates.length === 0) {
+        setMessages((prev) => [...prev, {
+          id: `player-analysis-empty-${Date.now()}`, role: 'model',
+          text: 'لا توجد حالياً مشاهدات إعلانية من مشغّلات الفيديو في Shield Memory. افتح صفحة فيديو واترك الدرع يراقب العناصر الديناميكية أولاً.', timestamp: Date.now(),
+        }]);
+        return;
+      }
+      await handleSendMessage('حلّل مشاهدات Player-Aware Shield التالية. ميّز الإعلان الحقيقي عن عناصر التحكم والترجمة، واشرح درجة الثقة، واقترح قواعد تجميلية آمنة للمراجعة فقط دون تطبيقها.', result.candidates);
+    } catch {
+      setMessages((prev) => [...prev, {
+        id: `player-analysis-error-${Date.now()}`, role: 'model',
+        text: 'تعذر جلب مشاهدات المشغّل من Shield Memory حالياً.', timestamp: Date.now(),
+      }]);
+    } finally {
+      setIsLoadingPlayerAnalysis(false);
     }
   };
 
@@ -314,9 +348,17 @@ export const AkramAIAssistant: React.FC<AkramAIAssistantProps> = ({
           </div>
 
           {/* Prompt Suggestions */}
-          {suggestions.length > 0 && !isLoading && (
+          {!isLoading && (
             <div className="px-3 py-2 bg-slate-950/40 border-t border-slate-800 flex items-center gap-1.5 overflow-x-auto no-scrollbar">
-              <Sparkles className="w-3.5 h-3.5 text-indigo-400 shrink-0 ml-1" />
+              <button
+                type="button"
+                onClick={handleAnalyzePlayerAds}
+                disabled={isLoadingPlayerAnalysis}
+                className="shrink-0 px-2.5 py-1 rounded-full bg-emerald-950/70 hover:bg-emerald-900 disabled:opacity-50 text-emerald-200 text-[11px] border border-emerald-700/70 transition-colors"
+              >
+                {isLoadingPlayerAnalysis ? 'جارٍ جلب المشاهدات...' : 'تحليل إعلانات المشغّل'}
+              </button>
+              {suggestions.length > 0 && <Sparkles className="w-3.5 h-3.5 text-indigo-400 shrink-0 ml-1" />}
               {suggestions.map((s, idx) => (
                 <button
                   key={idx}
