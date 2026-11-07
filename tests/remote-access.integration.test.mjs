@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { createServer } from 'node:net';
 import { once } from 'node:events';
+import http from 'node:http';
 
 const username = 'akram-integration';
 const password = 'integration-password-with-more-than-24-chars';
@@ -31,6 +32,25 @@ function launchServer(port, envOverrides = {}) {
       ...envOverrides,
     },
     stdio: ['ignore', 'pipe', 'pipe'],
+  });
+}
+
+
+function requestWithHost(url, hostHeader, headers = {}) {
+  const target = new URL(url);
+  return new Promise((resolve, reject) => {
+    const request = http.request({
+      hostname: target.hostname,
+      port: target.port,
+      path: target.pathname + target.search,
+      method: 'GET',
+      headers: { ...headers, Host: hostHeader },
+    }, (response) => {
+      response.resume();
+      response.on('end', () => resolve(response.statusCode));
+    });
+    request.on('error', reject);
+    request.end();
   });
 }
 
@@ -117,14 +137,12 @@ async function main() {
     assert.equal(allowedApi.status, 200, 'Authenticated same-origin health API must work.');
     assert.deepEqual(await allowedApi.json().then((body) => body.status), 'ok');
 
-    const wrongHost = await fetch(base + '/api/health', {
-      headers: {
-        Authorization: auth,
-        'Sec-Fetch-Site': 'same-origin',
-        Host: `untrusted.invalid:${port}`,
-      },
-    });
-    assert.equal(wrongHost.status, 421, 'Authenticated requests with unapproved Host must be rejected.');
+    const wrongHostStatus = await requestWithHost(
+      base + '/api/health',
+      `untrusted.invalid:${port}`,
+      { Authorization: auth, 'Sec-Fetch-Site': 'same-origin' },
+    );
+    assert.equal(wrongHostStatus, 421, 'Authenticated requests with unapproved Host must be rejected.');
 
     // /api/reader is one of the expensive endpoints. It returns 400 for missing input,
     // but the 21st request must be stopped by the configured 20/minute limiter first.
