@@ -59,6 +59,24 @@ function createChromiumShieldsAdapter(rules, options = {}) {
     getStats() {
       return manager.getStats();
     },
+    recordCosmeticObservation(input = {}) {
+      return manager.recordCosmeticObservation(input);
+    },
+    setExperienceOutcome(fingerprint, outcome) {
+      return manager.setExperienceOutcome(fingerprint, outcome);
+    },
+    getExperienceCandidates(options = {}) {
+      return manager.getExperienceCandidates(options);
+    },
+    getExperienceStats() {
+      return manager.getExperienceStats();
+    },
+    exportExperience() {
+      return manager.exportExperience();
+    },
+    importExperience(snapshot) {
+      return manager.importExperience(snapshot);
+    },
     get manager() {
       return manager;
     },
