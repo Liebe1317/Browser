@@ -10,7 +10,7 @@ const sessionPolicy = await readFile(new URL('../electron/session-policy.cjs', i
 assert.match(main, /createAkramElectronShieldRuntime/);
 assert.match(main, /const shieldManager = getShieldManager\(\)/);
 assert.match(main, /manager:\s*shieldManager/);
-assert.match(main, /vpnStatus:\s*\(\)\s*=>\s*\(\{\s*enabled:\s*aksaEnabled,\s*connected:\s*aksaEnabled\s*&&\s*aksaConnected/s);
+assert.doesNotMatch(main, /vpnStatus\s*:/, 'Akram Shield updater must not depend on VPN state');
 assert.match(main, /ipcMain\.handle\('akram:shield:get-state'/);
 assert.match(main, /ipcMain\.handle\('akram:shield:update-list'/);
 assert.match(main, /akram:shield:get-player-candidates/);
