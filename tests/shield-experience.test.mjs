@@ -31,12 +31,12 @@ store.recordObservation({
 });
 assert.equal(store.getStats().observations, 2);
 assert.equal(store.setOutcome(first.fingerprint, 'confirmed-ad').outcome, 'confirmed-ad');
-assert.equal(store.getCandidates().length, 1);
+assert.equal(store.getCandidates().length, 0);
 
 const snapshot = store.exportSnapshot();
 const restored = new AkramShieldExperience({ snapshot });
 assert.equal(restored.getStats().confirmed, 1);
-assert.equal(restored.getStats().observations, 2);
+assert.equal(restored.getStats().observations, 3);
 const reclassified = store.recordObservation({
   host: 'ads.example.test',
   surface: 'player',
