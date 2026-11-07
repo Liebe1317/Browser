@@ -109,6 +109,7 @@ class AkramShieldExperience {
   getCandidates(options = {}) {
     const limit = Math.min(this.#limits.maxEntries, Math.max(1, Number.isSafeInteger(options.limit) ? options.limit : 100));
     return Array.from(this.#entries.values())
+      .filter((entry) => options.includeReclassified === true || entry.lastState !== 'reclassified')
       .filter((entry) => options.includeUnverified === true || entry.outcome === 'confirmed-ad')
       .sort((a, b) => b.lastSeenAt - a.lastSeenAt)
       .slice(0, limit)
