@@ -239,11 +239,23 @@ export const DevTools: React.FC<DevToolsProps> = ({
           </div>
 
           {selectedRequest && (
-            <div className="grid grid-cols-2 gap-x-5 gap-y-1 border-t border-[#3c4043] bg-[#292a2d] px-3 py-2 text-[10px] sm:grid-cols-4">
-              <div className="min-w-0"><span className="text-[#9aa0a6]">Request URL</span><div className="truncate text-[#e8eaed]" dir="ltr" title={selectedRequest.url}>{selectedRequest.url}</div></div>
-              <div><span className="text-[#9aa0a6]">Method / Type</span><div className="text-[#e8eaed]">{selectedRequest.method || '—'} · {selectedRequest.type}</div></div>
-              <div><span className="text-[#9aa0a6]">Status</span><div className="text-[#e8eaed]">{statusLabel(selectedRequest)}{selectedRequest.error ? ` · ${selectedRequest.error}` : ''}</div></div>
-              <div><span className="text-[#9aa0a6]">Duration</span><div className="text-[#e8eaed]">{selectedRequest.duration !== undefined ? `${Math.round(selectedRequest.duration)} ms` : 'Not reported'}</div></div>
+            <div className="max-h-28 shrink-0 overflow-auto border-t border-[#3c4043] bg-[#292a2d] px-3 py-2 text-[10px]">
+              <div className="grid grid-cols-2 gap-x-5 gap-y-1 sm:grid-cols-4">
+                <div className="col-span-2 min-w-0 sm:col-span-2"><span className="text-[#9aa0a6]">Request URL</span><div className="truncate text-[#e8eaed]" dir="ltr" title={selectedRequest.url}>{selectedRequest.url}</div></div>
+                <div><span className="text-[#9aa0a6]">Method / Type</span><div className="text-[#e8eaed]">{selectedRequest.method || '—'} · {selectedRequest.type}</div></div>
+                <div><span className="text-[#9aa0a6]">Status Code</span><div className="text-[#e8eaed]">{selectedRequest.statusCode ?? statusLabel(selectedRequest)}{selectedRequest.error ? ` · ${selectedRequest.error}` : ''}</div></div>
+                <div><span className="text-[#9aa0a6]">Duration</span><div className="text-[#e8eaed]">{selectedRequest.duration !== undefined ? `${Math.round(selectedRequest.duration)} ms` : 'Not reported'}</div></div>
+              </div>
+              <div className="mt-2 border-t border-[#3c4043] pt-1.5">
+                <span className="text-[#9aa0a6]">Response Headers</span>
+                {selectedRequest.responseHeaders && Object.keys(selectedRequest.responseHeaders).length > 0 ? (
+                  <div className="mt-1 grid grid-cols-1 gap-x-4 gap-y-0.5 sm:grid-cols-2">
+                    {Object.entries(selectedRequest.responseHeaders).map(([name, value]) => (
+                      <div key={name} className="truncate text-[#e8eaed]" dir="ltr"><span className="text-[#8ab4f8]">{name}: </span>{value}</div>
+                    ))}
+                  </div>
+                ) : <div className="mt-1 text-[#9aa0a6]">No safe response headers captured for this request.</div>}
+              </div>
             </div>
           )}
           <div className="flex h-6 min-h-6 items-center gap-4 border-t border-[#3c4043] bg-[#292a2d] px-3 text-[10px] text-[#9aa0a6]">
