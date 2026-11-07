@@ -117,6 +117,7 @@ function createElectronFilterListFetcher({
     bodyTimeout: 30_000,
   });
   let disposed = false;
+  const activeRequests = new Set();
 
   async function fetchFilterList(target, init = {}) {
     if (disposed) throw new Error('Filter transport is closed.');
@@ -136,34 +137,43 @@ function createElectronFilterListFetcher({
     if (!Number.isSafeInteger(maxBytes) || maxBytes < 1 || maxBytes > MAX_BYTES) {
       throw new RangeError('Filter transport byte limit is outside the permitted range.');
     }
-    const signal = init.signal
-      ? AbortSignal.any([init.signal, AbortSignal.timeout(timeoutMs)])
-      : AbortSignal.timeout(timeoutMs);
-
-    // Re-check immediately before dispatch. The dispatcher is direct-only and must never
-    // be used as a fallback for an enabled VPN, even when the tunnel reports connected.
-    if (vpnStatus().enabled) {
-      throw new Error('Filter updates are paused while Aksa VPN is enabled; direct fallback is forbidden.');
+    const requestController = new AbortController();
+    activeRequests.add(requestController);
+    const signals = [requestController.signal, AbortSignal.timeout(timeoutMs)];
+    if (init.signal) signals.push(init.signal);
+    const signal = AbortSignal.any(signals);
+    try {
+      // Re-check immediately before dispatch. This direct-only dispatcher must never become
+      // a fallback for an enabled VPN, even when the tunnel reports connected.
+      if (vpnStatus().enabled) {
+        throw new Error('Filter updates are paused while Aksa VPN is enabled; direct fallback is forbidden.');
+      }
+      const response = await fetchImpl(url, {
+        method: 'GET',
+        headers: safeHeaders(init.headers),
+        signal,
+        redirect: 'manual',
+        dispatcher,
+      });
+      if (REDIRECTS.has(response.status) || response.headers.get('location')) {
+        await response.body?.cancel().catch(() => {});
+        throw new Error('Filter source redirects are not permitted.');
+      }
+      const body = response.status === 200 ? await readCapped(response, maxBytes) : null;
+      if (response.status !== 200) await response.body?.cancel().catch(() => {});
+      return { finalUrl: url.href, response: { status: response.status, headers: response.headers, body } };
+    } finally {
+      activeRequests.delete(requestController);
     }
-    const response = await fetchImpl(url, {
-      method: 'GET',
-      headers: safeHeaders(init.headers),
-      signal,
-      redirect: 'manual',
-      dispatcher,
-    });
-    if (REDIRECTS.has(response.status) || response.headers.get('location')) {
-      await response.body?.cancel().catch(() => {});
-      throw new Error('Filter source redirects are not permitted.');
-    }
-    const body = response.status === 200 ? await readCapped(response, maxBytes) : null;
-    if (response.status !== 200) await response.body?.cancel().catch(() => {});
-    return { finalUrl: url.href, response: { status: response.status, headers: response.headers, body } };
   }
 
+  fetchFilterList.abortAll = (reason = new Error('Aksa VPN state changed; filter update aborted.')) => {
+    for (const controller of activeRequests) controller.abort(reason);
+  };
   fetchFilterList.close = async () => {
     if (disposed) return;
     disposed = true;
+    fetchFilterList.abortAll(new Error('Filter transport is shutting down.'));
     await dispatcher.close();
   };
   return fetchFilterList;
