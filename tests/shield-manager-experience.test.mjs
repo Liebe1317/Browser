@@ -33,6 +33,14 @@ const playerCandidate = manager.recordCosmeticObservation({
 assert.equal(playerCandidate.surface, 'player');
 assert.equal(playerCandidate.placement, 'player-overlay');
 assert.equal(manager.getExperienceCandidates({ includeUnverified: true }).some((item) => item.fingerprint === playerCandidate.fingerprint), true);
+manager.recordCosmeticObservation({ host: 'video.example.test', pageHost: 'video.example.test', surface: 'player', placement: 'player-overlay', selector: '.sponsored-overlay', source: 'player-dom-observer', state: 'visible' });
+manager.recordCosmeticObservation({ host: 'video.example.test', pageHost: 'video.example.test', surface: 'player', placement: 'player-overlay', selector: '.sponsored-overlay', source: 'player-dom-observer', state: 'hidden' });
+manager.recordCosmeticObservation({ host: 'video.example.test', pageHost: 'video.example.test', surface: 'player', placement: 'player-overlay', selector: '.sponsored-overlay', source: 'player-dom-observer', state: 'removed' });
+const lifecycle = manager.getExperienceCandidates({ includeUnverified: true }).find((item) => item.fingerprint === playerCandidate.fingerprint);
+assert.equal(lifecycle.appearanceCount, 1);
+assert.equal(lifecycle.hiddenCount, 1);
+assert.equal(lifecycle.removedCount, 1);
+assert.equal(lifecycle.lastState, 'removed');
 assert.equal(manager.getExperienceCandidates().length, 1);
 
 const snapshot = manager.exportExperience();
