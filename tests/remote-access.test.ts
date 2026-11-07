@@ -3,6 +3,7 @@ import {
   isRemoteBind,
   resolveRemoteAccessCredentials,
   verifyBasicAuthorization,
+  createBasicAuthMiddleware,
 } from '../server/remoteAccess.ts';
 
 assert.equal(isRemoteBind('127.0.0.1'), false);
@@ -36,5 +37,27 @@ assert.equal(verifyBasicAuthorization(valid, 'different-user', password), false)
 assert.equal(verifyBasicAuthorization(undefined, username, password), false);
 assert.equal(verifyBasicAuthorization('Bearer token', username, password), false);
 assert.equal(verifyBasicAuthorization('Basic !!!', username, password), false);
+
+function invokeMiddleware(method: string, authorization?: string) {
+  const headers: Record<string, string> = {};
+  let status = 200;
+  let body = '';
+  let nextCalled = false;
+  const req = { method, headers: { authorization } } as any;
+  const res = {
+    setHeader(name: string, value: string) { headers[name] = value; return this; },
+    status(value: number) { status = value; return this; },
+    type() { return this; },
+    send(value: string) { body = value; return this; },
+  } as any;
+  createBasicAuthMiddleware(username, password)(req, res, () => { nextCalled = true; });
+  return { headers, status, body, nextCalled };
+}
+const denied = invokeMiddleware('GET');
+assert.equal(denied.status, 401);
+assert.match(denied.headers['WWW-Authenticate'], /^Basic realm=/);
+assert.equal(denied.body, 'Authentication required.');
+assert.equal(invokeMiddleware('GET', valid).nextCalled, true);
+assert.equal(invokeMiddleware('OPTIONS').nextCalled, true, 'CORS preflight is credential-free; the actual request remains protected');
 
 console.log('PASS - remote binds require strong Basic auth and credentials are verified safely');
