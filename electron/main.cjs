@@ -20,6 +20,7 @@ const shieldManager = getShieldManager();
 const shieldExperienceFile = path.join(userDataPath, 'akram-shield-experience-v1.json');
 let shieldExperienceSaveTimer = null;
 let shieldExperienceSavePromise = null;
+let shieldExperienceSaveRequested = false;
 
 async function loadShieldExperience() {
   try {
@@ -33,7 +34,10 @@ async function loadShieldExperience() {
 async function persistShieldExperience() {
   if (shieldExperienceSaveTimer) clearTimeout(shieldExperienceSaveTimer);
   shieldExperienceSaveTimer = null;
-  if (shieldExperienceSavePromise) return shieldExperienceSavePromise;
+  if (shieldExperienceSavePromise) {
+    shieldExperienceSaveRequested = true;
+    return shieldExperienceSavePromise;
+  }
   shieldExperienceSavePromise = (async () => {
     const temporaryFile = shieldExperienceFile + '.tmp';
     try {
@@ -44,7 +48,12 @@ async function persistShieldExperience() {
       try { await fs.rm(temporaryFile, { force: true }); } catch {}
       console.warn('[Akram Shield] Experience history could not be saved.');
     }
-  })().finally(() => { shieldExperienceSavePromise = null; });
+  })().finally(() => {
+    const saveAgain = shieldExperienceSaveRequested;
+    shieldExperienceSaveRequested = false;
+    shieldExperienceSavePromise = null;
+    if (saveAgain) void persistShieldExperience();
+  });
   return shieldExperienceSavePromise;
 }
 
