@@ -20,6 +20,7 @@ function safeToken(value, max = 80) {
 
 function normalizeObservation(input = {}) {
   const host = safeHost(input.host || input.url);
+  const pageHost = safeHost(input.pageHost || input.documentUrl || input.initiator);
   const surface = ['network', 'cosmetic', 'player'].includes(input.surface) ? input.surface : 'network';
   const placement = ['network', 'page', 'player-overlay', 'player-inline'].includes(input.placement)
     ? input.placement : (surface === 'network' ? 'network' : 'page');
@@ -28,9 +29,9 @@ function normalizeObservation(input = {}) {
   const source = safeToken(input.source, 80);
   // Keep selectors only as bounded CSS metadata; never retain page text, HTML, or full URLs.
   const selector = safeToken(input.selector, DEFAULT_LIMITS.maxSelectorLength);
-  const identity = [host, surface, placement, resourceType, ruleId, source, selector].join('|');
+  const identity = [host, pageHost, surface, placement, resourceType, ruleId, source, selector].join('|');
   const fingerprint = crypto.createHash('sha256').update(identity).digest('hex');
-  return { host, surface, placement, resourceType, ruleId, source, selector, fingerprint };
+  return { host, pageHost, surface, placement, resourceType, ruleId, source, selector, fingerprint };
 }
 
 class AkramShieldExperience {
