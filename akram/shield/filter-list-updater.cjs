@@ -127,7 +127,8 @@ class AkramFilterListUpdater {
     this.#allowedHosts = new Set(allowedHosts.map((host) => String(host).toLowerCase().replace(/\.$/, '')));
     this.#limits = { ...DEFAULT_LIMITS, ...limits };
     for (const [key, value] of Object.entries(this.#limits)) {
-      if (!Number.isSafeInteger(value) || value < 1) throw new RangeError(`Invalid updater limit: ${key}`);
+      const minimum = key === 'maxRedirects' ? 0 : 1;
+      if (!Number.isSafeInteger(value) || value < minimum) throw new RangeError(`Invalid updater limit: ${key}`);
     }
   }
 
