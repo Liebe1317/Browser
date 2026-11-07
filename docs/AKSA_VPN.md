@@ -27,10 +27,10 @@ The health response is an explicit integration contract, not evidence that a Wir
 
 ## Configuration and launch
 
-Set the same environment value for the Aegis server and Electron process:
+Set the same environment value for the Aegis server and Electron process. `AKSA_VPN_PROXY` remains the legacy environment-variable name for compatibility; the product name is Akram VPN:
 
 ```sh
-AKSA_VPN_PROXY (legacy configuration key)=http://127.0.0.1:19090
+AKSA_VPN_PROXY=http://127.0.0.1:19090
 ```
 
 Start the application server in one terminal:
@@ -50,16 +50,16 @@ The desktop app defaults to `http://127.0.0.1:${PORT:-3000}`; use `ELECTRON_STAR
 Linux/macOS shell example:
 
 ```sh
-export AKSA_VPN_PROXY (legacy configuration key)=http://127.0.0.1:19090
+export AKSA_VPN_PROXY=http://127.0.0.1:19090
 npm run dev
-# In a second terminal, export the same AKSA_VPN_PROXY (legacy configuration key) and run:
+# In a second terminal, export the same AKSA_VPN_PROXY and run:
 npm run desktop
 ```
 
 PowerShell example:
 
 ```powershell
-$env:AKSA_VPN_PROXY (legacy configuration key) = "http://127.0.0.1:19090"
+$env:AKSA_VPN_PROXY = "http://127.0.0.1:19090"
 npm run dev
 # In a second PowerShell window, set the same variable and run:
 npm run desktop
