@@ -75,7 +75,7 @@ declare global {
         closeSiteView(tabId: string): Promise<boolean>;
         onSiteViewEvent(callback: (event: {
           tabId: string;
-          type: 'loading' | 'title' | 'navigation' | 'error' | 'process-gone' | 'media-state' | 'audio-state' | 'network-request';
+          type: 'loading' | 'title' | 'navigation' | 'error' | 'process-gone' | 'media-state' | 'audio-state' | 'network-request' | 'download-blocked';
           requestId?: string;
           method?: string;
           resourceType?: string;
@@ -95,6 +95,7 @@ declare global {
           canGoForward?: boolean;
           code?: number;
           reason?: string;
+          host?: string;
         } & Partial<{
           requestId: string;
           method: string;

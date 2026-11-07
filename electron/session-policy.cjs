@@ -90,10 +90,11 @@ function setShieldExperienceOutcome(fingerprint, outcome) {
  * Applies the same network and permission boundary to every Chromium session.
  * New profile partitions must be registered before their WebContents is created.
  */
-function createBrowserSessionPolicy({ getVpnState, isAppRequest, onNetworkEvent }) {
+function createBrowserSessionPolicy({ getVpnState, isAppRequest, onNetworkEvent, onDownloadBlocked }) {
   const sessions = new Set();
   const installed = new WeakSet();
   const sessionMetadata = new WeakMap();
+  const lastDownloadNoticeAt = new Map();
 
   function register(browserSession, options = {}) {
     if (!browserSession || typeof browserSession.setProxy !== 'function') {
@@ -191,9 +192,32 @@ function createBrowserSessionPolicy({ getVpnState, isAppRequest, onNetworkEvent 
     browserSession.setPermissionCheckHandler((_contents, permission, _origin, details) => {
       return permission === 'fullscreen';
     });
-    browserSession.on('will-download', (event, item) => {
+    browserSession.on('will-download', (event, item, sourceWebContents) => {
+      // Deny synchronously at the Session boundary. Pages, frames and renderers
+      // cannot grant themselves an exception through this event.
       event.preventDefault();
-      item.cancel();
+      item?.cancel?.();
+
+      const contents = sourceWebContents || item?.getWebContents?.();
+      const webContentsId = Number.isInteger(contents?.id) ? contents.id : null;
+      if (webContentsId === null) return;
+
+      const getPublicHost = (rawUrl) => {
+        try {
+          const url = new URL(rawUrl);
+          if (url.protocol !== 'http:' && url.protocol !== 'https:') return '';
+          return url.hostname.toLowerCase().slice(0, 253);
+        } catch {
+          return '';
+        }
+      };
+      const host = getPublicHost(item?.getURL?.()) || getPublicHost(contents?.getURL?.()) || 'unknown source';
+      const now = Date.now();
+      const previous = lastDownloadNoticeAt.get(webContentsId);
+      if (previous !== undefined && now - previous < 3000) return;
+      if (lastDownloadNoticeAt.size >= 512) lastDownloadNoticeAt.clear();
+      lastDownloadNoticeAt.set(webContentsId, now);
+      onDownloadBlocked?.({ webContentsId, host, timestamp: now, reason: 'default-deny' });
     });
     return browserSession;
   }

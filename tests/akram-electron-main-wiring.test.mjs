@@ -15,6 +15,8 @@ assert.match(main, /ipcMain\.handle\('akram:shield:get-state'/);
 assert.match(main, /ipcMain\.handle\('akram:shield:update-list'/);
 assert.match(main, /akram:shield:get-player-candidates/);
 assert.match(main, /akram:shield:review-player-candidate/);
+assert.match(main, /onDownloadBlocked:\\s*\\(payload\\)\\s*=>\\s*siteViewManager\\?\\.recordDownloadBlocked\\(payload\\)/);
+assert.match(sessionPolicy, /browserSession\\.on\\('will-download'/);
 assert.match(main, /onPlayerObservation:\s*\(observation\)/);
 assert.match(main, /recordPlayerObservation\(observation\)/);
 assert.match(main, /getShieldExperienceCandidates/);

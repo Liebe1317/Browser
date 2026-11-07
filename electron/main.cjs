@@ -85,6 +85,7 @@ const browserSessionPolicy = createBrowserSessionPolicy({
     siteViewManager?.recordNetworkEvent(payload);
     if (payload.phase === 'blocked' && payload.blockedReason === 'shield') scheduleShieldExperienceSave();
   },
+  onDownloadBlocked: (payload) => siteViewManager?.recordDownloadBlocked(payload),
 });
 
 // The updater and Chromium request policy share this exact manager instance. Updates are manual;

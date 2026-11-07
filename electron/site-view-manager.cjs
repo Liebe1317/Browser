@@ -416,6 +416,24 @@ function createSiteViewManager({
   return Object.freeze({
     create, setBounds, setVisible, navigate, goBack, goForward, reload, setZoom, close, closeAll,
     has: (tabId) => views.has(tabId),
+    recordDownloadBlocked: (payload) => {
+      if (!payload || !Number.isInteger(payload.webContentsId)
+        || typeof payload.host !== 'string' || payload.host.length > 253
+        || typeof payload.timestamp !== 'number' || !Number.isFinite(payload.timestamp)) return false;
+      const tabId = webContentsToTab.get(payload.webContentsId);
+      if (!tabId) return false;
+      let host = 'unknown source';
+      if (payload.host !== 'unknown source') {
+        try {
+          if (!/[\\/?#@\\s]/.test(payload.host)) {
+            const parsed = new URL('https://' + payload.host + '/');
+            if (parsed.pathname === '/' && !parsed.search && !parsed.hash) host = parsed.hostname.slice(0, 253);
+          }
+        } catch {}
+      }
+      send(tabId, 'download-blocked', { host, timestamp: payload.timestamp });
+      return true;
+    },
     recordNetworkEvent: (payload) => {
       if (!payload || !Number.isInteger(payload.webContentsId)) return false;
       const tabId = webContentsToTab.get(payload.webContentsId);

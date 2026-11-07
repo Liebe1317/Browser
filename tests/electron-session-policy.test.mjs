@@ -27,16 +27,19 @@ function fakeSession() {
     triggerHeaders: (details) => new Promise((resolve) => handlers.headers(details, resolve)),
     triggerCompleted: (details) => handlers.completed(details),
     triggerError: (details) => handlers.error(details),
+    triggerDownload: (event, item, webContents) => state.listeners['will-download'](event, item, webContents),
   };
 }
 
 let vpnState = { enabled: false, connected: false };
 let proxyFailures = 0;
+const downloadEvents = [];
 const policy = createBrowserSessionPolicy({
   getVpnState: () => ({ ...vpnState, onProxyFailure: () => { proxyFailures += 1; } }),
   isAppRequest: (url) => {
     try { return new URL(url).origin === 'http://127.0.0.1:3000'; } catch { return false; }
   },
+  onDownloadBlocked: (payload) => downloadEvents.push(payload),
 });
 const regular = fakeSession();
 const privateSession = fakeSession();
@@ -98,8 +101,22 @@ ok(regular.state.permissionCheck(null, 'camera', 'https://video.example', { user
 ok(regular.state.permissionCheck(null, 'fullscreen', 'https://video.example', {}) === true, 'fullscreen permission checks are separate from the gesture-gated request decision');
 let downloadPrevented = false;
 let downloadCanceled = false;
-regular.state.listeners['will-download']({ preventDefault: () => { downloadPrevented = true; } }, { cancel: () => { downloadCanceled = true; } });
-ok(downloadPrevented && downloadCanceled, 'downloads are denied until a user-confirmed download flow exists');
+regular.triggerDownload(
+  { preventDefault: () => { downloadPrevented = true; } },
+  { cancel: () => { downloadCanceled = true; }, getURL: () => 'https://files.example/payload.exe?token=secret-value' },
+  { id: 777, getURL: () => 'https://publisher.example/page' },
+);
+ok(downloadPrevented && downloadCanceled, 'the Session download gate cancels a download synchronously before it can complete');
+ok(downloadEvents.length === 1 && downloadEvents[0].webContentsId === 777
+  && downloadEvents[0].host === 'files.example' && !JSON.stringify(downloadEvents[0]).includes('secret-value'),
+  'blocked-download notices expose only the source host and never the download URL or query secrets');
+let repeatPrevented = false;
+regular.triggerDownload(
+  { preventDefault: () => { repeatPrevented = true; } },
+  { cancel: () => {}, getURL: () => 'https://files.example/another.exe' },
+  { id: 777, getURL: () => 'https://publisher.example/page' },
+);
+ok(repeatPrevented && downloadEvents.length === 1, 'repeated download attempts are still blocked while warning events are rate-limited per WebContents');
 
 await policy.applyProxyToAll({ mode: 'fixed_servers', proxyRules: 'http=127.0.0.1:19090;https=127.0.0.1:19090', proxyBypassRules: 'localhost;127.0.0.1;[::1]' });
 ok(regular.state.proxies.length === 1 && privateSession.state.proxies.length === 1, 'VPN proxy is applied to regular and private sessions');

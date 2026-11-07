@@ -214,6 +214,9 @@ const routed = manager.recordNetworkEvent({
   cookie: 'must-not-forward',
 });
 ok(routed === true, 'Chromium network events are associated with their owning tab');
+const downloadNoticeRouted = manager.recordDownloadBlocked({ webContentsId: createdViews[0].webContents.id, host: 'files.example', timestamp: 125 });
+ok(downloadNoticeRouted === true && events.at(-1).type === 'download-blocked' && events.at(-1).tabId === 'tab-a' && events.at(-1).host === 'files.example', 'blocked-download warnings are routed only to the owning tab with a sanitized source host');
+ok(manager.recordDownloadBlocked({ webContentsId: 999999, host: 'files.example', timestamp: 125 }) === false, 'download warnings from unowned WebContents are discarded');
 ok(events.at(-1).type === 'network-request' && events.at(-1).tabId === 'tab-a', 'network events are delivered to the correct tab');
 ok(!Object.hasOwn(events.at(-1), 'webContentsId') && !Object.hasOwn(events.at(-1), 'cookie'), 'internal identifiers and unexpected fields are not forwarded to the renderer');
 ok(events.at(-1).responseHeaders.server === 'cloudflare' && events.at(-1).responseHeaders['cf-ray'] === 'abc123-SAW' && !JSON.stringify(events.at(-1)).includes('session-cookie'), 'only allowlisted response headers are forwarded; cookies remain private');

@@ -153,6 +153,7 @@ export default function App() {
   const [isNavbarOverlayOpen, setIsNavbarOverlayOpen] = useState(false);
   const [akramAIContextQuery, setAkramAIContextQuery] = useState<string | undefined>(undefined);
   const [networkRequests, setNetworkRequests] = useState<NetworkRequest[]>([]);
+  const [downloadNotice, setDownloadNotice] = useState<{ host: string; timestamp: number } | null>(null);
   const pendingNetworkRequestsRef = useRef<Map<string, NetworkRequest>>(new Map());
   const networkFlushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [reloadNonce, setReloadNonce] = useState(0);
@@ -437,6 +438,11 @@ export default function App() {
 
   useEffect(() => {
     const unsubscribe = window.aegisDesktop?.browser?.onSiteViewEvent((event) => {
+      if (event.type === 'download-blocked' && typeof event.host === 'string'
+        && event.host.length <= 253 && typeof event.timestamp === 'number' && Number.isFinite(event.timestamp)) {
+        setDownloadNotice({ host: event.host, timestamp: event.timestamp });
+        return;
+      }
       if (
         event.type === 'network-request'
         && typeof event.tabId === 'string'
@@ -468,6 +474,12 @@ export default function App() {
     });
     return () => unsubscribe?.();
   }, [handleNetworkRequest]);
+
+  useEffect(() => {
+    if (!downloadNotice) return;
+    const timer = window.setTimeout(() => setDownloadNotice(null), 8000);
+    return () => window.clearTimeout(timer);
+  }, [downloadNotice]);
 
   // Central Navigation
   const handleNavigate = (input: string) => {
@@ -972,7 +984,22 @@ export default function App() {
         ) : null}
       </main>
 
-      {/* 5. Bottom DevTools Drawer (F12) */}
+      {downloadNotice && (
+        <div role="alert" aria-live="assertive" dir="rtl"
+          className="fixed bottom-5 right-5 z-[120] max-w-md rounded-xl border border-amber-500/50 bg-slate-950/95 p-4 text-slate-100 shadow-2xl">
+          <div className="text-sm font-bold text-amber-300">Akram Shield — تم حظر محاولة تنزيل</div>
+          <p className="mt-2 text-xs leading-6 text-slate-200">
+            أوقف Akram طلب التنزيل عند بوابة الحماية ولم يسمح بإكماله أو فتح الملف.
+          </p>
+          <p className="mt-1 text-[11px] text-slate-400">المصدر: {downloadNotice.host}</p>
+          <button type="button" onClick={() => setDownloadNotice(null)}
+            className="mt-3 rounded-lg border border-slate-700 px-3 py-1.5 text-xs text-slate-200 hover:bg-slate-800">
+            إغلاق
+          </button>
+        </div>
+      )}
+
+      {/* 5. Bottom DevTools Drawer (F12) */
       {showDevTools && (
         <DevTools
           currentUrl={activeTab.url}
