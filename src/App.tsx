@@ -150,6 +150,7 @@ export default function App() {
   const [showDevTools, setShowDevTools] = useState(false);
   const [showClearDataModal, setShowClearDataModal] = useState(false);
   const [showAkramAI, setShowAkramAI] = useState(false);
+  const [isNavbarOverlayOpen, setIsNavbarOverlayOpen] = useState(false);
   const [akramAIContextQuery, setAkramAIContextQuery] = useState<string | undefined>(undefined);
   const [networkRequests, setNetworkRequests] = useState<NetworkRequest[]>([]);
   const pendingNetworkRequestsRef = useRef<Map<string, NetworkRequest>>(new Map());
@@ -844,6 +845,7 @@ export default function App() {
         uiDensity={settings.uiDensity || 'standard'}
         onToggleAkramAI={() => setShowAkramAI(!showAkramAI)}
         isAkramAIOpen={showAkramAI}
+        onOverlayVisibilityChange={setIsNavbarOverlayOpen}
       />
 
       {/* 3. Bookmarks Bar (Quick Access Folders & Links) */}
@@ -909,6 +911,7 @@ export default function App() {
             onPageText={handlePageText}
             pageScrollCommand={pageScrollCommand}
             requestPageText={showAkramAI}
+            occluded={isNavbarOverlayOpen || showDevTools || showClearDataModal || showAkramAI || vaultState.isLocked}
           />
         ) : activeTab.pageType === 'history' ? (
           <HistoryView
