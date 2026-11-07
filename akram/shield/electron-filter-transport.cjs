@@ -42,24 +42,28 @@ function blockedIp(value) {
  * entire hostname if any answer is non-public; the returned address is the address used
  * by the socket, preventing a second DNS resolution between validation and connection.
  */
-function guardedLookup(hostname, options, callback) {
-  const opts = options && typeof options === 'object' ? options : {};
-  dns.lookup(hostname, {
-    family: opts.family || 0,
-    hints: opts.hints || 0,
-    all: true,
-    verbatim: true,
-  }, (error, addresses) => {
-    if (error) return callback(error);
-    if (!Array.isArray(addresses) || addresses.length === 0) return callback(new Error('No DNS records for filter source.'));
-    if (addresses.some((entry) => blockedIp(entry.address))) {
-      return callback(new Error('Filter source DNS resolved to a non-public address.'));
-    }
-    if (opts.all) return callback(null, addresses);
-    const selected = addresses.find((entry) => !opts.family || entry.family === opts.family) || addresses[0];
-    callback(null, selected.address, selected.family);
-  });
+function createGuardedLookup(lookupImpl = dns.lookup) {
+  return function guardedLookup(hostname, options, callback) {
+    const opts = options && typeof options === 'object' ? options : {};
+    lookupImpl(hostname, {
+      family: opts.family || 0,
+      hints: opts.hints || 0,
+      all: true,
+      verbatim: true,
+    }, (error, addresses) => {
+      if (error) return callback(error);
+      if (!Array.isArray(addresses) || addresses.length === 0) return callback(new Error('No DNS records for filter source.'));
+      if (addresses.some((entry) => blockedIp(entry.address))) {
+        return callback(new Error('Filter source DNS resolved to a non-public address.'));
+      }
+      if (opts.all) return callback(null, addresses);
+      const selected = addresses.find((entry) => !opts.family || entry.family === opts.family) || addresses[0];
+      callback(null, selected.address, selected.family);
+    });
+  };
 }
+
+const guardedLookup = createGuardedLookup();
 
 const ALLOWED_HEADERS = new Set(['accept', 'if-none-match', 'if-modified-since']);
 const REDIRECTS = new Set([301, 302, 303, 307, 308]);
@@ -179,4 +183,4 @@ function createElectronFilterListFetcher({
   return fetchFilterList;
 }
 
-module.exports = { createElectronFilterListFetcher, guardedLookup, blockedIp, readCapped };
+module.exports = { createElectronFilterListFetcher, createGuardedLookup, guardedLookup, blockedIp, readCapped };

@@ -5,7 +5,7 @@ import { ReadableStream } from 'node:stream/web';
 import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
-const { createElectronFilterListFetcher, guardedLookup, blockedIp } = require('../akram/shield/electron-filter-transport.cjs');
+const { createElectronFilterListFetcher, createGuardedLookup, blockedIp } = require('../akram/shield/electron-filter-transport.cjs');
 
 assert.equal(blockedIp('127.0.0.1'), true);
 assert.equal(blockedIp('10.1.2.3'), true);
@@ -13,6 +13,37 @@ assert.equal(blockedIp('::1'), true);
 assert.equal(blockedIp('::ffff:192.168.1.1'), true);
 assert.equal(blockedIp('8.8.8.8'), false);
 assert.equal(blockedIp('2606:4700:4700::1111'), false);
+assert.equal(blockedIp('::8.8.8.8'), true, 'IPv4-compatible IPv6 forms are blocked');
+assert.equal(blockedIp('64:ff9b::808:808'), true, 'NAT64 literals are conservatively blocked');
+
+const rebindingLookup = createGuardedLookup((_hostname, _options, callback) => {
+  callback(null, [
+    { address: '8.8.8.8', family: 4 },
+    { address: '127.0.0.1', family: 4 },
+  ]);
+});
+await new Promise((resolve) => {
+  rebindingLookup('filters.example.test', {}, (error) => {
+    assert.ok(error, 'a mixed public/private DNS answer must be rejected');
+    resolve();
+  });
+});
+const pinnedLookup = createGuardedLookup((_hostname, _options, callback) => {
+  callback(null, [
+    { address: '8.8.8.8', family: 4 },
+    { address: '1.1.1.1', family: 4 },
+  ]);
+});
+await new Promise((resolve, reject) => {
+  pinnedLookup('filters.example.test', {}, (error, address, family) => {
+    if (error) return reject(error);
+    assert.equal(address, '8.8.8.8', 'the socket receives the already-validated address');
+    assert.equal(family, 4);
+    resolve();
+  });
+});
+console.log('PASS - DNS rebinding guard rejects mixed public/private answers and pins the validated socket address');
+
 
 let enabled = false;
 let dispatches = 0;
