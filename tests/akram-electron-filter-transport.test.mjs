@@ -88,3 +88,18 @@ assert.equal(oversizedCancelled, true);
 await cappedFetcher.close();
 
 console.log('PASS - Electron filter transport enforces DNS/IP guards, VPN fail-closed, redirects and byte caps');
+
+const stalledFetcher = createElectronFilterListFetcher({
+  vpnStatus: () => ({ enabled: false }),
+  lookup: (_host, _options, callback) => callback(null, '8.8.8.8', 4),
+  fetchImpl: async (_url, init) => new Promise((_resolve, reject) => {
+    init.signal.addEventListener('abort', () => reject(init.signal.reason), { once: true });
+  }),
+});
+const stalled = stalledFetcher('https://filters.example.test/stalled.txt');
+await new Promise((resolve) => setImmediate(resolve));
+stalledFetcher.abortAll(new Error('VPN switched on'));
+await assert.rejects(() => stalled, /VPN switched on/);
+await stalledFetcher.close();
+console.log('PASS - enabling Aksa aborts an in-flight filter transport request');
+

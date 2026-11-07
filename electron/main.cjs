@@ -135,6 +135,7 @@ async function refreshAksaHealth() {
     }
   } catch {
     aksaConnected = false;
+    akramShieldRuntime.abortAll(new Error('Aksa health check failed; aborting filter update.'));
     try { await applyAksaFailClosedProxy(); } catch {}
   } finally {
     aksaCheckInFlight = false;
