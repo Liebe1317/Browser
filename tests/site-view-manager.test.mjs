@@ -111,6 +111,7 @@ ok(!('preload' in createdViews[0].options.webPreferences), 'untrusted site view 
 ok(createdViews[0].options.webPreferences.session === sessionFor('aegis-private-main'), 'private tabs use an ephemeral profile partition');
 ok(createdViews[0].visible === false, 'new native views start hidden until layout activates them');
 createdViews[0].webContents.emit('dom-ready');
+await Promise.resolve();
 ok(createdViews[0].webContents.insertedCss.includes('.ytp-ad-overlay-container')
   && createdViews[0].webContents.insertedCss.includes('.adsbygoogle'),
   'site views install cosmetic ad-slot and YouTube overlay filtering');
