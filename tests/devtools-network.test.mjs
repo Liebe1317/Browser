@@ -11,6 +11,7 @@ const browserSession = {
   webRequest: {
     onBeforeRequest: (_filter, listener) => { listeners.before = listener; },
     onCompleted: (_filter, listener) => { listeners.completed = listener; },
+    onHeadersReceived: (_filter, listener) => { listeners.headers = listener; },
     onErrorOccurred: (_filter, listener) => { listeners.failed = listener; },
   },
   setPermissionRequestHandler() {},
@@ -59,10 +60,27 @@ assert.equal(JSON.stringify(events).includes(shortToken), false);
 assert.equal(JSON.stringify(events).includes('access_token'), false);
 
 
-listeners.completed({ id: 'request-1', statusCode: 200 });
+listeners.headers({
+  id: 'request-1',
+  responseHeaders: {
+    server: ['cloudflare'],
+    'cf-ray': ['abc123-SAW'],
+    'cf-mitigated': ['challenge'],
+    'set-cookie': ['secret=session-cookie'],
+    authorization: ['must-not-forward'],
+  },
+}, () => {});
+listeners.completed({ id: 'request-1', statusCode: 403 });
 assert.equal(events.length, 3);
 assert.equal(events[2].phase, 'completed');
-assert.equal(events[2].statusCode, 200);
+assert.equal(events[2].statusCode, 403);
+assert.deepEqual(events[2].responseHeaders, {
+  server: 'cloudflare',
+  'cf-ray': 'abc123-SAW',
+  'cf-mitigated': 'challenge',
+});
+assert.equal(JSON.stringify(events[2]).includes('session-cookie'), false);
+assert.equal(JSON.stringify(events[2]).includes('authorization'), false);
 assert.equal(typeof events[2].duration, 'number');
 
 // Electron's real WebRequestDetails.id is numeric. Normalize it before it
