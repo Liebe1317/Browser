@@ -111,7 +111,7 @@ export function createAkramFilterListFetcher(
     // the timeout fires. The explicit timer also gives us deterministic cleanup.
     const timeoutController = new AbortController();
     const timeout = setTimeout(() => {
-      timeoutController.abort(new Error('Filter transport request timed out.'));
+      timeoutController.abort(new Error('Filter transport timeout exceeded.'));
     }, timeoutMs);
     const signal = init.signal
       ? AbortSignal.any([init.signal, timeoutController.signal])
