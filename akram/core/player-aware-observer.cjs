@@ -9,7 +9,7 @@ function classifyPlayerElement(input = {}) {
   const signals = Array.isArray(input.signals)
     ? [...new Set(input.signals.map((value) => String(value).toLowerCase()).filter(Boolean))]
     : [];
-  const protectedSignal = /(^|[-_\s])(controls?|captions?|subtitles?|seek|progress|timeline|scrubber|volume|play|pause|fullscreen|settings|quality|toolbar|time-display|transcript)([-_\s]|$)/i;
+  const protectedSignal = /(^|[-_\s])(controls?|captions?|subtitles?|text-track|closed-caption|captioning|subtitle-track|vtt|seek|progress|timeline|scrubber|volume|play|pause|fullscreen|settings|quality|toolbar|time-display|transcript)([-_\s]|$)/i;
   const hasProtectedSignal = signals.some((value) => protectedSignal.test(value));
   if (
     ['video', 'audio', 'button', 'input', 'select', 'textarea'].includes(tag)
@@ -70,8 +70,8 @@ function buildPlayerObserverScript(token) {
       ].filter((value) => typeof value === 'string').map((value) => clean(value.toLowerCase()));
       const signals = rawSignals.filter(Boolean);
       const protectedAncestor = !!element.closest('video,audio,button,input,select,textarea,[role="button"]')
-        || !!element.closest('[class*="caption"],[class*="subtitle"],[class*="control"],[class*="progress"],[class*="timeline"]');
-      const protectedDescendant = !!element.querySelector('video,audio,button,input,select,textarea,[role="button"],[class*="caption"],[class*="subtitle"]');
+        || !!element.closest('[class*="caption"],[class*="subtitle"],[class*="text-track"],[class*="transcript"],[class*="vtt"],[class*="control"],[class*="progress"],[class*="timeline"]');
+      const protectedDescendant = !!element.querySelector('video,audio,button,input,select,textarea,[role="button"],[class*="caption"],[class*="subtitle"],[class*="text-track"],[class*="transcript"]');
       let playerRoot = element.closest('.video-js,.jwplayer,.plyr,.html5-video-player,[data-player]');
       if (!playerRoot) {
         let parent = element.parentElement;
