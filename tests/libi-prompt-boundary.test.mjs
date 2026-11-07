@@ -15,6 +15,7 @@ assert.match(systemBlock, /جميع الرسائل وسجل المحادثة و�
 assert.match(systemBlock, /عند ورود shieldObservations/);
 assert.match(source, /pageContext\.shieldObservations/);
 assert.match(source, /candidate\.placement !== 'player-overlay'/);
+assert.match(source, /candidate\.selector\.includes\('#'\)/);
 assert.match(source, /candidate\.appearanceCount/);
 assert.match(source, /candidate\.hiddenCount/);
 assert.match(source, /candidate\.removedCount/);
