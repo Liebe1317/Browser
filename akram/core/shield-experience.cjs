@@ -124,6 +124,7 @@ class AkramShieldExperience {
     }
     const next = new Map();
     for (const item of snapshot.entries.slice(-this.#limits.maxEntries)) {
+      if (!item || typeof item !== 'object' || Array.isArray(item)) continue;
       const normalized = normalizeObservation(item);
       if (!normalized.host || normalized.fingerprint !== item.fingerprint) continue;
       const outcome = ['confirmed-ad', 'false-positive', 'unknown'].includes(item.outcome) ? item.outcome : 'unverified';
