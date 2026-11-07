@@ -46,4 +46,4 @@ runtime.abortAll();
 await runtime.close();
 assert.equal(closed, true);
 
-console.log('PASS - Electron Shield runtime wires updater to the live Chromium manager without VPN coupling');
+console.log('PASS - Electron Shield runtime wires updater to the live Chromium manager without external network-state coupling');

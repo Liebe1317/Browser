@@ -45,11 +45,9 @@ await new Promise((resolve, reject) => {
 console.log('PASS - DNS rebinding guard rejects mixed public/private answers and pins the validated socket address');
 
 
-let enabled = false;
 let dispatches = 0;
 let captured;
 const fetcher = createElectronFilterListFetcher({
-  vpnStatus: () => ({ enabled, connected: true }),
   lookup: (_host, _options, callback) => callback(null, '8.8.8.8', 4),
   fetchImpl: async (url, init) => {
     dispatches++;
@@ -84,13 +82,11 @@ assert.equal(captured.init.headers.authorization, undefined);
 assert.equal(captured.init.headers.cookie, undefined);
 assert.ok(captured.init.dispatcher, 'request uses a guarded Undici dispatcher');
 
-enabled = true;
-await assert.rejects(() => fetcher('https://filters.example.test/list.txt'), /VPN is enabled/);
-assert.equal(dispatches, 1, 'enabled VPN prevents all direct network dispatch');
+await fetcher('https://filters.example.test/list.txt');
+assert.equal(dispatches, 2, 'filter transport operates independently of VPN state');
 await fetcher.close();
 
 const redirectFetcher = createElectronFilterListFetcher({
-  vpnStatus: () => ({ enabled: false }),
   lookup: (_host, _options, callback) => callback(null, '8.8.8.8', 4),
   fetchImpl: async () => ({
     status: 302,
@@ -103,7 +99,6 @@ await redirectFetcher.close();
 
 let oversizedCancelled = false;
 const cappedFetcher = createElectronFilterListFetcher({
-  vpnStatus: () => ({ enabled: false }),
   lookup: (_host, _options, callback) => callback(null, '8.8.8.8', 4),
   fetchImpl: async () => ({
     status: 200,
@@ -118,7 +113,7 @@ await assert.rejects(() => cappedFetcher('https://filters.example.test/list.txt'
 assert.equal(oversizedCancelled, true);
 await cappedFetcher.close();
 
-console.log('PASS - Electron filter transport enforces DNS/IP guards, VPN fail-closed, redirects and byte caps');
+console.log('PASS - Electron filter transport enforces DNS/IP guards, redirects and byte caps');
 
 const stalledFetcher = createElectronFilterListFetcher({
   vpnStatus: () => ({ enabled: false }),
@@ -129,8 +124,8 @@ const stalledFetcher = createElectronFilterListFetcher({
 });
 const stalled = stalledFetcher('https://filters.example.test/stalled.txt');
 await new Promise((resolve) => setImmediate(resolve));
-stalledFetcher.abortAll(new Error('VPN switched on'));
-await assert.rejects(() => stalled, /VPN switched on/);
+stalledFetcher.abortAll(new Error('Shield transport shutdown'));
+await assert.rejects(() => stalled, /Shield transport shutdown/);
 await stalledFetcher.close();
-console.log('PASS - enabling Aksa aborts an in-flight filter transport request');
+console.log('PASS - Shield transport can abort an in-flight request');
 

@@ -6,7 +6,7 @@ import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
 const { createAkramElectronShieldRuntime } = require('../akram/shield/electron-runtime.cjs');
 
-function createHarness({ vpnEnabled = false, failFirst = false } = {}) {
+function createHarness({ failFirst = false } = {}) {
   const lists = new Map();
   const requested = [];
   const manager = {
@@ -53,7 +53,6 @@ function createHarness({ vpnEnabled = false, failFirst = false } = {}) {
   };
   const runtime = createAkramElectronShieldRuntime({
     manager,
-    vpnStatus: () => ({ enabled: vpnEnabled, connected: vpnEnabled }),
     fetcherFactory,
   });
   return { runtime, lists, requested };
@@ -72,13 +71,6 @@ async function run() {
   }
 
   {
-    const { runtime, requested } = createHarness({ vpnEnabled: true });
-    await assert.rejects(runtime.updateAll(), /Akram VPN is enabled/);
-    assert.equal(requested.length, 0, 'must not make direct requests while VPN is enabled');
-    await runtime.close();
-  }
-
-  {
     const { runtime, lists, requested } = createHarness({ failFirst: true });
     const results = await runtime.updateAll();
     assert.equal(results[0].status, 'failed');
@@ -89,7 +81,7 @@ async function run() {
   }
 
   console.log('PASS Akram Shield startup bootstrap activates both lists in the live manager');
-  console.log('PASS Akram Shield bootstrap refuses direct updates while VPN is enabled');
+  console.log('PASS Akram Shield filter updates do not depend on an external VPN state');
   console.log('PASS Akram Shield bootstrap isolates per-source failures');
 }
 

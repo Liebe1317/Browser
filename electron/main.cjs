@@ -91,7 +91,6 @@ const browserSessionPolicy = createBrowserSessionPolicy({
 // no background schedule starts until the updater lifecycle and real-site compatibility are proven.
 const akramShieldRuntime = createAkramElectronShieldRuntime({
   manager: shieldManager,
-  vpnStatus: () => ({ enabled: aksaEnabled, connected: aksaEnabled && aksaConnected }),
 });
 
 // The browser UI needs the local Express/Vite API; a file:// renderer cannot use same-origin /api.
@@ -449,7 +448,6 @@ app.whenReady().then(async () => {
 
   // Bootstrap the live Chromium Shield manager once per desktop launch. This is not a
   // recurring background schedule; each source is validated and atomically activated.
-  // The transport refuses direct requests whenever Akram VPN is enabled.
   void akramShieldRuntime.updateAll().then((results) => {
     for (const result of results) {
       if (result.status === 'failed') {
