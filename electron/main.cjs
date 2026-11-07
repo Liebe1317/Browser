@@ -2,6 +2,7 @@
 
 const { app, BrowserWindow, WebContentsView, session, ipcMain, Menu, clipboard, dialog } = require('electron');
 const path = require('path');
+const fs = require('node:fs/promises');
 const { pathToFileURL } = require('url');
 const { parseAksaLocalProxy, getAegisUserDataPath } = require('./aksa-config.cjs');
 const { AksaSidecar } = require('./aksa-sidecar.cjs');
@@ -15,6 +16,43 @@ let siteViewManager = null;
 app.setName('Akram Browser');
 const userDataPath = getAegisUserDataPath();
 app.setPath('userData', userDataPath);
+const shieldManager = getShieldManager();
+const shieldExperienceFile = path.join(userDataPath, 'akram-shield-experience-v1.json');
+let shieldExperienceSaveTimer = null;
+let shieldExperienceSavePromise = null;
+
+async function loadShieldExperience() {
+  try {
+    const raw = await fs.readFile(shieldExperienceFile, 'utf8');
+    shieldManager.importExperience(JSON.parse(raw));
+  } catch (error) {
+    if (error?.code !== 'ENOENT') console.warn('[Akram Shield] Experience history could not be loaded; starting with an empty history.');
+  }
+}
+
+async function persistShieldExperience() {
+  if (shieldExperienceSaveTimer) clearTimeout(shieldExperienceSaveTimer);
+  shieldExperienceSaveTimer = null;
+  if (shieldExperienceSavePromise) return shieldExperienceSavePromise;
+  shieldExperienceSavePromise = (async () => {
+    const temporaryFile = shieldExperienceFile + '.tmp';
+    try {
+      await fs.mkdir(userDataPath, { recursive: true });
+      await fs.writeFile(temporaryFile, JSON.stringify(shieldManager.exportExperience()), { encoding: 'utf8', mode: 0o600 });
+      await fs.rename(temporaryFile, shieldExperienceFile);
+    } catch {
+      try { await fs.rm(temporaryFile, { force: true }); } catch {}
+      console.warn('[Akram Shield] Experience history could not be saved.');
+    }
+  })().finally(() => { shieldExperienceSavePromise = null; });
+  return shieldExperienceSavePromise;
+}
+
+function scheduleShieldExperienceSave() {
+  if (shieldExperienceSaveTimer) clearTimeout(shieldExperienceSaveTimer);
+  shieldExperienceSaveTimer = setTimeout(() => { void persistShieldExperience(); }, 1200);
+  shieldExperienceSaveTimer.unref?.();
+}
 const aksaProxy = parseAksaLocalProxy(process.env.AKSA_VPN_PROXY || 'http://127.0.0.1:19090');
 let aksaSidecar = null;
 let aksaEnabled = false;
@@ -34,13 +72,16 @@ const browserSessionPolicy = createBrowserSessionPolicy({
     },
   }),
   isAppRequest,
-  onNetworkEvent: (payload) => { siteViewManager?.recordNetworkEvent(payload); },
+  onNetworkEvent: (payload) => {
+    siteViewManager?.recordNetworkEvent(payload);
+    if (payload.phase === 'blocked' && payload.blockedReason === 'shield') scheduleShieldExperienceSave();
+  },
 });
 
 // The updater and Chromium request policy share this exact manager instance. Updates are manual;
 // no background schedule starts until the updater lifecycle and real-site compatibility are proven.
 const akramShieldRuntime = createAkramElectronShieldRuntime({
-  manager: getShieldManager(),
+  manager: shieldManager,
   vpnStatus: () => ({ enabled: aksaEnabled, connected: aksaEnabled && aksaConnected }),
 });
 
@@ -282,7 +323,8 @@ function createWindow() {
   });
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
+  await loadShieldExperience();
   aksaSidecar = new AksaSidecar(userDataPath, {
     onExit: () => {
       if (aksaEnabled) {
@@ -397,7 +439,7 @@ app.on('before-quit', (event) => {
   if (!finalQuitStarted && aksaSidecar) {
     finalQuitStarted = true;
     event.preventDefault();
-    void Promise.allSettled([siteViewManager?.closeAll(), akramShieldRuntime.close(), aksaSidecar.stop()]).finally(() => app.quit());
+    void Promise.allSettled([siteViewManager?.closeAll(), akramShieldRuntime.close(), aksaSidecar.stop(), persistShieldExperience()]).finally(() => app.quit());
   }
 });
 app.on('window-all-closed', () => {
