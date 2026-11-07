@@ -56,6 +56,11 @@ export function verifyBasicAuthorization(
 
 export function createBasicAuthMiddleware(username: string, password: string) {
   return (req: Request, res: Response, next: NextFunction): void => {
+    // CORS preflights carry no credentials by design; the actual request remains authenticated.
+    if (req.method.toUpperCase() === 'OPTIONS') {
+      next();
+      return;
+    }
     if (verifyBasicAuthorization(req.headers.authorization, username, password)) {
       next();
       return;
