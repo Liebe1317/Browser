@@ -999,7 +999,7 @@ export default function App() {
         </div>
       )}
 
-      {/* 5. Bottom DevTools Drawer (F12) */
+      {/* 5. Bottom DevTools Drawer (F12) */}
       {showDevTools && (
         <DevTools
           currentUrl={activeTab.url}

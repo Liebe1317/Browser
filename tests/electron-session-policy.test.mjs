@@ -27,7 +27,7 @@ function fakeSession() {
     triggerHeaders: (details) => new Promise((resolve) => handlers.headers(details, resolve)),
     triggerCompleted: (details) => handlers.completed(details),
     triggerError: (details) => handlers.error(details),
-    triggerDownload: (event, item, webContents) => state.listeners['will-download'](event, item, webContents),
+    triggerDownload: (event, item, webContents, sourceFrame) => state.listeners['will-download'](event, item, webContents, sourceFrame),
   };
 }
 
