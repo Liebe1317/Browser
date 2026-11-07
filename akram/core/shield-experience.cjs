@@ -62,9 +62,9 @@ class AkramShieldExperience {
       current.lastSeenAt = now;
       current.lastState = state;
       current.lastTransitionAt = now;
-      current.confidence = normalized.confidence;
-      current.reasons = normalized.reasons;
-      current.tag = normalized.tag;
+      if (normalized.confidence !== 'unknown') current.confidence = normalized.confidence;
+      if (normalized.reasons.length) current.reasons = normalized.reasons;
+      if (normalized.tag !== 'div') current.tag = normalized.tag;
       if (state === 'visible') current.appearanceCount += 1;
       if (state === 'hidden') current.hiddenCount += 1;
       if (state === 'removed') current.removedCount += 1;
