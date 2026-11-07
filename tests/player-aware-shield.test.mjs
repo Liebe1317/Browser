@@ -5,6 +5,8 @@ const { OBSERVER_PREFIX, classifyPlayerElement, buildPlayerObserverScript, creat
 
 assert.equal(classifyPlayerElement({ tagName: 'video', inPlayer: true, isOverlay: true, signals: ['ad-overlay'] }).kind, 'protected');
 assert.equal(classifyPlayerElement({ tagName: 'div', inPlayer: true, isOverlay: true, signals: ['subtitles'] }).kind, 'protected');
+assert.equal(classifyPlayerElement({ tagName: 'div', inPlayer: true, isOverlay: true, signals: ['vjs-text-track-display'] }).kind, 'protected');
+assert.equal(classifyPlayerElement({ tagName: 'div', inPlayer: true, isOverlay: true, signals: ['closed-caption'] }).kind, 'protected');
 assert.equal(classifyPlayerElement({ tagName: 'div', inPlayer: true, isOverlay: true, signals: ['player-controls'] }).kind, 'protected');
 assert.equal(classifyPlayerElement({ tagName: 'div', inPlayer: true, isOverlay: true, signals: ['sponsored-overlay'] }).kind, 'candidate');
 assert.equal(classifyPlayerElement({ tagName: 'div', inPlayer: true, isOverlay: true, signals: ['vast-ad'] }).confidence, 'high');
