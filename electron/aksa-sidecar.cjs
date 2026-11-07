@@ -45,7 +45,7 @@ function probeReadyz(url = `http://${INFO_ADDRESS}/readyz`, timeoutMs = 1800) {
       });
       response.on('error', () => finish(false));
     });
-    request.on('timeout', () => request.destroy(new Error('Aksa readiness probe timed out')));
+    request.on('timeout', () => request.destroy(new Error('Akram VPN readiness probe timed out')));
     request.on('error', () => finish(false));
   });
 }
@@ -134,7 +134,7 @@ class AksaSidecar {
 
   async startInternal() {
     if (!fs.existsSync(this.paths.executable)) {
-      return { ok: false, error: 'لم يتم تثبيت محرك Wireproxy بعد. استخدم زر تثبيت محرك Aksa أولاً.' };
+      return { ok: false, error: 'لم يتم تثبيت محرك Wireproxy بعد. استخدم زر تثبيت محرك Akram VPN أولاً.' };
     }
     if (!fs.existsSync(this.paths.generatedConfig)) {
       return { ok: false, error: 'لم يتم اختيار ملف WireGuard. اختر ملف .conf من مزود VPN أولاً.' };
