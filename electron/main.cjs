@@ -398,7 +398,7 @@ app.whenReady().then(async () => {
   ipcMain.handle('akram:shield:get-player-candidates', (event, limit) => {
     if (!isTrustedUi(event)) return { ok: false, error: 'Untrusted desktop IPC request.' };
     const safeLimit = Number.isSafeInteger(limit) ? Math.max(1, Math.min(100, limit)) : 50;
-    const candidates = getShieldExperienceCandidates({ includeUnverified: true, limit: 500 })
+    const candidates = getShieldExperienceCandidates({ includeUnverified: true, limit: 5000 })
       .filter((item) => item.surface === 'player')
       .slice(0, safeLimit);
     return { ok: true, candidates };
