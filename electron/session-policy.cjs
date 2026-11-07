@@ -192,11 +192,10 @@ function createBrowserSessionPolicy({ getVpnState, isAppRequest, onNetworkEvent,
     browserSession.setPermissionCheckHandler((_contents, permission, _origin, details) => {
       return permission === 'fullscreen';
     });
-    browserSession.on('will-download', (event, item, sourceWebContents) => {
-      // Deny synchronously at the Session boundary. Pages, frames and renderers
-      // cannot grant themselves an exception through this event.
+    browserSession.on('will-download', (event, item, sourceWebContents, sourceFrame) => {
+      // Electron emits this before the download begins. preventDefault() is the
+      // cancellation primitive; do not pause, resume, or write the item elsewhere.
       event.preventDefault();
-      item?.cancel?.();
 
       const contents = sourceWebContents || item?.getWebContents?.();
       const webContentsId = Number.isInteger(contents?.id) ? contents.id : null;
@@ -211,13 +210,24 @@ function createBrowserSessionPolicy({ getVpnState, isAppRequest, onNetworkEvent,
           return '';
         }
       };
-      const host = getPublicHost(item?.getURL?.()) || getPublicHost(contents?.getURL?.()) || 'unknown source';
+      let host = 'unknown source';
+      if (item && typeof item.getInitiatorOrigin === 'function') {
+        try {
+          const initiator = item.getInitiatorOrigin();
+          host = initiator === null ? 'opaque origin'
+            : initiator === '' ? 'browser initiated'
+              : getPublicHost(initiator) || 'unknown source';
+        } catch {}
+      } else {
+        host = getPublicHost(sourceFrame?.url) || getPublicHost(contents?.getURL?.()) || 'unknown source';
+      }
+
       const now = Date.now();
       const previous = lastDownloadNoticeAt.get(webContentsId);
       if (previous !== undefined && now - previous < 3000) return;
       if (lastDownloadNoticeAt.size >= 512) lastDownloadNoticeAt.clear();
       lastDownloadNoticeAt.set(webContentsId, now);
-      onDownloadBlocked?.({ webContentsId, host, timestamp: now, reason: 'default-deny' });
+      try { onDownloadBlocked?.({ webContentsId, host, timestamp: now, reason: 'default-deny' }); } catch {}
     });
     return browserSession;
   }

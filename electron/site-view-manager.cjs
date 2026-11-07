@@ -425,7 +425,7 @@ function createSiteViewManager({
       let host = 'unknown source';
       if (payload.host !== 'unknown source') {
         try {
-          if (!/[\\/?#@\\s]/.test(payload.host)) {
+          if (!/[\/?#@\s\\]/.test(payload.host)) {
             const parsed = new URL('https://' + payload.host + '/');
             if (parsed.pathname === '/' && !parsed.search && !parsed.hash) host = parsed.hostname.slice(0, 253);
           }

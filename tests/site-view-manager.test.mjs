@@ -214,12 +214,14 @@ const routed = manager.recordNetworkEvent({
   cookie: 'must-not-forward',
 });
 ok(routed === true, 'Chromium network events are associated with their owning tab');
-const downloadNoticeRouted = manager.recordDownloadBlocked({ webContentsId: createdViews[0].webContents.id, host: 'files.example', timestamp: 125 });
-ok(downloadNoticeRouted === true && events.at(-1).type === 'download-blocked' && events.at(-1).tabId === 'tab-a' && events.at(-1).host === 'files.example', 'blocked-download warnings are routed only to the owning tab with a sanitized source host');
-ok(manager.recordDownloadBlocked({ webContentsId: 999999, host: 'files.example', timestamp: 125 }) === false, 'download warnings from unowned WebContents are discarded');
 ok(events.at(-1).type === 'network-request' && events.at(-1).tabId === 'tab-a', 'network events are delivered to the correct tab');
 ok(!Object.hasOwn(events.at(-1), 'webContentsId') && !Object.hasOwn(events.at(-1), 'cookie'), 'internal identifiers and unexpected fields are not forwarded to the renderer');
 ok(events.at(-1).responseHeaders.server === 'cloudflare' && events.at(-1).responseHeaders['cf-ray'] === 'abc123-SAW' && !JSON.stringify(events.at(-1)).includes('session-cookie'), 'only allowlisted response headers are forwarded; cookies remain private');
+const downloadNoticeRouted = manager.recordDownloadBlocked({ webContentsId: createdViews[0].webContents.id, host: 'files.example', timestamp: 125 });
+ok(downloadNoticeRouted === true && events.at(-1).type === 'download-blocked' && events.at(-1).tabId === 'tab-a' && events.at(-1).host === 'files.example', 'blocked-download warnings are routed only to the owning tab with a sanitized source host');
+ok(manager.recordDownloadBlocked({ webContentsId: 999999, host: 'files.example', timestamp: 125 }) === false, 'download warnings from unowned WebContents are discarded');
+const invalidDownloadHostRouted = manager.recordDownloadBlocked({ webContentsId: createdViews[0].webContents.id, host: 'files.example/path?token=secret', timestamp: 126 });
+ok(invalidDownloadHostRouted === true && events.at(-1).host === 'unknown source' && !JSON.stringify(events.at(-1)).includes('secret'), 'malformed download source metadata is replaced rather than forwarded');
 ok(manager.recordNetworkEvent({ webContentsId: 999999, requestId: 'orphan', url: 'https://video.example/', method: 'GET', resourceType: 'other', phase: 'started', timestamp: 124 }) === false, 'unowned WebContents network events are discarded');
 ok(manager.recordNetworkEvent({ webContentsId: createdViews[0].webContents.id, requestId: 314159, url: 'https://video.example/', method: 'GET', resourceType: 'other', phase: 'started', timestamp: 124 }) === false, 'the renderer boundary rejects unnormalized numeric request identifiers');
 ok(manager.recordNetworkEvent({ webContentsId: createdViews[0].webContents.id, requestId: 'bad-phase', url: 'https://video.example/', method: 'GET', resourceType: 'other', phase: 'unexpected', timestamp: 125 }) === false, 'malformed network event phases are rejected');

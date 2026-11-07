@@ -103,12 +103,12 @@ let downloadPrevented = false;
 let downloadCanceled = false;
 regular.triggerDownload(
   { preventDefault: () => { downloadPrevented = true; } },
-  { cancel: () => { downloadCanceled = true; }, getURL: () => 'https://files.example/payload.exe?token=secret-value' },
+  { cancel: () => { downloadCanceled = true; }, getURL: () => 'https://files.example/payload.exe?token=secret-value', getInitiatorOrigin: () => 'https://publisher.example' },
   { id: 777, getURL: () => 'https://publisher.example/page' },
 );
-ok(downloadPrevented && downloadCanceled, 'the Session download gate cancels a download synchronously before it can complete');
+ok(downloadPrevented && !downloadCanceled, 'event.preventDefault cancels the download at the pre-download event without invoking any save or resume path');
 ok(downloadEvents.length === 1 && downloadEvents[0].webContentsId === 777
-  && downloadEvents[0].host === 'files.example' && !JSON.stringify(downloadEvents[0]).includes('secret-value'),
+  && downloadEvents[0].host === 'publisher.example' && !JSON.stringify(downloadEvents[0]).includes('secret-value'),
   'blocked-download notices expose only the source host and never the download URL or query secrets');
 let repeatPrevented = false;
 regular.triggerDownload(
