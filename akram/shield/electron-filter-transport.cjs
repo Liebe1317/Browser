@@ -110,9 +110,11 @@ async function readCapped(response, maxBytes) {
 }
 
 function createElectronFilterListFetcher({
+  vpnStatus,
   lookup = guardedLookup,
   fetchImpl = undiciFetch,
 } = {}) {
+  if (typeof vpnStatus !== 'function') throw new TypeError('Authoritative Electron VPN state is required.');
   const dispatcher = new Agent({
     connect: { lookup, timeout: 10_000 },
     headersTimeout: 20_000,
@@ -128,6 +130,9 @@ function createElectronFilterListFetcher({
       throw new TypeError('Filter transport accepts HTTPS URLs without credentials or non-standard ports only.');
     }
     if (init.method && init.method.toUpperCase() !== 'GET') throw new TypeError('Filter transport only permits GET requests.');
+    if (vpnStatus().enabled) {
+      throw new Error('Filter updates are paused while Akram VPN is enabled; direct fallback is forbidden.');
+    }
     const timeoutMs = init.timeoutMs ?? 20_000;
     const maxBytes = init.maxBytes ?? 5 * 1024 * 1024;
     if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > MAX_TIMEOUT_MS) {
@@ -142,6 +147,11 @@ function createElectronFilterListFetcher({
     if (init.signal) signals.push(init.signal);
     const signal = AbortSignal.any(signals);
     try {
+      // Re-check immediately before dispatch. This direct-only dispatcher must never become
+      // a fallback for an enabled VPN, even when the tunnel reports connected.
+      if (vpnStatus().enabled) {
+        throw new Error('Filter updates are paused while Akram VPN is enabled; direct fallback is forbidden.');
+      }
       const response = await fetchImpl(url, {
         method: 'GET',
         headers: safeHeaders(init.headers),
@@ -161,7 +171,7 @@ function createElectronFilterListFetcher({
     }
   }
 
-  fetchFilterList.abortAll = (reason = new Error('Akram Shield filter update aborted.')) => {
+  fetchFilterList.abortAll = (reason = new Error('Akram VPN state changed; filter update aborted.')) => {
     for (const controller of activeRequests) controller.abort(reason);
   };
   fetchFilterList.close = async () => {
