@@ -109,11 +109,10 @@ function buildPlayerObserverScript(token) {
         isOverlay = visible && (style.position === 'fixed' || style.position === 'absolute'
           || (inPlayer && style.zIndex !== 'auto' && style.zIndex !== ''));
       } catch {}
-      if (previous && !visible) {
-        transition(element, 'hidden');
+      if (!visible) {
+        if (previous) transition(element, 'hidden');
         return;
       }
-      if (previous) return;
       const result = classifyPlayerElement({
         tagName: tag,
         role: element.getAttribute('role') || '',
@@ -123,9 +122,21 @@ function buildPlayerObserverScript(token) {
         hasProtectedAncestor: protectedAncestor,
         containsProtectedDescendant: protectedDescendant,
       });
-      if (result.kind !== 'candidate') return;
+      if (result.kind !== 'candidate') {
+        if (previous) transition(element, 'reclassified');
+        return;
+      }
       const selector = selectorFor(element);
-      if (!selector || seen.has(selector)) return;
+      if (!selector) {
+        if (previous) transition(element, 'reclassified');
+        return;
+      }
+      if (previous && previous.selector !== selector) transition(element, 'reclassified');
+      const active = reported.get(element);
+      if (active && active.selector === selector
+        && active.confidence === result.confidence
+        && JSON.stringify(active.reasons) === JSON.stringify(result.reasons)) return;
+      if (seen.has(selector) && (!active || active.selector !== selector)) return;
       seen.add(selector);
       reported.set(element, {
         selector,
@@ -134,7 +145,7 @@ function buildPlayerObserverScript(token) {
         reasons: result.reasons,
         tag: clean(tag, 16),
       });
-      reportedCount += 1;
+      if (!active) reportedCount += 1;
       emit({
         type: 'candidate',
         state: 'visible',
