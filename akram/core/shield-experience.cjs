@@ -51,9 +51,15 @@ class AkramShieldExperience {
     if (!normalized.host) return null;
     const now = Number.isFinite(input.timestamp) ? input.timestamp : Date.now();
     const current = this.#entries.get(normalized.fingerprint);
+    const state = ['visible', 'hidden', 'removed'].includes(input.state) ? input.state : 'observed';
     if (current) {
       current.observations += 1;
       current.lastSeenAt = now;
+      current.lastState = state;
+      current.lastTransitionAt = now;
+      if (state === 'visible') current.appearanceCount += 1;
+      if (state === 'hidden') current.hiddenCount += 1;
+      if (state === 'removed') current.removedCount += 1;
       if (input.decision === 'block') current.blockedCount += 1;
       if (input.decision === 'allow') current.allowedCount += 1;
       return Object.freeze({ ...current });
@@ -65,6 +71,11 @@ class AkramShieldExperience {
     const entry = {
       ...normalized,
       observations: 1,
+      appearanceCount: state === 'visible' ? 1 : 0,
+      hiddenCount: state === 'hidden' ? 1 : 0,
+      removedCount: state === 'removed' ? 1 : 0,
+      lastState: state,
+      lastTransitionAt: now,
       blockedCount: input.decision === 'block' ? 1 : 0,
       allowedCount: input.decision === 'allow' ? 1 : 0,
       outcome: 'unverified',
@@ -133,6 +144,11 @@ class AkramShieldExperience {
       next.set(normalized.fingerprint, {
         ...normalized,
         observations: Math.max(1, count(item.observations)),
+        appearanceCount: count(item.appearanceCount),
+        hiddenCount: count(item.hiddenCount),
+        removedCount: count(item.removedCount),
+        lastState: ['visible', 'hidden', 'removed', 'observed'].includes(item.lastState) ? item.lastState : 'observed',
+        lastTransitionAt: count(item.lastTransitionAt),
         blockedCount: count(item.blockedCount),
         allowedCount: count(item.allowedCount),
         outcome,
