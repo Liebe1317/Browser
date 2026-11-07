@@ -130,16 +130,21 @@ function createSiteViewManager({
     // rejects broad/core-player selectors and applies site-specific exceptions.
     webContents.on('dom-ready', () => {
       const pageUrl = webContents.getURL?.() || entry.url || '';
-      if (typeof webContents.insertCSS === 'function') {
-        const css = getCosmeticCss(pageUrl);
-        if (css) void webContents.insertCSS(css).catch(() => {});
-      }
+      const css = getCosmeticCss(pageUrl);
+      const applyCosmeticCss = () => {
+        if (css && typeof webContents.insertCSS === 'function') {
+          void webContents.insertCSS(css).catch(() => {});
+        }
+      };
       if (typeof webContents.executeJavaScriptInIsolatedWorld === 'function') {
         const token = createPlayerObserverToken();
         playerObserverTokens.set(webContents, token);
+        // Observe the unmodified player DOM first, then apply existing cosmetic CSS.
         void webContents.executeJavaScriptInIsolatedWorld(1337, [{
           code: buildPlayerObserverScript(token),
-        }], true).catch(() => {});
+        }], true).then(applyCosmeticCss).catch(applyCosmeticCss);
+      } else {
+        applyCosmeticCss();
       }
     });
 
