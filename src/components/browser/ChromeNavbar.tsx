@@ -46,6 +46,7 @@ interface ChromeNavbarProps {
   uiDensity?: 'comfortable' | 'standard' | 'compact';
   onToggleAkramAI?: () => void;
   isAkramAIOpen?: boolean;
+  onOverlayVisibilityChange?: (isOpen: boolean) => void;
 }
 
 export const ChromeNavbar: React.FC<ChromeNavbarProps> = ({
@@ -84,6 +85,7 @@ export const ChromeNavbar: React.FC<ChromeNavbarProps> = ({
   uiDensity = 'standard',
   onToggleAkramAI,
   isAkramAIOpen = false,
+  onOverlayVisibilityChange,
 }) => {
   const [inputVal, setInputVal] = useState(currentTab.displayUrl || currentTab.url);
   const [isFocused, setIsFocused] = useState(false);
@@ -96,6 +98,19 @@ export const ChromeNavbar: React.FC<ChromeNavbarProps> = ({
   const shieldRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const engineRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    onOverlayVisibilityChange?.(
+      showShieldPopover || showMenu || showSecurityModal || showExtensionsModal || showEngineDropdown
+    );
+  }, [
+    onOverlayVisibilityChange,
+    showShieldPopover,
+    showMenu,
+    showSecurityModal,
+    showExtensionsModal,
+    showEngineDropdown,
+  ]);
 
   // Sync input value whenever tab url changes, unless user is actively editing
   useEffect(() => {
