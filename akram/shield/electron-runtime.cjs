@@ -16,11 +16,11 @@ const DEFAULT_SOURCES = Object.freeze([
   }),
 ]);
 
-function createAkramElectronShieldRuntime({ manager, vpnStatus, fetcherFactory = createElectronFilterListFetcher } = {}) {
+function createAkramElectronShieldRuntime({ manager, fetcherFactory = createElectronFilterListFetcher } = {}) {
   if (!manager || typeof manager.evaluateRequest !== 'function') {
     throw new TypeError('The live Chromium AkramShieldManager is required.');
   }
-  const fetcher = fetcherFactory({ vpnStatus });
+  const fetcher = fetcherFactory();
   const updater = new AkramFilterListUpdater({
     manager,
     fetcher,
@@ -32,24 +32,15 @@ function createAkramElectronShieldRuntime({ manager, vpnStatus, fetcherFactory =
   return Object.freeze({
     getState() {
       return Object.freeze({
-        vpn: vpnStatus(),
         stats: manager.getStats(),
         activeLists: manager.listFilterLists(),
         sources: updater.listSources(),
       });
     },
     async update(sourceId) {
-      // Defense in depth: the runtime itself refuses updates while Akram VPN is enabled,
-      // even if a test seam or future fetcher implementation omits its own VPN guard.
-      if (vpnStatus().enabled) {
-        throw new Error('Filter updates are paused because Akram VPN is enabled; direct fallback is forbidden.');
-      }
       return updater.update(sourceId);
     },
     async updateAll() {
-      if (vpnStatus().enabled) {
-        throw new Error('Filter updates are paused because Akram VPN is enabled; direct fallback is forbidden.');
-      }
       const results = [];
       for (const source of updater.listSources()) {
         if (!source.enabled) continue;
