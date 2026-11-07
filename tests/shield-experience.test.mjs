@@ -30,6 +30,13 @@ store.recordObservation({
   timestamp: 200,
 });
 assert.equal(store.getStats().observations, 2);
+assert.equal(store.setOutcome(first.fingerprint, 'confirmed-ad').outcome, 'confirmed-ad');
+assert.equal(store.getCandidates().length, 1);
+
+const snapshot = store.exportSnapshot();
+const restored = new AkramShieldExperience({ snapshot });
+assert.equal(restored.getStats().confirmed, 1);
+assert.equal(restored.getStats().observations, 2);
 const reclassified = store.recordObservation({
   host: 'ads.example.test',
   surface: 'player',
@@ -41,13 +48,7 @@ const reclassified = store.recordObservation({
 assert.equal(reclassified.lastState, 'reclassified');
 assert.equal(store.getCandidates({ includeUnverified: true }).some((item) => item.fingerprint === first.fingerprint), false);
 assert.equal(store.getCandidates({ includeUnverified: true, includeReclassified: true }).some((item) => item.fingerprint === first.fingerprint), true);
-assert.equal(store.setOutcome(first.fingerprint, 'confirmed-ad').outcome, 'confirmed-ad');
-assert.equal(store.getCandidates().length, 1);
 
-const snapshot = store.exportSnapshot();
-const restored = new AkramShieldExperience({ snapshot });
-assert.equal(restored.getStats().confirmed, 1);
-assert.equal(restored.getStats().observations, 2);
 
 assert.throws(() => store.setOutcome(first.fingerprint, 'auto-block'), /outcome/);
 assert.equal(store.recordObservation({ host: '', surface: 'network' }), null);
