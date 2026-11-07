@@ -4,6 +4,7 @@ import { createServer as createViteServer } from 'vite';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
+import { isRemoteBind, resolveRemoteAccessCredentials, createBasicAuthMiddleware } from './server/remoteAccess.ts';
 import { escapeHtml, renderSearchResultCard, jsStringLiteral, safeHttpUrl } from './server/html.ts';
 import { extractYouTubeVideos, parseYouTubeInitialData } from './server/youtube.ts';
 import { GoogleGenAI } from '@google/genai';
@@ -880,6 +881,9 @@ async function startServer() {
   // This controls req.secure and prevents spoofed X-Forwarded-Proto from setting Secure cookies.
   if (process.env.AEGIS_TRUST_PROXY === '1') app.set('trust proxy', 1);
   const PORT = resolvePort();
+  const HOST = process.env.HOST || (process.env.K_SERVICE ? '0.0.0.0' : '127.0.0.1');
+  const remoteAccessCredentials = isRemoteBind(HOST) ? resolveRemoteAccessCredentials(process.env) : null;
+  if (remoteAccessCredentials) app.use(createBasicAuthMiddleware(remoteAccessCredentials.username, remoteAccessCredentials.password));
 
   // Localhost is the default trust boundary. A future remote deployment must explicitly list
   // its public hostnames; binding to 0.0.0.0 alone never grants them app-API access.
@@ -922,6 +926,38 @@ async function startServer() {
     }
     next();
   });
+  // Remote deployments receive IP-based abuse controls in addition to mandatory HTTP Basic authentication.
+  // Fetch Metadata is not an authentication mechanism and is never trusted as one.
+  if (remoteAccessCredentials) {
+    const remoteApiLimiter = new PerKeyRateLimiter(300, 10_000);
+    const remotePageLoadLimiter = new PerKeyRateLimiter(30, 300);
+    const remoteExpensiveApiLimiter = new PerKeyRateLimiter(20, 300);
+    app.use((req, res, next) => {
+      if (!req.path.startsWith('/api/')) return next();
+      const clientKey = req.ip || req.socket.remoteAddress || 'unknown';
+      const baseDecision = remoteApiLimiter.consume(clientKey);
+      if (!baseDecision.allowed) {
+        res.setHeader('Retry-After', String(Math.ceil(baseDecision.retryAfterMs / 1000)));
+        return res.status(429).json({ error: 'rate_limited' });
+      }
+      if (req.path === '/api/proxy' && typeof req.query.t !== 'string') {
+        const pageDecision = remotePageLoadLimiter.consume(clientKey);
+        if (!pageDecision.allowed) {
+          res.setHeader('Retry-After', String(Math.ceil(pageDecision.retryAfterMs / 1000)));
+          return res.status(429).json({ error: 'page_load_rate_limited' });
+        }
+      }
+      if (['/api/reader', '/api/search', '/api/youtube/search', '/api/youtube/feed', '/api/akram-ai/chat'].includes(req.path)) {
+        const expensiveDecision = remoteExpensiveApiLimiter.consume(clientKey);
+        if (!expensiveDecision.allowed) {
+          res.setHeader('Retry-After', String(Math.ceil(expensiveDecision.retryAfterMs / 1000)));
+          return res.status(429).json({ error: 'rate_limited' });
+        }
+      }
+      next();
+    });
+  }
+
   // Security headers for the app itself (/api/proxy sets its own, stricter policy per response).
   const APP_CSP = [
     "default-src 'self'",
@@ -2125,7 +2161,6 @@ ${safePageContext}`
   }
   // Local-only by default: this server is a proxy, so it must not be reachable from the network unless
   // you deliberately host it (Cloud Run sets K_SERVICE; otherwise set HOST=0.0.0.0).
-  const HOST = process.env.HOST || (process.env.K_SERVICE ? '0.0.0.0' : '127.0.0.1');
   app.listen(Number(PORT), HOST, () => {
     console.log(`Aegis Privacy Browser running on http://${HOST}:${PORT}`);
   });
