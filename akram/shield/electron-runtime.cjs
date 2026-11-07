@@ -46,6 +46,26 @@ function createAkramElectronShieldRuntime({ manager, vpnStatus, fetcherFactory =
       }
       return updater.update(sourceId);
     },
+    async updateAll() {
+      if (vpnStatus().enabled) {
+        throw new Error('Filter updates are paused because Akram VPN is enabled; direct fallback is forbidden.');
+      }
+      const results = [];
+      for (const source of updater.listSources()) {
+        if (!source.enabled) continue;
+        try {
+          const result = await updater.update(source.id);
+          results.push(Object.freeze({ id: source.id, status: result.status, metadata: result.metadata }));
+        } catch (error) {
+          results.push(Object.freeze({
+            id: source.id,
+            status: 'failed',
+            error: error instanceof Error ? error.message : 'Filter-list update failed.',
+          }));
+        }
+      }
+      return Object.freeze(results);
+    },
     abortAll(reason) {
       fetcher.abortAll?.(reason);
     },
