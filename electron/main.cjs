@@ -294,6 +294,11 @@ function createWindow() {
         mainWindow.webContents.send('aegis:site:event', payload);
       }
     },
+    onPlayerObservation: (observation) => {
+      const entry = shieldManager.recordCosmeticObservation(observation);
+      if (entry) scheduleShieldExperienceSave();
+      return entry;
+    },
   });
 
   mainWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
@@ -387,6 +392,26 @@ app.whenReady().then(async () => {
     } catch (error) {
       return { ok: false, error: error instanceof Error ? error.message : 'تعذر تحديث قائمة الحماية.', state: akramShieldRuntime.getState() };
     }
+  });
+
+  // Read-only candidate feed for Akram AI; observations are never promoted to rules automatically.
+  ipcMain.handle('akram:shield:get-player-candidates', (event, limit) => {
+    if (!isTrustedUi(event)) return { ok: false, error: 'Untrusted desktop IPC request.' };
+    const safeLimit = Number.isSafeInteger(limit) ? Math.max(1, Math.min(100, limit)) : 50;
+    const candidates = shieldManager.getExperienceCandidates({ includeUnverified: true, limit: 500 })
+      .filter((item) => item.surface === 'player')
+      .slice(0, safeLimit);
+    return { ok: true, candidates };
+  });
+  ipcMain.handle('akram:shield:review-player-candidate', (event, fingerprint, outcome) => {
+    if (!isTrustedUi(event) || typeof fingerprint !== 'string' || !/^[a-f0-9]{64}$/.test(fingerprint)
+      || !['confirmed-ad', 'false-positive', 'unknown'].includes(outcome)) {
+      return { ok: false, error: 'Untrusted or invalid Shield review request.' };
+    }
+    const result = shieldManager.setExperienceOutcome(fingerprint, outcome);
+    if (!result) return { ok: false, error: 'Player observation was not found.' };
+    scheduleShieldExperienceSave();
+    return { ok: true, candidate: result };
   });
 
   ipcMain.handle('aegis:site:create', async (event, payload) => {
