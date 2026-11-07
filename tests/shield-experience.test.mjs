@@ -39,6 +39,8 @@ const reclassified = store.recordObservation({
   timestamp: 250,
 });
 assert.equal(reclassified.lastState, 'reclassified');
+assert.equal(store.getCandidates({ includeUnverified: true }).some((item) => item.fingerprint === first.fingerprint), false);
+assert.equal(store.getCandidates({ includeUnverified: true, includeReclassified: true }).some((item) => item.fingerprint === first.fingerprint), true);
 assert.equal(store.setOutcome(first.fingerprint, 'confirmed-ad').outcome, 'confirmed-ad');
 assert.equal(store.getCandidates().length, 1);
 
