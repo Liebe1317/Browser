@@ -8,7 +8,8 @@ const preload = await readFile(new URL('../electron/preload.cjs', import.meta.ur
 const sessionPolicy = await readFile(new URL('../electron/session-policy.cjs', import.meta.url), 'utf8');
 
 assert.match(main, /createAkramElectronShieldRuntime/);
-assert.match(main, /manager:\s*getShieldManager\(\)/);
+assert.match(main, /const shieldManager = getShieldManager\(\)/);
+assert.match(main, /manager:\s*shieldManager/);
 assert.match(main, /vpnStatus:\s*\(\)\s*=>\s*\(\{\s*enabled:\s*aksaEnabled,\s*connected:\s*aksaEnabled\s*&&\s*aksaConnected/s);
 assert.match(main, /ipcMain\.handle\('akram:shield:get-state'/);
 assert.match(main, /ipcMain\.handle\('akram:shield:update-list'/);
