@@ -133,6 +133,7 @@ export interface NetworkRequestEvent {
   duration?: number;
   error?: string;
   blockedReason?: string;
+  responseHeaders?: Record<string, string>;
   timestamp: number;
 }
 
@@ -149,4 +150,5 @@ export interface NetworkRequest {
   reason?: 'ad' | 'tracker' | 'fingerprinting' | 'insecure' | 'shield' | 'private-network' | 'vpn-disconnected';
   timestamp: number;
   duration?: number;
+  responseHeaders?: Record<string, string>;
 }
