@@ -30,6 +30,15 @@ store.recordObservation({
   timestamp: 200,
 });
 assert.equal(store.getStats().observations, 2);
+const reclassified = store.recordObservation({
+  host: 'ads.example.test',
+  surface: 'player',
+  placement: 'player-overlay',
+  selector: '.floating-ad',
+  state: 'reclassified',
+  timestamp: 250,
+});
+assert.equal(reclassified.lastState, 'reclassified');
 assert.equal(store.setOutcome(first.fingerprint, 'confirmed-ad').outcome, 'confirmed-ad');
 assert.equal(store.getCandidates().length, 1);
 
