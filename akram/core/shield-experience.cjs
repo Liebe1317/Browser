@@ -55,8 +55,20 @@ class AkramShieldExperience {
     const normalized = normalizeObservation(input);
     if (!normalized.host) return null;
     const now = Number.isFinite(input.timestamp) ? input.timestamp : Date.now();
-    const current = this.#entries.get(normalized.fingerprint);
     const state = ['visible', 'hidden', 'removed', 'reclassified'].includes(input.state) ? input.state : 'observed';
+    // Observer transition payloads intentionally omit network resource metadata.
+    // Resolve reclassification against the existing page-scoped element identity,
+    // rather than creating a second entry with the default "other" resource type.
+    const current = this.#entries.get(normalized.fingerprint)
+      || (state === 'reclassified'
+        ? Array.from(this.#entries.values()).find((entry) => entry.host === normalized.host
+          && entry.pageHost === normalized.pageHost
+          && entry.surface === normalized.surface
+          && entry.placement === normalized.placement
+          && entry.ruleId === normalized.ruleId
+          && entry.source === normalized.source
+          && entry.selector === normalized.selector)
+        : null);
     if (current) {
       current.observations += 1;
       current.lastSeenAt = now;
