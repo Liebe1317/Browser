@@ -407,6 +407,7 @@ export default function App() {
       reason: event.blockedReason as NetworkRequest['reason'],
       timestamp: event.timestamp,
       ...(Number.isFinite(event.duration) ? { duration: Math.max(0, event.duration as number) } : {}),
+      ...(event.responseHeaders && typeof event.responseHeaders === 'object' ? { responseHeaders: event.responseHeaders } : {}),
     };
     pendingNetworkRequestsRef.current.set(id, request);
     if (networkFlushTimerRef.current === null) {
@@ -460,6 +461,7 @@ export default function App() {
           duration: event.duration,
           error: event.error,
           blockedReason: event.blockedReason,
+          responseHeaders: event.responseHeaders,
           timestamp: event.timestamp,
         });
       }
