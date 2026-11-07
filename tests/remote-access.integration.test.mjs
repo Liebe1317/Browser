@@ -36,10 +36,13 @@ function launchServer(port, envOverrides = {}) {
 
 async function waitForExit(child, timeoutMs = 12_000) {
   if (child.exitCode !== null) return child.exitCode;
-  return await Promise.race([
-    once(child, 'exit').then(([code]) => code ?? 1),
-    new Promise((resolve) => setTimeout(() => resolve(null), timeoutMs)),
-  ]);
+  return await new Promise((resolve) => {
+    const timer = setTimeout(() => resolve(null), timeoutMs);
+    child.once('exit', (code) => {
+      clearTimeout(timer);
+      resolve(code ?? 1);
+    });
+  });
 }
 
 async function waitForHttp(url, child) {
@@ -60,10 +63,13 @@ async function waitForHttp(url, child) {
 async function stop(child) {
   if (child.exitCode !== null) return;
   child.kill();
-  await Promise.race([
-    once(child, 'exit'),
-    new Promise((resolve) => setTimeout(resolve, 5_000)),
-  ]);
+  await new Promise((resolve) => {
+    const timer = setTimeout(resolve, 5_000);
+    child.once('exit', () => {
+      clearTimeout(timer);
+      resolve(undefined);
+    });
+  });
   if (child.exitCode === null) child.kill('SIGKILL');
 }
 
