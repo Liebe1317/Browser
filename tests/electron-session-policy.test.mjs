@@ -103,7 +103,7 @@ let downloadPrevented = false;
 let downloadCanceled = false;
 regular.triggerDownload(
   { preventDefault: () => { downloadPrevented = true; } },
-  { cancel: () => { downloadCanceled = true; }, getURL: () => 'https://files.example/payload.exe?token=secret-value', getInitiatorOrigin: () => 'https://publisher.example' },
+  { cancel: () => { downloadCanceled = true; }, getURL: () => 'https://files.example/payload.exe?token=secret-value', getInitiatorOrigin: () => 'https://publisher.example', hasUserGesture: () => true },
   { id: 777, getURL: () => 'https://publisher.example/page' },
 );
 ok(downloadPrevented && !downloadCanceled, 'event.preventDefault cancels the download at the pre-download event without invoking any save or resume path');
@@ -117,6 +117,15 @@ regular.triggerDownload(
   { id: 777, getURL: () => 'https://publisher.example/page' },
 );
 ok(repeatPrevented && downloadEvents.length === 1, 'repeated download attempts are still blocked while warning events are rate-limited per WebContents');
+let iframeDownloadPrevented = false;
+regular.triggerDownload(
+  { preventDefault: () => { iframeDownloadPrevented = true; } },
+  { getURL: () => 'https://files.example/frame-payload.bin' },
+  { id: 778, getURL: () => 'https://publisher.example/page' },
+  { url: 'https://embedded.example/frame' },
+);
+ok(iframeDownloadPrevented && downloadEvents.length === 2 && downloadEvents[1].host === 'embedded.example',
+  'downloads initiated by subframes are blocked and attributed to the initiating frame when origin metadata is unavailable');
 
 await policy.applyProxyToAll({ mode: 'fixed_servers', proxyRules: 'http=127.0.0.1:19090;https=127.0.0.1:19090', proxyBypassRules: 'localhost;127.0.0.1;[::1]' });
 ok(regular.state.proxies.length === 1 && privateSession.state.proxies.length === 1, 'VPN proxy is applied to regular and private sessions');
