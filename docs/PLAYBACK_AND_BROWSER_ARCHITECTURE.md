@@ -16,7 +16,7 @@ Aegis must not weaken isolation to make a player work. The following are release
 - Navigation, popups, downloads, protocol handlers, and IPC are mediated by the trusted main process.
 - Native desktop site views never receive the application session cookie or privileged IPC capabilities. The web-only proxy currently places a short-lived, page-scoped capability in proxy query URLs because its sandboxed opaque-origin requests need a same-origin transport. This is a documented security limitation: the page can see and replay its own capability within its exact context and top-level hostname until expiry; do not claim that proxy mode meets the no-capability-in-URL target.
 - No DRM circumvention, authentication bypass, anti-bot evasion, or forced cross-origin access. A site that requires unsupported DRM or denies access is reported as unsupported.
-- Aksa/VPN fail-closed behavior must cover every site session, not only the app shell.
+- Akram VPN fail-closed behavior must cover every site session, not only the app shell.
 
 ## 2. Why Chromium, not a custom media engine
 
