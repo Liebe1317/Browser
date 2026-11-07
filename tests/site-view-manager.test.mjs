@@ -150,6 +150,14 @@ createdViews[0].webContents.emit('console-message', {}, {
 });
 ok(playerObservations.at(-1).state === 'removed' && events.at(-1).state === 'removed',
   'removed player overlays are persisted and forwarded');
+createdViews[0].webContents.emit('console-message', {}, {
+  message: 'AKRAM_PLAYER_OBS:' + playerToken + ':' + JSON.stringify({
+    type: 'transition', state: 'reclassified', selector: '.sponsored-overlay',
+    confidence: 'high', reasons: ['sponsored'],
+  }),
+});
+ok(playerObservations.at(-1).state === 'reclassified' && events.at(-1).state === 'reclassified',
+  'reclassified player elements are persisted and forwarded without pretending they were removed');
 createdViews[0].webContents.emit('context-menu', {}, {
   linkURL: 'https://video.example/target',
   x: 115,
