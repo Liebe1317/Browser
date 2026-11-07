@@ -106,32 +106,45 @@ export function createAkramFilterListFetcher(
       throw new RangeError('Filter transport byte limit is outside the permitted range.');
     }
 
-    const timeoutSignal = AbortSignal.timeout(timeoutMs);
-    const signal = init.signal ? AbortSignal.any([init.signal, timeoutSignal]) : timeoutSignal;
-    const { response, finalUrl } = await guardedFetch(
-      url,
-      { method: 'GET', headers: safeFilterHeaders(init.headers), signal },
-      // No redirects are permitted for subscription sources. A redirect response with a
-      // Location header is cancelled by safeFetch before it could contact the next hop.
-      { maxRedirects: 0, upgradeHttp: false }
-    );
+    // Keep a referenced timer for the request lifetime. AbortSignal.timeout() may use
+    // an unref'ed timer in Node, allowing a stalled top-level test/process to exit before
+    // the timeout fires. The explicit timer also gives us deterministic cleanup.
+    const timeoutController = new AbortController();
+    const timeout = setTimeout(() => {
+      timeoutController.abort(new Error('Filter transport request timed out.'));
+    }, timeoutMs);
+    const signal = init.signal
+      ? AbortSignal.any([init.signal, timeoutController.signal])
+      : timeoutController.signal;
 
-    if (finalUrl.href !== url.href || REDIRECT_STATUSES.has(response.status)) {
-      await response.body?.cancel().catch(() => {});
-      throw new Error('Filter source redirects are not permitted.');
+    try {
+      const { response, finalUrl } = await guardedFetch(
+        url,
+        { method: 'GET', headers: safeFilterHeaders(init.headers), signal },
+        // No redirects are permitted for subscription sources. A redirect response with a
+        // Location header is cancelled by safeFetch before it could contact the next hop.
+        { maxRedirects: 0, upgradeHttp: false }
+      );
+
+      if (finalUrl.href !== url.href || REDIRECT_STATUSES.has(response.status)) {
+        await response.body?.cancel().catch(() => {});
+        throw new Error('Filter source redirects are not permitted.');
+      }
+
+      let body: Buffer | null = null;
+      if (response.status === 200) {
+        // Read under the same abort signal and enforce the cap while streaming, not after buffering.
+        body = await readBody(response, maxBytes);
+      } else {
+        await response.body?.cancel().catch(() => {});
+      }
+
+      return {
+        finalUrl: finalUrl.href,
+        response: { status: response.status, headers: response.headers, body },
+      };
+    } finally {
+      clearTimeout(timeout);
     }
-
-    let body: Buffer | null = null;
-    if (response.status === 200) {
-      // Read under the same abort signal and enforce the cap while streaming, not after buffering.
-      body = await readBody(response, maxBytes);
-    } else {
-      await response.body?.cancel().catch(() => {});
-    }
-
-    return {
-      finalUrl: finalUrl.href,
-      response: { status: response.status, headers: response.headers, body },
-    };
   };
 }
