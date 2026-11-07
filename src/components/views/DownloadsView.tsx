@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Download, FileText, CheckCircle2, ShieldCheck, Trash2, ExternalLink } from 'lucide-react';
+import React from 'react';
+import { Download, FileText, Trash2 } from 'lucide-react';
 import { DownloadItem } from '../../types/browser';
 
 interface DownloadsViewProps {
@@ -19,9 +19,9 @@ export const DownloadsView: React.FC<DownloadsViewProps> = ({
             <Download className="w-5 h-5" />
           </div>
           <div>
-            <h1 className="text-xl font-bold text-white">التنزيلات الآمنة (Downloads)</h1>
+            <h1 className="text-xl font-bold text-white">التنزيلات (Downloads)</h1>
             <p className="text-xs text-slate-400 mt-0.5">
-              الملفات التي قمت بتنزيلها عبر الفحص الأمني لدرع Aegis
+              يحظر Akram التنزيلات الصادرة عن المواقع افتراضياً حتى يتوفر مسار موافقة وفحص آمن.
             </p>
           </div>
         </div>
@@ -53,10 +53,7 @@ export const DownloadsView: React.FC<DownloadsViewProps> = ({
                 <div className="flex items-center gap-2 text-[11px] text-slate-400 mt-0.5">
                   <span className="font-mono">{item.size}</span>
                   <span>·</span>
-                  <span className="text-emerald-400 flex items-center gap-1">
-                    <ShieldCheck className="w-3 h-3" />
-                    <span>فحص الأمان: ملف آمن وخالٍ من الفيروسات</span>
-                  </span>
+                  <span className="text-slate-400">اكتمال التنزيل لا يثبت سلامة الملف أو خلوّه من البرمجيات الضارة.</span>
                 </div>
               </div>
             </div>
