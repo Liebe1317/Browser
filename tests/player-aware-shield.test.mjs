@@ -23,6 +23,8 @@ assert.ok(script.includes('attributeFilter'));
 assert.ok(script.includes(OBSERVER_PREFIX + token));
 assert.ok(script.includes('requestAnimationFrame'));
 assert.ok(script.includes('pendingRoots'));
+assert.ok(script.includes("for (const attribute of ['data-ad', 'data-testid', 'aria-label', 'title'])"));
+assert.ok(script.includes("return '';"), 'observer refuses tag-only broad selectors');
 assert.ok(script.includes('removedNodes'));
 assert.ok(script.includes("transition(element, 'hidden')"));
 assert.ok(script.includes("transition(candidate, 'removed')"));
