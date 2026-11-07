@@ -435,6 +435,15 @@ function createSiteViewManager({
         ...(Number.isFinite(payload.duration) ? { duration: Math.max(0, payload.duration) } : {}),
         ...(typeof payload.error === 'string' ? { error: payload.error.slice(0, 80) } : {}),
         ...(typeof payload.blockedReason === 'string' ? { blockedReason: payload.blockedReason.slice(0, 40) } : {}),
+        ...(payload.responseHeaders && typeof payload.responseHeaders === 'object' ? {
+          responseHeaders: Object.fromEntries(
+            Object.entries(payload.responseHeaders)
+              .filter(([name, value]) => ['server', 'cf-ray', 'cf-mitigated', 'content-type', 'via', 'x-cache'].includes(name.toLowerCase())
+                && typeof value === 'string')
+              .slice(0, 6)
+              .map(([name, value]) => [name.toLowerCase(), value.replace(/[\\r\\n\\0]/g, '').slice(0, 240)]),
+          ),
+        } : {}),
       });
       return true;
     },
