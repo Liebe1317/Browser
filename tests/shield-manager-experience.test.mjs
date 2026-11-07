@@ -17,6 +17,7 @@ assert.equal(manager.getExperienceStats().unverified, 1);
 
 const candidate = manager.getExperienceCandidates({ includeUnverified: true })[0];
 assert.equal(candidate.host, 'ads.example.test');
+assert.equal(candidate.pageHost, 'news.example.test');
 assert.equal(candidate.surface, 'network');
 assert.equal(candidate.resourceType, 'script');
 assert.equal(Object.hasOwn(candidate, 'url'), false);
