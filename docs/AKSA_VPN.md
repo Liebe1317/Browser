@@ -1,19 +1,19 @@
-# Aksa VPN — current integration and required gateway
+# Akram VPN — current integration and required gateway
 
 ## Implemented in Aegis
 
-Aksa is wired into two outbound paths:
+Akram VPN is wired into two outbound paths:
 
 1. **Aegis server egress.** When enabled, Undici requests made by the browser proxy use a loopback HTTP CONNECT gateway. The server validates the gateway address, checks its tunnel-health endpoint before activation, then rechecks it every five seconds. If the gateway stops reporting an active tunnel, the dispatcher rejects new requests instead of silently switching to direct networking.
 2. **Electron Chromium session.** The desktop main process configures Chromium's default session proxy using the same local gateway. It closes pooled connections on proxy changes, checks health periodically, applies a local black-hole proxy and cancels external requests when the tunnel health is lost. It also disables non-proxied WebRTC UDP, QUIC, and DNS prefetch to reduce known proxy-bypass paths.
 
-The Electron preload exposes only two narrowly-scoped Aksa methods to the trusted top-level Aegis UI. Calls from website iframes, other web contents, and untrusted origins are rejected by the main process.
+The Electron preload exposes only two narrowly-scoped Akram VPN methods to the trusted top-level Aegis UI. Calls from website iframes, other web contents, and untrusted origins are rejected by the main process.
 
 ## Required gateway contract
 
-The repository does **not** include a VPN provider, server list, WireGuard private/public peer configuration, or a platform tunnel daemon. Aksa is therefore an integration layer, not yet a self-contained commercial VPN service.
+The repository does **not** include a VPN provider, server list, WireGuard private/public peer configuration, or a platform tunnel daemon. Akram VPN is therefore an integration layer, not yet a self-contained commercial VPN service.
 
-A locally installed Aksa/WireGuard gateway must:
+A locally installed Akram VPN/WireGuard gateway must:
 
 - Bind only to loopback, e.g. 127.0.0.1:19090. Never expose it on the LAN/WAN.
 - Implement HTTP CONNECT for outbound HTTP(S) requests.
@@ -30,7 +30,7 @@ The health response is an explicit integration contract, not evidence that a Wir
 Set the same environment value for the Aegis server and Electron process:
 
 ```sh
-AKSA_VPN_PROXY=http://127.0.0.1:19090
+AKSA_VPN_PROXY (legacy configuration key)=http://127.0.0.1:19090
 ```
 
 Start the application server in one terminal:
@@ -50,16 +50,16 @@ The desktop app defaults to `http://127.0.0.1:${PORT:-3000}`; use `ELECTRON_STAR
 Linux/macOS shell example:
 
 ```sh
-export AKSA_VPN_PROXY=http://127.0.0.1:19090
+export AKSA_VPN_PROXY (legacy configuration key)=http://127.0.0.1:19090
 npm run dev
-# In a second terminal, export the same AKSA_VPN_PROXY and run:
+# In a second terminal, export the same AKSA_VPN_PROXY (legacy configuration key) and run:
 npm run desktop
 ```
 
 PowerShell example:
 
 ```powershell
-$env:AKSA_VPN_PROXY = "http://127.0.0.1:19090"
+$env:AKSA_VPN_PROXY (legacy configuration key) = "http://127.0.0.1:19090"
 npm run dev
 # In a second PowerShell window, set the same variable and run:
 npm run desktop
@@ -67,8 +67,8 @@ npm run desktop
 
 ## Important limits and release gates
 
-- In the ordinary browser-hosted React app, Aksa covers only server-side outbound traffic initiated by the Aegis proxy. It cannot force unrelated direct connections from the user's browser.
+- In the ordinary browser-hosted React app, Akram VPN covers only server-side outbound traffic initiated by the Aegis proxy. It cannot force unrelated direct connections from the user's browser.
 - The Electron integration routes Chromium HTTP(S) requests through its session proxy and applies a fail-closed guard. Electron's proxy behavior, IPv4/IPv6/DNS routing, UDP/WebRTC, service workers, downloads, reconnects and every OS version still require real-device leak testing before claiming full protection.
 - This is not a device-wide VPN: traffic from other applications is not covered.
 - A syntactically configured gateway is not enough. The UI only reports connected after the gateway health contract confirms the tunnel.
-- Do not call Aksa a working VPN or release it as such until the real local gateway/daemon, its WireGuard configuration, provider/server endpoints, key provisioning, update mechanism and tunnel leak tests exist.
+- Do not call Akram VPN a working VPN or release it as such until the real local gateway/daemon, its WireGuard configuration, provider/server endpoints, key provisioning, update mechanism and tunnel leak tests exist.
