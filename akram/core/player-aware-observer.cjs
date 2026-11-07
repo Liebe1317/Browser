@@ -9,7 +9,7 @@ function classifyPlayerElement(input = {}) {
   const signals = Array.isArray(input.signals)
     ? [...new Set(input.signals.map((value) => String(value).toLowerCase()).filter(Boolean))]
     : [];
-  const protectedSignal = /(^|[-_\\s])(controls?|captions?|subtitles?|seek|progress|timeline|scrubber|volume|play|pause|fullscreen|settings|quality|toolbar|time-display|transcript)([-_\\s]|$)/i;
+  const protectedSignal = /(^|[-_\s])(controls?|captions?|subtitles?|seek|progress|timeline|scrubber|volume|play|pause|fullscreen|settings|quality|toolbar|time-display|transcript)([-_\s]|$)/i;
   const hasProtectedSignal = signals.some((value) => protectedSignal.test(value));
   if (
     ['video', 'audio', 'button', 'input', 'select', 'textarea'].includes(tag)
@@ -21,7 +21,7 @@ function classifyPlayerElement(input = {}) {
     return { kind: 'protected', confidence: 'high', reasons: ['player-control-or-media'] };
   }
 
-  const adSignal = /(^|[-_\\s])(ad|ads|advert|advertisement|sponsor|sponsored|promotion|preroll|midroll|postroll|vast|ima)([-_\\s]|$)/i;
+  const adSignal = /(^|[-_\s])(ad|ads|advert|advertisement|sponsor|sponsored|promotion|preroll|midroll|postroll|vast|ima)([-_\s]|$)/i;
   const matched = signals.filter((value) => adSignal.test(value));
   if (!input.inPlayer || !input.isOverlay || matched.length === 0) {
     return { kind: 'ignore', confidence: 'low', reasons: [] };
