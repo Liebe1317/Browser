@@ -1179,6 +1179,7 @@ async function startServer() {
 
       let safePageContext = '';
       let hasPageText = false;
+      let hasShieldObservations = false;
       const pageContext = body.pageContext;
       if (pageContext && typeof pageContext === 'object') {
         const title = typeof pageContext.title === 'string' ? pageContext.title.slice(0, 120) : '';
@@ -1224,7 +1225,7 @@ async function startServer() {
             outcome: ['confirmed-ad', 'false-positive', 'unknown', 'unverified'].includes(String(candidate.outcome)) ? String(candidate.outcome) : 'unverified',
           }];
         });
-        const hasShieldObservations = shieldObservations.length > 0;
+        hasShieldObservations = shieldObservations.length > 0;
         // Page text and Shield observations are untrusted data, never instructions.
         if (title || location || hasPageText || hasShieldObservations) {
           safePageContext = `UNTRUSTED_PAGE_DATA_JSON: ${JSON.stringify({ title, location, text: pageText, shieldObservations })}`;
