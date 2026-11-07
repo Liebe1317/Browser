@@ -14,6 +14,8 @@ if (process.isMainFrame) {
     shield: Object.freeze({
       getState: () => ipcRenderer.invoke('akram:shield:get-state'),
       updateList: (sourceId) => ipcRenderer.invoke('akram:shield:update-list', sourceId),
+      getPlayerCandidates: (limit = 50) => ipcRenderer.invoke('akram:shield:get-player-candidates', limit),
+      reviewPlayerCandidate: (fingerprint, outcome) => ipcRenderer.invoke('akram:shield:review-player-candidate', fingerprint, outcome),
     }),
     browser: Object.freeze({
       createSiteView: (options) => ipcRenderer.invoke('aegis:site:create', options),
