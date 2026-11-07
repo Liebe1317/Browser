@@ -39,10 +39,10 @@ function createAkramElectronShieldRuntime({ manager, vpnStatus, fetcherFactory =
       });
     },
     async update(sourceId) {
-      // Defense in depth: the runtime itself refuses updates while Aksa is enabled,
+      // Defense in depth: the runtime itself refuses updates while Akram VPN is enabled,
       // even if a test seam or future fetcher implementation omits its own VPN guard.
       if (vpnStatus().enabled) {
-        throw new Error('Filter updates are paused because Aksa VPN is enabled; direct fallback is forbidden.');
+        throw new Error('Filter updates are paused because Akram VPN is enabled; direct fallback is forbidden.');
       }
       return updater.update(sourceId);
     },
