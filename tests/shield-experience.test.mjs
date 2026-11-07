@@ -1,7 +1,6 @@
-'use strict';
-
-const assert = require('node:assert/strict');
-const { AkramShieldExperience } = require('../akram/core/shield-experience.cjs');
+import assert from 'node:assert/strict';
+import experienceModule from '../akram/core/shield-experience.cjs';
+const { AkramShieldExperience } = experienceModule;
 
 const store = new AkramShieldExperience({ limits: { maxEntries: 2 } });
 const first = store.recordObservation({
