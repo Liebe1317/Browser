@@ -29,7 +29,7 @@ const browserSessionPolicy = createBrowserSessionPolicy({
     onProxyFailure: () => {
       if (!aksaEnabled) return;
       aksaConnected = false;
-      akramShieldRuntime.abortAll(new Error('Aksa proxy failure; aborting filter update.'));
+      akramShieldRuntime.abortAll(new Error('Akram VPN proxy failure; aborting filter update.'));
       void applyAksaFailClosedProxy().catch(() => {});
     },
   }),
@@ -88,7 +88,7 @@ async function probeAksaTunnel() {
 }
 
 async function applyAksaProxy() {
-  if (!aksaProxy) throw new Error('Aksa local gateway is not configured');
+  if (!aksaProxy) throw new Error('Akram VPN local gateway is not configured');
   await browserSessionPolicy.applyProxyToAll({
     mode: 'fixed_servers',
     proxyRules: aksaProxy.proxyRules,
@@ -128,14 +128,14 @@ async function refreshAksaHealth() {
       aksaConnected = true;
     } else if (!healthy && aksaConnected) {
       aksaConnected = false;
-      akramShieldRuntime.abortAll(new Error('Aksa tunnel disconnected; aborting filter update.'));
+      akramShieldRuntime.abortAll(new Error('Akram VPN tunnel disconnected; aborting filter update.'));
       await applyAksaFailClosedProxy();
     } else {
       aksaConnected = healthy;
     }
   } catch {
     aksaConnected = false;
-    akramShieldRuntime.abortAll(new Error('Aksa health check failed; aborting filter update.'));
+    akramShieldRuntime.abortAll(new Error('Akram VPN health check failed; aborting filter update.'));
     try { await applyAksaFailClosedProxy(); } catch {}
   } finally {
     aksaCheckInFlight = false;
@@ -149,7 +149,7 @@ function startAksaMonitor() {
 }
 
 async function setAksaEnabled(next) {
-  if (next === true) akramShieldRuntime.abortAll(new Error('Aksa VPN enabled; filter update aborted.'));
+  if (next === true) akramShieldRuntime.abortAll(new Error('Akram VPN enabled; filter update aborted.'));
   if (next === false) {
     aksaEnabled = false;
     aksaConnected = false;
@@ -161,11 +161,11 @@ async function setAksaEnabled(next) {
   }
 
   if (!aksaProxy || !aksaSidecar) {
-    return { ok: false, status: getAksaStatus(), error: 'Aksa desktop engine is unavailable.' };
+    return { ok: false, status: getAksaStatus(), error: 'Akram VPN desktop engine is unavailable.' };
   }
   const started = await aksaSidecar.start();
   if (!started.ok) {
-    return { ok: false, status: getAksaStatus(), error: started.error || 'تعذر تشغيل نفق Aksa.' };
+    return { ok: false, status: getAksaStatus(), error: started.error || 'تعذر تشغيل نفق Akram VPN.' };
   }
 
   const healthy = await probeAksaTunnel();
@@ -191,7 +191,7 @@ async function setAksaEnabled(next) {
     aksaConnected = false;
     try { await applyAksaFailClosedProxy(); } catch {}
     await aksaSidecar.stop();
-    return { ok: false, status: getAksaStatus(), error: 'تعذر تحويل جلسة Chromium إلى بروكسي Aksa المحلي.' };
+    return { ok: false, status: getAksaStatus(), error: 'تعذر تحويل جلسة Chromium إلى بروكسي Akram VPN المحلي.' };
   }
 }
 
@@ -287,7 +287,7 @@ app.whenReady().then(() => {
     onExit: () => {
       if (aksaEnabled) {
         aksaConnected = false;
-        akramShieldRuntime.abortAll(new Error('Aksa sidecar exited; filter update aborted.'));
+        akramShieldRuntime.abortAll(new Error('Akram VPN sidecar exited; filter update aborted.'));
         void applyAksaFailClosedProxy().catch(() => {});
       }
     },
@@ -299,13 +299,13 @@ app.whenReady().then(() => {
       const result = await installWireproxy({ userDataPath });
       return { ok: true, version: result.version, status: getAksaStatus() };
     } catch (error) {
-      return { ok: false, error: error instanceof Error ? error.message : 'تعذر تثبيت محرك Aksa.', status: getAksaStatus() };
+      return { ok: false, error: error instanceof Error ? error.message : 'تعذر تثبيت محرك Akram VPN.', status: getAksaStatus() };
     }
   });
 
   ipcMain.handle('aegis:vpn:choose-config', async (event) => {
     if (!isTrustedUi(event)) return { ok: false, error: 'Untrusted desktop IPC request.' };
-    if (aksaEnabled) return { ok: false, error: 'أوقف Aksa قبل تغيير ملف WireGuard.' };
+    if (aksaEnabled) return { ok: false, error: 'أوقف Akram VPN قبل تغيير ملف WireGuard.' };
     const selection = await dialog.showOpenDialog(mainWindow, {
       title: 'اختيار ملف إعداد WireGuard من مزود VPN',
       properties: ['openFile'],
