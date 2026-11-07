@@ -21,6 +21,18 @@ assert.equal(candidate.surface, 'network');
 assert.equal(candidate.resourceType, 'script');
 assert.equal(Object.hasOwn(candidate, 'url'), false);
 assert.equal(manager.setExperienceOutcome(candidate.fingerprint, 'confirmed-ad').outcome, 'confirmed-ad');
+const playerCandidate = manager.recordCosmeticObservation({
+  host: 'video.example.test',
+  pageHost: 'video.example.test',
+  surface: 'player',
+  placement: 'player-overlay',
+  resourceType: 'other',
+  selector: '.sponsored-overlay',
+  source: 'player-dom-observer',
+});
+assert.equal(playerCandidate.surface, 'player');
+assert.equal(playerCandidate.placement, 'player-overlay');
+assert.equal(manager.getExperienceCandidates({ includeUnverified: true }).some((item) => item.fingerprint === playerCandidate.fingerprint), true);
 assert.equal(manager.getExperienceCandidates().length, 1);
 
 const snapshot = manager.exportExperience();
