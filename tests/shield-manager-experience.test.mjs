@@ -1,7 +1,6 @@
-'use strict';
-
-const assert = require('node:assert/strict');
-const { AkramShieldManager } = require('../akram/core/shield-manager.cjs');
+import assert from 'node:assert/strict';
+import managerModule from '../akram/core/shield-manager.cjs';
+const { AkramShieldManager } = managerModule;
 
 const manager = new AkramShieldManager({
   legacyRules: [{ id: 'known-ad-host', domain: 'ads.example.test' }],
