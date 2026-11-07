@@ -134,7 +134,7 @@ async function installWireproxy({
   fetchImpl = globalThis.fetch,
 } = {}) {
   const asset = getReleaseAsset(platform, arch);
-  if (!asset) throw new Error(`Aksa does not yet ship a Wireproxy binary for ${platform}/${arch}`);
+  if (!asset) throw new Error(`Akram VPN does not yet ship a Wireproxy binary for ${platform}/${arch}`);
 
   const paths = getAksaPaths(userDataPath, platform);
   fs.mkdirSync(paths.binDir, { recursive: true, mode: 0o700 });
