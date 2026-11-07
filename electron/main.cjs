@@ -370,6 +370,22 @@ app.whenReady().then(() => {
   ipcMain.handle('aegis:site:close', async (event, tabId) => isTrustedUi(event) && !!(await siteViewManager?.close(tabId)));
 
   createWindow();
+
+  // Bootstrap the live Chromium Shield manager once per desktop launch. This is not a
+  // recurring background schedule; each source is validated and atomically activated.
+  // The transport refuses direct requests whenever Akram VPN is enabled.
+  void akramShieldRuntime.updateAll().then((results) => {
+    for (const result of results) {
+      if (result.status === 'failed') {
+        console.warn(`[Akram Shield] ${result.id} initial update failed; retaining existing protection.`);
+      } else {
+        console.info(`[Akram Shield] ${result.id} ${result.status}; network rules: ${result.metadata?.networkRuleCount ?? 0}; cosmetic rules: ${result.metadata?.cosmeticRuleCount ?? 0}.`);
+      }
+    }
+  }).catch(() => {
+    console.warn('[Akram Shield] Initial filter-list bootstrap was skipped; existing protection remains active.');
+  });
+
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
