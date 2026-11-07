@@ -1,4 +1,7 @@
 import assert from 'node:assert/strict';
+import { createRequire } from 'node:module';
+const require = createRequire(import.meta.url);
+const sessionPolicy = require('../electron/session-policy.cjs');
 import observerModule from '../akram/core/player-aware-observer.cjs';
 
 const { OBSERVER_PREFIX, classifyPlayerElement, buildPlayerObserverScript, createPlayerObserverToken } = observerModule;
@@ -32,5 +35,16 @@ assert.ok(!script.includes('__akramPlayerObserverToken'), 'observer token is nev
 assert.ok(!script.includes('.remove()'));
 assert.ok(!script.includes('display:none'));
 assert.throws(() => buildPlayerObserverScript('not-a-token'), /token/);
+const memoryEntry = sessionPolicy.recordPlayerObservation({
+  host: 'player.example.test',
+  pageHost: 'player.example.test',
+  selector: '.ad-overlay',
+  confidence: 'high',
+  reasons: ['ad-overlay'],
+  state: 'visible',
+});
+assert.equal(memoryEntry.surface, 'player');
+assert.equal(memoryEntry.placement, 'player-overlay');
+assert.equal(sessionPolicy.getShieldExperienceCandidates({ includeUnverified: true }).some((item) => item.fingerprint === memoryEntry.fingerprint), true);
 
 console.log('Player-Aware Shield classifier and observer tests passed');
