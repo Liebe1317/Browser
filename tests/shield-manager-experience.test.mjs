@@ -28,10 +28,16 @@ const playerCandidate = manager.recordCosmeticObservation({
   placement: 'player-overlay',
   resourceType: 'other',
   selector: '.sponsored-overlay',
+  confidence: 'high',
+  reasons: ['sponsored-overlay', 'vast'],
+  tag: 'div',
   source: 'player-dom-observer',
 });
 assert.equal(playerCandidate.surface, 'player');
 assert.equal(playerCandidate.placement, 'player-overlay');
+assert.equal(playerCandidate.confidence, 'high');
+assert.deepEqual(playerCandidate.reasons, ['sponsored-overlay', 'vast']);
+assert.equal(playerCandidate.tag, 'div');
 assert.equal(manager.getExperienceCandidates({ includeUnverified: true }).some((item) => item.fingerprint === playerCandidate.fingerprint), true);
 manager.recordCosmeticObservation({ host: 'video.example.test', pageHost: 'video.example.test', surface: 'player', placement: 'player-overlay', selector: '.sponsored-overlay', source: 'player-dom-observer', state: 'visible' });
 manager.recordCosmeticObservation({ host: 'video.example.test', pageHost: 'video.example.test', surface: 'player', placement: 'player-overlay', selector: '.sponsored-overlay', source: 'player-dom-observer', state: 'hidden' });
