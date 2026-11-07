@@ -58,8 +58,14 @@ function buildPlayerObserverScript(token) {
     const clean = (value, max = 80) => String(value || '').replace(/[\\u0000-\\u001f\\u007f]/g, '').trim().slice(0, max);
     const selectorFor = (element) => {
       if (element.id) return '#' + CSS.escape(element.id).slice(0, 180);
+      const tag = element.tagName.toLowerCase();
       const classes = [...element.classList].filter(Boolean).slice(0, 3).map((name) => '.' + CSS.escape(name));
-      return (element.tagName.toLowerCase() + classes.join('')).slice(0, 256);
+      if (classes.length) return (tag + classes.join('')).slice(0, 256);
+      for (const attribute of ['data-ad', 'data-testid', 'aria-label', 'title']) {
+        const value = element.getAttribute(attribute);
+        if (value && value.length <= 80) return (tag + '[' + attribute + '=' + CSS.escape(value) + ']').slice(0, 256);
+      }
+      return '';
     };
     const emit = (payload) => {
       if (eventCount >= 120) return;
