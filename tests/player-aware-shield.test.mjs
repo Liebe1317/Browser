@@ -20,6 +20,8 @@ assert.ok(script.includes('MutationObserver'));
 assert.ok(script.includes('attributeFilter'));
 assert.ok(script.includes(OBSERVER_PREFIX + token));
 assert.ok(script.includes('requestAnimationFrame'));
+assert.ok(script.includes('pendingRoots'));
+assert.ok(!script.includes('__akramPlayerObserverToken'), 'observer token is never exposed on the page global');
 assert.ok(!script.includes('.remove()'));
 assert.ok(!script.includes('display:none'));
 assert.throws(() => buildPlayerObserverScript('not-a-token'), /token/);
