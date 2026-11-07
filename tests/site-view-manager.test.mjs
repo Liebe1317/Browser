@@ -122,7 +122,7 @@ const playerToken = createdViews[0].webContents.playerObserverScript.match(/cons
 ok(!!playerToken, 'Player-Aware observer uses a per-document secret event token');
 createdViews[0].webContents.emit('console-message', {}, {
   message: 'AKRAM_PLAYER_OBS:' + playerToken + ':' + JSON.stringify({
-    type: 'candidate', selector: '.sponsored-overlay', placement: 'player-overlay',
+    type: 'candidate', state: 'visible', selector: '.sponsored-overlay', placement: 'player-overlay',
     confidence: 'high', reasons: ['sponsored'],
   }),
 });
@@ -131,6 +131,22 @@ ok(playerObservations.length === 1 && playerObservations[0].surface === 'player'
   'authenticated player observations are recorded with page-scoped metadata');
 ok(events.at(-1).type === 'player-observation' && events.at(-1).fingerprint === 'a'.repeat(64),
   'player observations are forwarded to the trusted browser UI');
+createdViews[0].webContents.emit('console-message', {}, {
+  message: 'AKRAM_PLAYER_OBS:' + playerToken + ':' + JSON.stringify({
+    type: 'transition', state: 'hidden', selector: '.sponsored-overlay', placement: 'player-overlay',
+    confidence: 'high', reasons: ['sponsored'],
+  }),
+});
+ok(playerObservations.at(-1).state === 'hidden' && events.at(-1).state === 'hidden',
+  'player overlay visibility transitions are persisted and forwarded');
+createdViews[0].webContents.emit('console-message', {}, {
+  message: 'AKRAM_PLAYER_OBS:' + playerToken + ':' + JSON.stringify({
+    type: 'transition', state: 'removed', selector: '.floating-ad', placement: 'player-overlay',
+    confidence: 'medium', reasons: ['ad'],
+  }),
+});
+ok(playerObservations.at(-1).state === 'removed' && events.at(-1).state === 'removed',
+  'removed player overlays are persisted and forwarded');
 createdViews[0].webContents.emit('context-menu', {}, {
   linkURL: 'https://video.example/target',
   x: 115,
