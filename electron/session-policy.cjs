@@ -201,4 +201,4 @@ function createBrowserSessionPolicy({ getVpnState, isAppRequest, onNetworkEvent 
   return Object.freeze({ register, getSessions, applyProxyToAll, applyFailClosedToAll, restoreSystemProxyToAll });
 }
 
-module.exports = { createBrowserSessionPolicy, isBlockedAdOrTracker, isPrivateOrLocalUrl, addShieldFilterList, getShieldStats, getCosmeticCss };
+module.exports = { createBrowserSessionPolicy, isBlockedAdOrTracker, isPrivateOrLocalUrl, addShieldFilterList, getShieldStats, getCosmeticCss, getShieldManager: () => akramShieldsAdapter.manager };
