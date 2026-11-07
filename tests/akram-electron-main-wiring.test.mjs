@@ -16,6 +16,9 @@ assert.match(main, /ipcMain\.handle\('akram:shield:update-list'/);
 assert.match(main, /akram:shield:get-player-candidates/);
 assert.match(main, /akram:shield:review-player-candidate/);
 assert.match(main, /onPlayerObservation:\s*\(observation\)/);
+assert.match(main, /recordPlayerObservation\(observation\)/);
+assert.match(main, /getShieldExperienceCandidates/);
+assert.match(main, /setShieldExperienceOutcome/);
 assert.match(main, /if\s*\(!isTrustedUi\(event\)/);
 assert.match(main, /akramShieldRuntime\.abortAll\(/);
 assert.match(main, /akramShieldRuntime\.close\(\)/);
@@ -25,5 +28,7 @@ assert.match(preload, /updateList:\s*\(sourceId\)\s*=>\s*ipcRenderer\.invoke\('a
 assert.match(preload, /getPlayerCandidates:\s*\(limit = 50\)\s*=>\s*ipcRenderer\.invoke\('akram:shield:get-player-candidates',\s*limit\)/);
 assert.match(preload, /reviewPlayerCandidate:\s*\(fingerprint, outcome\)\s*=>\s*ipcRenderer\.invoke\('akram:shield:review-player-candidate'/);
 assert.match(sessionPolicy, /getShieldManager:\s*\(\)\s*=>\s*akramShieldsAdapter\.manager/);
+assert.match(sessionPolicy, /surface:\s*'player'/);
+assert.match(sessionPolicy, /getShieldExperienceCandidates/);
 
 console.log('PASS - Electron Main and preload expose trusted Shield updater and Player-Aware review controls');
