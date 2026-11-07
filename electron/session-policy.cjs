@@ -119,7 +119,7 @@ function createBrowserSessionPolicy({ getVpnState, isAppRequest, onNetworkEvent 
         const values = Array.isArray(rawValues) ? rawValues : [rawValues];
         const value = values.find((item) => typeof item === 'string');
         if (typeof value !== 'string') continue;
-        safe[name] = value.replace(/[\\r\\n\\0]/g, '').slice(0, 240);
+        safe[name] = value.replace(/[\r\n\0]/g, '').slice(0, 240);
       }
       return safe;
     };
