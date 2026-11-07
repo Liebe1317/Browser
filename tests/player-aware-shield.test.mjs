@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
+import observerModule from '../akram/core/player-aware-observer.cjs';
 const require = createRequire(import.meta.url);
 const sessionPolicy = require('../electron/session-policy.cjs');
-import observerModule from '../akram/core/player-aware-observer.cjs';
 
 const { OBSERVER_PREFIX, classifyPlayerElement, buildPlayerObserverScript, createPlayerObserverToken } = observerModule;
 
