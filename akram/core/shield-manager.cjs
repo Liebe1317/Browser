@@ -3,6 +3,7 @@
 const { AkramShields } = require('./shields.cjs');
 const { AkramCosmeticFilters } = require('./cosmetic-filters.cjs');
 const { DEFAULT_SHIELD_RULES } = require('./default-rules.cjs');
+const { AkramShieldExperience } = require('./shield-experience.cjs');
 
 const DEFAULT_LIMITS = Object.freeze({
   maxListBytes: 5 * 1024 * 1024,
@@ -47,9 +48,11 @@ class AkramShieldManager {
   #cosmetic;
   #metadata = new Map();
   #modules = { network: true, cosmetic: true };
+  #experience;
 
   constructor(options = {}) {
     this.#legacyRules = Array.isArray(options.legacyRules) ? options.legacyRules : DEFAULT_SHIELD_RULES;
+    this.#experience = options.experienceStore || new AkramShieldExperience({ snapshot: options.experienceSnapshot });
     this.#limits = { ...DEFAULT_LIMITS, ...(options.limits || {}) };
     for (const key of Object.keys(DEFAULT_LIMITS)) {
       if (!Number.isSafeInteger(this.#limits[key]) || this.#limits[key] < 1) {
@@ -156,6 +159,19 @@ class AkramShieldManager {
       return Object.freeze({ action: 'allow', reason: 'module-disabled', category: 'network' });
     }
     const decision = this.#network.evaluate(request);
+    if (decision.action === 'block') {
+      let host = '';
+      try { host = new URL(request.url).hostname; } catch {}
+      this.#experience.recordObservation({
+        host,
+        surface: 'network',
+        placement: 'network',
+        resourceType: request.resourceType || 'other',
+        ruleId: decision.ruleId || '',
+        source: decision.source || '',
+        decision: 'block',
+      });
+    }
     return Object.freeze({
       ...decision,
       category: 'network',
@@ -169,6 +185,30 @@ class AkramShieldManager {
 
   getCosmeticCss(rawUrl) {
     return this.#modules.cosmetic ? this.#cosmetic.getCss(rawUrl) : '';
+  }
+
+  recordCosmeticObservation(input = {}) {
+    return this.#experience.recordObservation({ ...input, surface: input.surface || 'cosmetic' });
+  }
+
+  setExperienceOutcome(fingerprint, outcome) {
+    return this.#experience.setOutcome(fingerprint, outcome);
+  }
+
+  getExperienceCandidates(options = {}) {
+    return this.#experience.getCandidates(options);
+  }
+
+  getExperienceStats() {
+    return this.#experience.getStats();
+  }
+
+  exportExperience() {
+    return this.#experience.exportSnapshot();
+  }
+
+  importExperience(snapshot) {
+    return this.#experience.importSnapshot(snapshot);
   }
 
   setModuleEnabled(module, enabled) {
@@ -195,6 +235,7 @@ class AkramShieldManager {
       ruleCount: this.#network.ruleCount,
       cosmeticRuleCount: this.#cosmetic.ruleCount,
       unsupportedLineCount: lists.reduce((sum, item) => sum + item.unsupportedLineCount, 0),
+      experience: this.#experience.getStats(),
     });
   }
 }
