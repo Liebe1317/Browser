@@ -164,6 +164,7 @@ class AkramShieldManager {
       try { host = new URL(request.url).hostname; } catch {}
       this.#experience.recordObservation({
         host,
+        pageHost: request.documentUrl || request.initiator || '',
         surface: 'network',
         placement: 'network',
         resourceType: request.resourceType || 'other',
