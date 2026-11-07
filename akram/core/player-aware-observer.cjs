@@ -48,11 +48,10 @@ function buildPlayerObserverScript(token) {
     const token = ${JSON.stringify(token)};
     const prefix = ${JSON.stringify(OBSERVER_PREFIX)};
     const classifyPlayerElement = ${classifier};
-    if (window.__akramPlayerObserverToken === token) return 'already-installed';
-    window.__akramPlayerObserverToken = token;
     const reported = new WeakSet();
     const seen = new Set();
     let scheduled = false;
+    const pendingRoots = new Set();
     let reportedCount = 0;
 
     const clean = (value, max = 80) => String(value || '').replace(/[\\u0000-\\u001f\\u007f]/g, '').trim().slice(0, max);
@@ -84,8 +83,9 @@ function buildPlayerObserverScript(token) {
       let isOverlay = false;
       try {
         const style = getComputedStyle(element);
-        isOverlay = style.position === 'fixed' || style.position === 'absolute'
-          || (inPlayer && style.zIndex !== 'auto' && style.zIndex !== '');
+        const visible = style.display !== 'none' && style.visibility !== 'hidden' && style.opacity !== '0';
+        isOverlay = visible && (style.position === 'fixed' || style.position === 'absolute'
+          || (inPlayer && style.zIndex !== 'auto' && style.zIndex !== ''));
       } catch {}
       const result = classifyPlayerElement({
         tagName: tag,
@@ -120,9 +120,15 @@ function buildPlayerObserverScript(token) {
       for (let index = 0; index < Math.min(candidates.length, 300); index += 1) inspect(candidates[index]);
     };
     const schedule = (root) => {
+      if (root instanceof Element && pendingRoots.size < 20) pendingRoots.add(root);
       if (scheduled) return;
       scheduled = true;
-      requestAnimationFrame(() => { scheduled = false; scan(root instanceof Element ? root : document); });
+      requestAnimationFrame(() => {
+        scheduled = false;
+        const roots = [...pendingRoots];
+        pendingRoots.clear();
+        for (const pendingRoot of roots) scan(pendingRoot);
+      });
     };
     scan(document);
     const observer = new MutationObserver((records) => {
