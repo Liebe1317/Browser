@@ -1,6 +1,9 @@
 'use strict';
 
-const assert = require('node:assert/strict');
+import assert from 'node:assert/strict';
+import { createRequire } from 'node:module';
+
+const require = createRequire(import.meta.url);
 const { createAkramElectronShieldRuntime } = require('../akram/shield/electron-runtime.cjs');
 
 function createHarness({ vpnEnabled = false, failFirst = false } = {}) {
