@@ -107,6 +107,22 @@ function createBrowserSessionPolicy({ getVpnState, isAppRequest, onNetworkEvent 
 
     const requestStarts = new Map();
     const requestFilter = { urls: ['*://*/*', 'ws://*/*', 'wss://*/*'] };
+    const safeResponseHeaderNames = new Set([
+      'server', 'cf-ray', 'cf-mitigated', 'content-type', 'via', 'x-cache',
+    ]);
+    const getSafeResponseHeaders = (headers) => {
+      const safe = {};
+      if (!headers || typeof headers !== 'object') return safe;
+      for (const [rawName, rawValues] of Object.entries(headers)) {
+        const name = rawName.toLowerCase();
+        if (!safeResponseHeaderNames.has(name)) continue;
+        const values = Array.isArray(rawValues) ? rawValues : [rawValues];
+        const value = values.find((item) => typeof item === 'string');
+        if (typeof value !== 'string') continue;
+        safe[name] = value.replace(/[\\r\\n\\0]/g, '').slice(0, 240);
+      }
+      return safe;
+    };
     const safeRequestUrl = (raw) => {
       try {
         const url = new URL(raw);
@@ -143,11 +159,22 @@ function createBrowserSessionPolicy({ getVpnState, isAppRequest, onNetworkEvent 
       onNetworkEvent?.({ ...base, phase: 'started' });
       callback({});
     });
+    browserSession.webRequest.onHeadersReceived(requestFilter, (details, callback) => {
+      const started = requestStarts.get(details.id);
+      if (started) started.responseHeaders = getSafeResponseHeaders(details.responseHeaders);
+      callback({});
+    });
     browserSession.webRequest.onCompleted(requestFilter, (details) => {
       const started = requestStarts.get(details.id);
       if (!started) return;
       requestStarts.delete(details.id);
-      onNetworkEvent?.({ ...started, phase: 'completed', statusCode: Number.isInteger(details.statusCode) ? details.statusCode : 0, duration: Math.max(0, Date.now() - started.timestamp) });
+      onNetworkEvent?.({
+        ...started,
+        phase: 'completed',
+        statusCode: Number.isInteger(details.statusCode) ? details.statusCode : 0,
+        duration: Math.max(0, Date.now() - started.timestamp),
+        ...(started.responseHeaders ? { responseHeaders: started.responseHeaders } : {}),
+      });
     });
     browserSession.webRequest.onErrorOccurred(requestFilter, (details) => {
       const started = requestStarts.get(details.id);
