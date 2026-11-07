@@ -90,7 +90,9 @@ function createSiteViewManager({
       if (!message.startsWith(prefix)) return;
       let payload;
       try { payload = JSON.parse(message.slice(prefix.length)); } catch { return; }
-      if (!payload || payload.type !== 'candidate'
+      const isCandidate = payload?.type === 'candidate' && payload.state === 'visible';
+      const isTransition = payload?.type === 'transition' && ['hidden', 'removed'].includes(payload.state);
+      if ((!isCandidate && !isTransition)
         || typeof payload.selector !== 'string' || !payload.selector
         || payload.selector.length > 256
         || !['high', 'medium'].includes(payload.confidence)
@@ -105,6 +107,7 @@ function createSiteViewManager({
         placement: 'player-overlay',
         resourceType: 'other',
         selector: payload.selector,
+        state: payload.state,
         source: 'player-dom-observer',
         timestamp: Date.now(),
       };
@@ -113,6 +116,7 @@ function createSiteViewManager({
       send(tabId, 'player-observation', {
         selector: payload.selector,
         placement: 'player-overlay',
+        state: payload.state,
         confidence: payload.confidence,
         reasons: payload.reasons.filter((value) => typeof value === 'string').slice(0, 6).map((value) => value.slice(0, 80)),
         fingerprint: typeof memoryEntry?.fingerprint === 'string' ? memoryEntry.fingerprint : '',
