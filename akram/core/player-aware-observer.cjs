@@ -48,11 +48,12 @@ function buildPlayerObserverScript(token) {
     const token = ${JSON.stringify(token)};
     const prefix = ${JSON.stringify(OBSERVER_PREFIX)};
     const classifyPlayerElement = ${classifier};
-    const reported = new WeakSet();
+    const reported = new WeakMap();
     const seen = new Set();
     let scheduled = false;
     const pendingRoots = new Set();
     let reportedCount = 0;
+    let eventCount = 0;
 
     const clean = (value, max = 80) => String(value || '').replace(/[\\u0000-\\u001f\\u007f]/g, '').trim().slice(0, max);
     const selectorFor = (element) => {
@@ -60,8 +61,21 @@ function buildPlayerObserverScript(token) {
       const classes = [...element.classList].filter(Boolean).slice(0, 3).map((name) => '.' + CSS.escape(name));
       return (element.tagName.toLowerCase() + classes.join('')).slice(0, 256);
     };
+    const emit = (payload) => {
+      if (eventCount >= 120) return;
+      eventCount += 1;
+      try { console.info(prefix + token + ':' + JSON.stringify(payload)); } catch {}
+    };
+    const transition = (element, state) => {
+      const previous = reported.get(element);
+      if (!previous) return;
+      emit({ ...previous, type: 'transition', state });
+      reported.delete(element);
+      seen.delete(previous.selector);
+    };
     const inspect = (element) => {
-      if (!(element instanceof Element) || reported.has(element) || reportedCount >= 40) return;
+      if (!(element instanceof Element) || reportedCount >= 40) return;
+      const previous = reported.get(element);
       const tag = element.tagName.toLowerCase();
       const rawSignals = [
         element.id, element.className,
@@ -81,12 +95,18 @@ function buildPlayerObserverScript(token) {
       }
       const inPlayer = !!playerRoot;
       let isOverlay = false;
+      let visible = true;
       try {
         const style = getComputedStyle(element);
-        const visible = style.display !== 'none' && style.visibility !== 'hidden' && style.opacity !== '0';
+        visible = style.display !== 'none' && style.visibility !== 'hidden' && style.opacity !== '0';
         isOverlay = visible && (style.position === 'fixed' || style.position === 'absolute'
           || (inPlayer && style.zIndex !== 'auto' && style.zIndex !== ''));
       } catch {}
+      if (previous && !visible) {
+        transition(element, 'hidden');
+        return;
+      }
+      if (previous) return;
       const result = classifyPlayerElement({
         tagName: tag,
         role: element.getAttribute('role') || '',
@@ -100,17 +120,23 @@ function buildPlayerObserverScript(token) {
       const selector = selectorFor(element);
       if (!selector || seen.has(selector)) return;
       seen.add(selector);
-      reported.add(element);
-      reportedCount += 1;
-      const payload = {
-        type: 'candidate',
+      reported.set(element, {
         selector,
         placement: 'player-overlay',
         confidence: result.confidence,
         reasons: result.reasons,
         tag: clean(tag, 16),
-      };
-      try { console.info(prefix + token + ':' + JSON.stringify(payload)); } catch {}
+      });
+      reportedCount += 1;
+      emit({
+        type: 'candidate',
+        state: 'visible',
+        selector,
+        placement: 'player-overlay',
+        confidence: result.confidence,
+        reasons: result.reasons,
+        tag: clean(tag, 16),
+      });
     };
 
     const scan = (root) => {
@@ -134,6 +160,13 @@ function buildPlayerObserverScript(token) {
     const observer = new MutationObserver((records) => {
       for (const record of records) {
         if (record.type === 'attributes') inspect(record.target);
+        for (const node of record.removedNodes || []) {
+          if (!(node instanceof Element)) continue;
+          const removed = [node, ...(node.querySelectorAll ? node.querySelectorAll('*') : [])];
+          for (const candidate of removed.slice(0, 301)) {
+            if (!candidate.isConnected) transition(candidate, 'removed');
+          }
+        }
         for (const node of record.addedNodes || []) {
           if (node instanceof Element) schedule(node);
         }
