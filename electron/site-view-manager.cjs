@@ -1,6 +1,7 @@
 'use strict';
 
 const { isBlockedAdOrTracker, getCosmeticCss } = require('./session-policy.cjs');
+const { OBSERVER_PREFIX, createPlayerObserverToken, buildPlayerObserverScript } = require('../akram/core/player-aware-observer.cjs');
 
 const SAFE_ID = /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,63}$/;
 const SITE_PROTOCOLS = new Set(['http:', 'https:']);
@@ -31,12 +32,14 @@ function createSiteViewManager({
   prepareSession,
   getTrustedAppOrigin,
   onEvent,
+  onPlayerObservation,
 }) {
   if (typeof WebContentsView !== 'function') throw new TypeError('WebContentsView constructor is required.');
   const views = new Map();
   const webContentsToTab = new Map();
   const partitions = new Map();
   const partitionCleanup = new Map();
+  const playerObserverTokens = new WeakMap();
 
   function send(tabId, type, data = {}) {
     onEvent?.({ tabId, type, ...data });
@@ -75,12 +78,60 @@ function createSiteViewManager({
       send(tabId, 'process-gone', { reason: typeof details?.reason === 'string' ? details.reason.slice(0, 40) : 'unknown' });
     });
 
+    // Player-Aware Shield observes dynamic player DOM without mutating the page.
+    // A per-WebContents secret authenticates the bounded console event bridge.
+    webContents.on('console-message', (_event, detailsOrLevel, legacyMessage) => {
+      const details = detailsOrLevel && typeof detailsOrLevel === 'object'
+        ? detailsOrLevel : { message: legacyMessage };
+      const message = typeof details.message === 'string' ? details.message : '';
+      const token = playerObserverTokens.get(webContents);
+      if (!token) return;
+      const prefix = OBSERVER_PREFIX + token + ':';
+      if (!message.startsWith(prefix)) return;
+      let payload;
+      try { payload = JSON.parse(message.slice(prefix.length)); } catch { return; }
+      if (!payload || payload.type !== 'candidate'
+        || typeof payload.selector !== 'string' || !payload.selector
+        || payload.selector.length > 256
+        || !['high', 'medium'].includes(payload.confidence)
+        || !Array.isArray(payload.reasons)) return;
+      let pageHost = '';
+      try { pageHost = new URL(webContents.getURL?.() || entry.url || '').hostname; } catch {}
+      if (!pageHost) return;
+      const observation = {
+        host: pageHost,
+        pageHost,
+        surface: 'player',
+        placement: 'player-overlay',
+        resourceType: 'other',
+        selector: payload.selector,
+        source: 'player-dom-observer',
+        timestamp: Date.now(),
+      };
+      let memoryEntry = null;
+      try { memoryEntry = onPlayerObservation?.(observation) || null; } catch {}
+      send(tabId, 'player-observation', {
+        selector: payload.selector,
+        placement: 'player-overlay',
+        confidence: payload.confidence,
+        reasons: payload.reasons.filter((value) => typeof value === 'string').slice(0, 6).map((value) => value.slice(0, 80)),
+        fingerprint: typeof memoryEntry?.fingerprint === 'string' ? memoryEntry.fingerprint : '',
+      });
+    });
+
     // Cosmetic filters are scoped to the committed page URL. The filter engine
     // rejects broad/core-player selectors and applies site-specific exceptions.
     webContents.on('dom-ready', () => {
-      if (typeof webContents.insertCSS !== 'function') return;
-      const css = getCosmeticCss(webContents.getURL?.() || entry.url || '');
-      if (css) void webContents.insertCSS(css).catch(() => {});
+      const pageUrl = webContents.getURL?.() || entry.url || '';
+      if (typeof webContents.insertCSS === 'function') {
+        const css = getCosmeticCss(pageUrl);
+        if (css) void webContents.insertCSS(css).catch(() => {});
+      }
+      if (typeof webContents.executeJavaScript === 'function') {
+        const token = createPlayerObserverToken();
+        playerObserverTokens.set(webContents, token);
+        void webContents.executeJavaScript(buildPlayerObserverScript(token), true).catch(() => {});
+      }
     });
 
     // WebContentsView has no built-in browser context menu. Map the renderer's
