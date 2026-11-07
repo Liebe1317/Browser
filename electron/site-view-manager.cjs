@@ -91,7 +91,7 @@ function createSiteViewManager({
       let payload;
       try { payload = JSON.parse(message.slice(prefix.length)); } catch { return; }
       const isCandidate = payload?.type === 'candidate' && payload.state === 'visible';
-      const isTransition = payload?.type === 'transition' && ['hidden', 'removed'].includes(payload.state);
+      const isTransition = payload?.type === 'transition' && ['hidden', 'removed', 'reclassified'].includes(payload.state);
       if ((!isCandidate && !isTransition)
         || typeof payload.selector !== 'string' || !payload.selector
         || payload.selector.length > 256
