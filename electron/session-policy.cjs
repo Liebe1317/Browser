@@ -69,6 +69,23 @@ function getShieldStats() {
   return akramShieldsAdapter.getStats();
 }
 
+function recordPlayerObservation(input = {}) {
+  return akramShieldsAdapter.recordCosmeticObservation({
+    ...input,
+    surface: 'player',
+    placement: 'player-overlay',
+    source: 'player-dom-observer',
+  });
+}
+
+function getShieldExperienceCandidates(options = {}) {
+  return akramShieldsAdapter.getExperienceCandidates(options);
+}
+
+function setShieldExperienceOutcome(fingerprint, outcome) {
+  return akramShieldsAdapter.setExperienceOutcome(fingerprint, outcome);
+}
+
 /**
  * Applies the same network and permission boundary to every Chromium session.
  * New profile partitions must be registered before their WebContents is created.
@@ -201,4 +218,4 @@ function createBrowserSessionPolicy({ getVpnState, isAppRequest, onNetworkEvent 
   return Object.freeze({ register, getSessions, applyProxyToAll, applyFailClosedToAll, restoreSystemProxyToAll });
 }
 
-module.exports = { createBrowserSessionPolicy, isBlockedAdOrTracker, isPrivateOrLocalUrl, addShieldFilterList, getShieldStats, getCosmeticCss, getShieldManager: () => akramShieldsAdapter.manager };
+module.exports = { createBrowserSessionPolicy, isBlockedAdOrTracker, isPrivateOrLocalUrl, addShieldFilterList, getShieldStats, getCosmeticCss, recordPlayerObservation, getShieldExperienceCandidates, setShieldExperienceOutcome, getShieldManager: () => akramShieldsAdapter.manager };
