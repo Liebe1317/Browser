@@ -1211,7 +1211,7 @@ async function startServer() {
           const candidate = item as Record<string, unknown>;
           const host = safePlayerHost(candidate.host);
           const pageHost = safePlayerHost(candidate.pageHost);
-          const selector = typeof candidate.selector === 'string' && /^[#a-zA-Z0-9_.\\:-]{1,256}$/.test(candidate.selector)
+          const selector = typeof candidate.selector === 'string' && /^[#a-zA-Z0-9_.\\:\[\]=\-]{1,256}$/.test(candidate.selector)
             ? candidate.selector : '';
           if (!host || !pageHost || !selector || candidate.surface !== 'player' || candidate.placement !== 'player-overlay') return [];
           const reasons = Array.isArray(candidate.reasons)
