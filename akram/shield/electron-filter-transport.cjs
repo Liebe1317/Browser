@@ -131,7 +131,7 @@ function createElectronFilterListFetcher({
     }
     if (init.method && init.method.toUpperCase() !== 'GET') throw new TypeError('Filter transport only permits GET requests.');
     if (vpnStatus().enabled) {
-      throw new Error('Filter updates are paused while Aksa VPN is enabled; direct fallback is forbidden.');
+      throw new Error('Filter updates are paused while Akram VPN is enabled; direct fallback is forbidden.');
     }
     const timeoutMs = init.timeoutMs ?? 20_000;
     const maxBytes = init.maxBytes ?? 5 * 1024 * 1024;
@@ -150,7 +150,7 @@ function createElectronFilterListFetcher({
       // Re-check immediately before dispatch. This direct-only dispatcher must never become
       // a fallback for an enabled VPN, even when the tunnel reports connected.
       if (vpnStatus().enabled) {
-        throw new Error('Filter updates are paused while Aksa VPN is enabled; direct fallback is forbidden.');
+        throw new Error('Filter updates are paused while Akram VPN is enabled; direct fallback is forbidden.');
       }
       const response = await fetchImpl(url, {
         method: 'GET',
@@ -171,7 +171,7 @@ function createElectronFilterListFetcher({
     }
   }
 
-  fetchFilterList.abortAll = (reason = new Error('Aksa VPN state changed; filter update aborted.')) => {
+  fetchFilterList.abortAll = (reason = new Error('Akram VPN state changed; filter update aborted.')) => {
     for (const controller of activeRequests) controller.abort(reason);
   };
   fetchFilterList.close = async () => {
