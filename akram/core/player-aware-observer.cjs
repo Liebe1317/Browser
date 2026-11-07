@@ -22,7 +22,7 @@ function classifyPlayerElement(input = {}) {
   }
 
   const adSignal = /(^|[-_\s])(ad|ads|advert|advertisement|sponsor|sponsored|promotion|preroll|midroll|postroll|vast|ima)([-_\s]|$)/i;
-  const matched = signals.flatMap((value) => value.split(/\\s+/)).filter((value) => adSignal.test(value)).slice(0, 6);
+  const matched = signals.flatMap((value) => value.split(/\s+/)).filter((value) => adSignal.test(value)).slice(0, 6);
   if (!input.inPlayer || !input.isOverlay || matched.length === 0) {
     return { kind: 'ignore', confidence: 'low', reasons: [] };
   }
