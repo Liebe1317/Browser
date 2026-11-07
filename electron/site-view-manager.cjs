@@ -441,7 +441,7 @@ function createSiteViewManager({
               .filter(([name, value]) => ['server', 'cf-ray', 'cf-mitigated', 'content-type', 'via', 'x-cache'].includes(name.toLowerCase())
                 && typeof value === 'string')
               .slice(0, 6)
-              .map(([name, value]) => [name.toLowerCase(), value.replace(/[\\r\\n\\0]/g, '').slice(0, 240)]),
+              .map(([name, value]) => [name.toLowerCase(), value.replace(/[\r\n\0]/g, '').slice(0, 240)]),
           ),
         } : {}),
       });
