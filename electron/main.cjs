@@ -6,8 +6,9 @@ const { pathToFileURL } = require('url');
 const { parseAksaLocalProxy, getAegisUserDataPath } = require('./aksa-config.cjs');
 const { AksaSidecar } = require('./aksa-sidecar.cjs');
 const { installWireproxy } = require('./aksa-installer.cjs');
-const { createBrowserSessionPolicy } = require('./session-policy.cjs');
+const { createBrowserSessionPolicy, getShieldManager } = require('./session-policy.cjs');
 const { createSiteViewManager } = require('./site-view-manager.cjs');
+const { createAkramElectronShieldRuntime } = require('../akram/shield/electron-runtime.cjs');
 
 let mainWindow = null;
 let siteViewManager = null;
@@ -28,11 +29,19 @@ const browserSessionPolicy = createBrowserSessionPolicy({
     onProxyFailure: () => {
       if (!aksaEnabled) return;
       aksaConnected = false;
+      akramShieldRuntime.abortAll(new Error('Aksa proxy failure; aborting filter update.'));
       void applyAksaFailClosedProxy().catch(() => {});
     },
   }),
   isAppRequest,
   onNetworkEvent: (payload) => { siteViewManager?.recordNetworkEvent(payload); },
+});
+
+// The updater and Chromium request policy share this exact manager instance. Updates are manual;
+// no background schedule starts until the updater lifecycle and real-site compatibility are proven.
+const akramShieldRuntime = createAkramElectronShieldRuntime({
+  manager: getShieldManager(),
+  vpnStatus: () => ({ enabled: aksaEnabled, connected: aksaEnabled && aksaConnected }),
 });
 
 // The browser UI needs the local Express/Vite API; a file:// renderer cannot use same-origin /api.
@@ -119,6 +128,7 @@ async function refreshAksaHealth() {
       aksaConnected = true;
     } else if (!healthy && aksaConnected) {
       aksaConnected = false;
+      akramShieldRuntime.abortAll(new Error('Aksa tunnel disconnected; aborting filter update.'));
       await applyAksaFailClosedProxy();
     } else {
       aksaConnected = healthy;
@@ -138,6 +148,7 @@ function startAksaMonitor() {
 }
 
 async function setAksaEnabled(next) {
+  if (next === true) akramShieldRuntime.abortAll(new Error('Aksa VPN enabled; filter update aborted.'));
   if (next === false) {
     aksaEnabled = false;
     aksaConnected = false;
@@ -275,6 +286,7 @@ app.whenReady().then(() => {
     onExit: () => {
       if (aksaEnabled) {
         aksaConnected = false;
+        akramShieldRuntime.abortAll(new Error('Aksa sidecar exited; filter update aborted.'));
         void applyAksaFailClosedProxy().catch(() => {});
       }
     },
@@ -318,6 +330,22 @@ app.whenReady().then(() => {
     return setAksaEnabled(enabled);
   });
 
+  ipcMain.handle('akram:shield:get-state', (event) => {
+    if (!isTrustedUi(event)) return { ok: false, error: 'Untrusted desktop IPC request.' };
+    return { ok: true, state: akramShieldRuntime.getState() };
+  });
+  ipcMain.handle('akram:shield:update-list', async (event, sourceId) => {
+    if (!isTrustedUi(event) || typeof sourceId !== 'string' || !/^[a-z0-9_-]{1,32}$/i.test(sourceId)) {
+      return { ok: false, error: 'Untrusted or invalid filter update request.' };
+    }
+    try {
+      const result = await akramShieldRuntime.update(sourceId);
+      return { ok: true, result, state: akramShieldRuntime.getState() };
+    } catch (error) {
+      return { ok: false, error: error instanceof Error ? error.message : 'تعذر تحديث قائمة الحماية.', state: akramShieldRuntime.getState() };
+    }
+  });
+
   ipcMain.handle('aegis:site:create', async (event, payload) => {
     if (!isTrustedUi(event) || !siteViewManager) return { ok: false, error: 'untrusted-or-unavailable' };
     try { return await siteViewManager.create(payload); } catch { return { ok: false, error: 'site-view-unavailable' }; }
@@ -352,7 +380,7 @@ app.on('before-quit', (event) => {
   if (!finalQuitStarted && aksaSidecar) {
     finalQuitStarted = true;
     event.preventDefault();
-    void Promise.allSettled([siteViewManager?.closeAll(), aksaSidecar.stop()]).finally(() => app.quit());
+    void Promise.allSettled([siteViewManager?.closeAll(), akramShieldRuntime.close(), aksaSidecar.stop()]).finally(() => app.quit());
   }
 });
 app.on('window-all-closed', () => {

@@ -11,6 +11,10 @@ if (process.isMainFrame) {
       install: () => ipcRenderer.invoke('aegis:vpn:install'),
       chooseConfig: () => ipcRenderer.invoke('aegis:vpn:choose-config'),
     }),
+    shield: Object.freeze({
+      getState: () => ipcRenderer.invoke('akram:shield:get-state'),
+      updateList: (sourceId) => ipcRenderer.invoke('akram:shield:update-list', sourceId),
+    }),
     browser: Object.freeze({
       createSiteView: (options) => ipcRenderer.invoke('aegis:site:create', options),
       setSiteViewBounds: (tabId, bounds) => ipcRenderer.invoke('aegis:site:set-bounds', tabId, bounds),
