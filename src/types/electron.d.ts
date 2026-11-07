@@ -84,6 +84,7 @@ declare global {
           duration?: number;
           error?: string;
           blockedReason?: string;
+          responseHeaders?: Record<string, string>;
           timestamp?: number;
           state?: 'playing' | 'paused';
           audible?: boolean;
