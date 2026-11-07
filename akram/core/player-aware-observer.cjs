@@ -74,8 +74,9 @@ function buildPlayerObserverScript(token) {
       seen.delete(previous.selector);
     };
     const inspect = (element) => {
-      if (!(element instanceof Element) || reportedCount >= 40) return;
+      if (!(element instanceof Element)) return;
       const previous = reported.get(element);
+      if (!previous && reportedCount >= 40) return;
       const tag = element.tagName.toLowerCase();
       const rawSignals = [
         element.id, element.className,
