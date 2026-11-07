@@ -163,8 +163,10 @@ function buildPlayerObserverScript(token) {
         if (record.type === 'attributes') inspect(record.target);
         for (const node of record.removedNodes || []) {
           if (!(node instanceof Element)) continue;
-          const removed = [node, ...(node.querySelectorAll ? node.querySelectorAll('*') : [])];
-          for (const candidate of removed.slice(0, 301)) {
+          if (!node.isConnected) transition(node, 'removed');
+          const descendants = node.querySelectorAll ? node.querySelectorAll('*') : [];
+          for (let index = 0; index < Math.min(descendants.length, 300); index += 1) {
+            const candidate = descendants[index];
             if (!candidate.isConnected) transition(candidate, 'removed');
           }
         }
