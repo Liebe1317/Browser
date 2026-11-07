@@ -127,10 +127,12 @@ function createSiteViewManager({
         const css = getCosmeticCss(pageUrl);
         if (css) void webContents.insertCSS(css).catch(() => {});
       }
-      if (typeof webContents.executeJavaScript === 'function') {
+      if (typeof webContents.executeJavaScriptInIsolatedWorld === 'function') {
         const token = createPlayerObserverToken();
         playerObserverTokens.set(webContents, token);
-        void webContents.executeJavaScript(buildPlayerObserverScript(token), true).catch(() => {});
+        void webContents.executeJavaScriptInIsolatedWorld(1337, [{
+          code: buildPlayerObserverScript(token),
+        }], true).catch(() => {});
       }
     });
 
