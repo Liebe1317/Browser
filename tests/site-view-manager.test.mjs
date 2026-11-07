@@ -57,8 +57,9 @@ class FakeWebContentsView {
     this.webContents.setZoomFactor = (factor) => { this.webContents.zoomFactor = factor; };
     this.webContents.destroy = () => { this.webContents.destroyed = true; };
     this.webContents.setWindowOpenHandler = (handler) => { this.webContents.openHandler = handler; };
-    this.webContents.insertCSS = async (css) => { this.webContents.insertedCss = css; };
-    this.webContents.executeJavaScriptInIsolatedWorld = async (worldId, scripts, userGesture) => { this.webContents.playerObserverScript = scripts[0]?.code || ''; this.webContents.playerObserverWorldId = worldId; this.webContents.playerObserverUserGesture = userGesture; return 'installed'; };
+    this.webContents.playerObserverOrder = [];
+    this.webContents.insertCSS = async (css) => { this.webContents.playerObserverOrder.push('css'); this.webContents.insertedCss = css; };
+    this.webContents.executeJavaScriptInIsolatedWorld = async (worldId, scripts, userGesture) => { this.webContents.playerObserverOrder.push('observer'); this.webContents.playerObserverScript = scripts[0]?.code || ''; this.webContents.playerObserverWorldId = worldId; this.webContents.playerObserverUserGesture = userGesture; return 'installed'; };
     this.getBounds = () => this.bounds || { x: 0, y: 0 };
     for (const method of ['copy', 'cut', 'paste', 'undo', 'redo', 'selectAll']) {
       this.webContents[method] = () => { this.webContents.lastCommand = method; };
@@ -117,8 +118,9 @@ ok(createdViews[0].webContents.insertedCss.includes('.ytp-ad-overlay-container')
   'site views install cosmetic ad-slot and YouTube overlay filtering');
 ok(createdViews[0].webContents.playerObserverScript.includes('MutationObserver')
   && createdViews[0].webContents.playerObserverWorldId === 1337
-  && createdViews[0].webContents.playerObserverUserGesture === true,
-  'site views install the dynamic Player-Aware DOM observer in an isolated Chromium world');
+  && createdViews[0].webContents.playerObserverUserGesture === true
+  && createdViews[0].webContents.playerObserverOrder.indexOf('observer') < createdViews[0].webContents.playerObserverOrder.indexOf('css'),
+  'site views install the dynamic Player-Aware DOM observer in an isolated Chromium world before applying cosmetic CSS');
 const playerToken = createdViews[0].webContents.playerObserverScript.match(/const token = "([a-f0-9]{48})"/)?.[1];
 ok(!!playerToken, 'Player-Aware observer uses a per-document secret event token');
 createdViews[0].webContents.emit('console-message', {}, {
