@@ -58,6 +58,7 @@ class FakeWebContentsView {
     this.webContents.destroy = () => { this.webContents.destroyed = true; };
     this.webContents.setWindowOpenHandler = (handler) => { this.webContents.openHandler = handler; };
     this.webContents.insertCSS = async (css) => { this.webContents.insertedCss = css; };
+    this.webContents.executeJavaScript = async (script, userGesture) => { this.webContents.playerObserverScript = script; this.webContents.playerObserverUserGesture = userGesture; return 'installed'; };
     this.getBounds = () => this.bounds || { x: 0, y: 0 };
     for (const method of ['copy', 'cut', 'paste', 'undo', 'redo', 'selectAll']) {
       this.webContents[method] = () => { this.webContents.lastCommand = method; };
@@ -71,6 +72,7 @@ class FakeWebContentsView {
 }
 
 const events = [];
+const playerObservations = [];
 let lastContextMenu = null;
 let lastContextMenuOptions = null;
 let copiedText = '';
@@ -87,6 +89,7 @@ const manager = createSiteViewManager({
   prepareSession: async (session) => prepared.push(session),
   getTrustedAppOrigin: () => 'http://127.0.0.1:3000',
   onEvent: (event) => events.push(event),
+  onPlayerObservation: (observation) => { playerObservations.push(observation); return { fingerprint: 'a'.repeat(64) }; },
 });
 
 const unknownProfile = await manager.create({ tabId: 'tab-unknown', profileKind: 'regular', profileId: 'another-profile', url: 'https://video.example/' });
@@ -111,6 +114,22 @@ createdViews[0].webContents.emit('dom-ready');
 ok(createdViews[0].webContents.insertedCss.includes('.ytp-ad-overlay-container')
   && createdViews[0].webContents.insertedCss.includes('.adsbygoogle'),
   'site views install cosmetic ad-slot and YouTube overlay filtering');
+ok(createdViews[0].webContents.playerObserverScript.includes('MutationObserver')
+  && createdViews[0].webContents.playerObserverUserGesture === true,
+  'site views install the dynamic Player-Aware DOM observer');
+const playerToken = createdViews[0].webContents.playerObserverScript.match(/const token = "([a-f0-9]{48})"/)?.[1];
+ok(!!playerToken, 'Player-Aware observer uses a per-document secret event token');
+createdViews[0].webContents.emit('console-message', {}, {
+  message: 'AKRAM_PLAYER_OBS:' + playerToken + ':' + JSON.stringify({
+    type: 'candidate', selector: '.sponsored-overlay', placement: 'player-overlay',
+    confidence: 'high', reasons: ['sponsored'],
+  }),
+});
+ok(playerObservations.length === 1 && playerObservations[0].surface === 'player'
+  && playerObservations[0].pageHost === 'www.youtube.com',
+  'authenticated player observations are recorded with page-scoped metadata');
+ok(events.at(-1).type === 'player-observation' && events.at(-1).fingerprint === 'a'.repeat(64),
+  'player observations are forwarded to the trusted browser UI');
 createdViews[0].webContents.emit('context-menu', {}, {
   linkURL: 'https://video.example/target',
   x: 115,
