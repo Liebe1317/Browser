@@ -29,9 +29,14 @@ function normalizeObservation(input = {}) {
   const source = safeToken(input.source, 80);
   // Keep selectors only as bounded CSS metadata; never retain page text, HTML, or full URLs.
   const selector = safeToken(input.selector, DEFAULT_LIMITS.maxSelectorLength);
+  const confidence = ['high', 'medium'].includes(input.confidence) ? input.confidence : 'unknown';
+  const reasons = Array.isArray(input.reasons)
+    ? input.reasons.map((value) => safeToken(value, 80).toLowerCase()).filter((value) => /^[a-z0-9_-]{1,80}$/i.test(value)).slice(0, 6)
+    : [];
+  const tag = safeToken(input.tag || 'div', 16).toLowerCase();
   const identity = [host, pageHost, surface, placement, resourceType, ruleId, source, selector].join('|');
   const fingerprint = crypto.createHash('sha256').update(identity).digest('hex');
-  return { host, pageHost, surface, placement, resourceType, ruleId, source, selector, fingerprint };
+  return { host, pageHost, surface, placement, resourceType, ruleId, source, selector, confidence, reasons, tag, fingerprint };
 }
 
 class AkramShieldExperience {
@@ -57,6 +62,9 @@ class AkramShieldExperience {
       current.lastSeenAt = now;
       current.lastState = state;
       current.lastTransitionAt = now;
+      current.confidence = normalized.confidence;
+      current.reasons = normalized.reasons;
+      current.tag = normalized.tag;
       if (state === 'visible') current.appearanceCount += 1;
       if (state === 'hidden') current.hiddenCount += 1;
       if (state === 'removed') current.removedCount += 1;
