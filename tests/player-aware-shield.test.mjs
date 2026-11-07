@@ -32,6 +32,7 @@ assert.ok(script.includes("return '';"), 'observer refuses tag-only broad select
 assert.ok(script.includes('removedNodes'));
 assert.ok(script.includes("transition(element, 'hidden')"));
 assert.ok(script.includes("transition(candidate, 'removed')"));
+assert.ok(script.includes("transition(element, 'reclassified')"), 'attribute changes can retract a stale player-ad candidate');
 assert.ok(!script.includes('__akramPlayerObserverToken'), 'observer token is never exposed on the page global');
 assert.ok(!script.includes('.remove()'));
 assert.ok(!script.includes('display:none'));
